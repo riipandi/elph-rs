@@ -211,10 +211,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
- "js-sys",
  "num-traits",
- "serde",
- "wasm-bindgen",
  "windows-link",
 ]
 
@@ -309,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "elph-agent"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "chrono",
  "elph-ai",
@@ -317,11 +314,11 @@ dependencies = [
 
 [[package]]
 name = "elph-ai"
-version = "0.0.1"
+version = "0.0.2"
 
 [[package]]
 name = "elph-coding-agent"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "chrono",
  "elph-agent",
@@ -333,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "elph-tui"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "iocraft",
 ]

@@ -1,6 +1,6 @@
 [package]
 name = "elph-coding-agent"
-version = "0.0.1"
+version = "0.0.2"
 license = "MIT"
 description = "Minimalist AI agent companion for coding"
 repository = "https://github.com/riipandi/elph"

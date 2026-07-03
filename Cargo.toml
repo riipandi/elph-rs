@@ -4,12 +4,24 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 # Internal dependencies
-elph-agent = { path = "crates/agent", version = "0.0.1" }
-elph-ai = { path = "crates/ai", version = "0.0.1" }
-elph-tui = { path = "crates/tui", version = "0.0.1" }
+elph-agent = { path = "crates/agent", version = "0.0.2" }
+elph-ai = { path = "crates/ai", version = "0.0.2" }
+elph-tui = { path = "crates/tui", version = "0.0.2" }
 
 # External dependencies
-chrono = { version = "0.4.45", features = ["serde"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 iocraft = "0.8.3"
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
 smol = "2.0.2"
+
+[profile.release]
+opt-level = "z"      # optimize for size — smaller binary, less memory
+lto = "fat"          # full link-time optimization across all crates
+codegen-units = 1    # single codegen unit = max LLVM optimization
+panic = "abort"      # no panic unwinding = smaller binary
+debug = false        # no debug symbols
+strip = true         # strip symbols from binary
+
+[profile.dev]
+incremental = true   # Compile your binary in smaller steps.
+debug = "limited"    # Debug info without type or variable-level information.

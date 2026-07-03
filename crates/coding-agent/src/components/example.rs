@@ -1,5 +1,5 @@
 use chrono::Local;
-use elph_tui::{frame, Label};
+use elph_tui::{Label, frame};
 use iocraft::prelude::*;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -20,18 +20,14 @@ pub fn Example(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
 
     hooks.use_terminal_events({
         move |event| match event {
-            TerminalEvent::Key(KeyEvent { code, kind, .. })
-                if kind != KeyEventKind::Release =>
-            {
-                match code {
-                    KeyCode::Char('q') => {
-                        should_exit.set(true);
-                        #[cfg(unix)]
-                        crate::SHOULD_KILL_PARENT.store(true, Ordering::Relaxed);
-                    }
-                    _ => {}
+            TerminalEvent::Key(KeyEvent { code, kind, .. }) if kind != KeyEventKind::Release => match code {
+                KeyCode::Char('q') => {
+                    should_exit.set(true);
+                    #[cfg(unix)]
+                    crate::SHOULD_KILL_PARENT.store(true, Ordering::Relaxed);
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
     });
