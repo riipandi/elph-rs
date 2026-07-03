@@ -55,24 +55,6 @@ cargo publish -p elph
 
 **Note:** crates.io is immutable. Once published, a version cannot be overwritten or deleted.
 
-**Yank** — mark a version as unusable (keeps the code, prevents new installs):
-
-```sh
-cargo yank elph@0.0.1
-```
-
-**Undo yank**
-
-```sh
-cargo yank elph@0.0.1 --undo
-```
-
-**Patch** — fix, bump version, publish:
-
-```sh
-cargo publish -p elph
-```
-
 ## Documentation
 
 Documentation lives in [`docs/`](./docs/). Start with [docs/README.md](./docs/README.md).
