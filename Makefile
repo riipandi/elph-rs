@@ -1,11 +1,13 @@
 .DEFAULT_GOAL := help
 
-CARGO       := $$(which cargo)
-CROSS       := $$(which cross)
-PKG_VERSION := $(shell grep '^version' crates/coding-agent/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
-BUILD_HASH  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
-BUILD_DIR   := ./target/release
-BINARY_NAME := elph
+BINARY_NAME  := elph
+CARGO        := $$(which cargo)
+CROSS        := $$(which cross)
+PKG_VERSION  := $(shell grep '^version' crates/coding-agent/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+BUILD_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
+INSTALL_NAME := $(BINARY_NAME)-next
+INSTALL_DIR  := $(HOME)/.local/bin
+BUILD_DIR    := ./target/release
 
 # Auto-detect cross-compilation target based on host platform
 UNAME_S := $(shell uname -s)
@@ -50,6 +52,11 @@ build: ## Build the application binary
 	echo "Binary file: $(BUILD_DIR)/$(BINARY_NAME)"; \
 	printf "Build time:  %d.%03ds\n" $$(( _elapsed / 1000 )) $$(( _elapsed % 1000 ))
 
+install: build ## Build and copy binary to $INSTALL_DIR
+	@mkdir -p $(INSTALL_DIR)
+	@cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(INSTALL_NAME)
+	@echo "Installed: $$(command -v $(INSTALL_DIR)/$(INSTALL_NAME) 2>/dev/null || echo $(INSTALL_DIR)/$(INSTALL_NAME))"
+
 run: ## Run the application
 	@$(CARGO) run --bin $(BINARY_NAME) $(or $(_RESIDUAL_),$(ARGS))
 
@@ -61,7 +68,7 @@ test: ## Run all workspace tests
 
 # ─── Cross-Compilation ─────────────────────────────────────────────────────────
 
-cross: ## Cross-compile for $$CROSS_TARGET
+cross: ## Cross-compile for $CROSS_TARGET
 	@echo "Cross-building for $(CROSS_TARGET)..."
 	@$(CROSS) build --release --target $(CROSS_TARGET)
 	@echo "Binary: target/$(CROSS_TARGET)/release/$(BINARY_NAME)"
