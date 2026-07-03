@@ -33,7 +33,7 @@ _RESIDUAL_ := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 $(foreach a,$(_RESIDUAL_),$(eval .PHONY: $a))
 $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
-.PHONY: build run watch test lint fmt clean check coverage prepare cross help
+.PHONY: build run watch test lint fmt clean check coverage prepare cross bump-major bump-minor bump-patch help
 
 # ─── Build ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,31 @@ prepare: ## Install required toolchain
 	@command -v cross >/dev/null 2>&1 || $(CARGO) install cross --locked
 	@rustup target add $(CROSS_TARGET) 2>/dev/null || true
 
+# ─── Versioning ────────────────────────────────────────────────────────────────
+
+_CUR := $(shell grep '^version' crates/coding-agent/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+_MAJ := $(word 1,$(subst ., ,$(_CUR)))
+_MIN := $(word 2,$(subst ., ,$(_CUR)))
+_PAT := $(word 3,$(subst ., ,$(_CUR)))
+
+define _bump
+	@echo "Bumping $(_CUR) → $(1)..."
+	@for f in crates/*/Cargo.toml; do \
+	  sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(1)"/' "$$f"; \
+	done
+	@sed -i '' 's/\(elph-agent = .* version = \)"[0-9]*\.[0-9]*\.[0-9]*"/\1"$(1)"/' Cargo.toml
+	@sed -i '' 's/\(elph-ai = .* version = \)"[0-9]*\.[0-9]*\.[0-9]*"/\1"$(1)"/' Cargo.toml
+	@sed -i '' 's/\(elph-tui = .* version = \)"[0-9]*\.[0-9]*\.[0-9]*"/\1"$(1)"/' Cargo.toml
+endef
+
+bump-patch: ## Bump patch (0.0.x)
+	$(call _bump,$(_MAJ).$(_MIN).$(shell expr $(_PAT) + 1))
+
+bump-minor: ## Bump minor (0.x.0)
+	$(call _bump,$(_MAJ).$(shell expr $(_MIN) + 1).0)
+
+bump-major: ## Bump major (x.0.0)
+	$(call _bump,$(shell expr $(_MAJ) + 1).0.0)
 # ─── Help ───────────────────────────────────────────────────────────────────
 
 help: ## Show this help

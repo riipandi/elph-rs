@@ -1,3 +1,3 @@
-# elph-coding-agent
+# Elph
 
 Minimalist AI agent companion.

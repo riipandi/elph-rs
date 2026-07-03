@@ -1,6 +1,6 @@
 [package]
-name = "elph-coding-agent"
-version = "0.0.2"
+name = "elph"
+version = "0.0.3"
 license = "MIT"
 description = "Minimalist AI agent companion for coding"
 repository = "https://github.com/riipandi/elph"
@@ -15,8 +15,8 @@ path = "src/main.rs"
 
 [dependencies]
 chrono.workspace = true
-nix.workspace = true
-smol.workspace = true
-iocraft.workspace = true
 elph-agent.workspace = true
 elph-tui.workspace = true
+iocraft.workspace = true
+nix.workspace = true
+smol.workspace = true
