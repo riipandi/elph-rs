@@ -305,20 +305,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "elph-agent"
-version = "0.0.2"
-dependencies = [
- "chrono",
- "elph-ai",
-]
-
-[[package]]
-name = "elph-ai"
-version = "0.0.2"
-
-[[package]]
-name = "elph-coding-agent"
-version = "0.0.2"
+name = "elph"
+version = "0.0.3"
 dependencies = [
  "chrono",
  "elph-agent",
@@ -329,8 +317,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "elph-agent"
+version = "0.0.3"
+dependencies = [
+ "chrono",
+ "elph-ai",
+]
+
+[[package]]
+name = "elph-ai"
+version = "0.0.3"
+
+[[package]]
 name = "elph-tui"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "iocraft",
 ]
