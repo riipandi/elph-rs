@@ -44,6 +44,23 @@ make run
 
 ### Publishing
 
+Publish all crates to crates.io (order matters: ai → agent → tui → elph):
+
+```sh
+make publish
+```
+
+Or publish individually:
+
+```sh
+cargo publish -p elph-ai
+cargo publish -p elph-agent
+cargo publish -p elph-tui
+cargo publish -p elph
+```
+
+**Note:** crates.io is immutable — once published, a version cannot be overwritten or deleted.
+
 Publish all crates to crates.io (order matters):
 
 ```sh

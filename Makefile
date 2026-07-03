@@ -36,7 +36,7 @@ $(foreach a,$(_RESIDUAL_),$(eval .PHONY: $a))
 $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
 .PHONY: build run watch test lint fmt clean check coverage help
-.PHONY: prepare cross bump-major bump-minor bump-patch
+.PHONY: prepare cross bump-major bump-minor bump-patch publish
 
 # ─── Build ──────────────────────────────────────────────────────────────────
 
@@ -130,6 +130,14 @@ bump-minor: ## Bump minor (0.x.0)
 
 bump-major: ## Bump major (x.0.0)
 	$(call _bump,$(shell expr $(_MAJ) + 1).0.0)
+
+publish: ## Publish all crates to crates.io
+	@echo "Publishing elph-ai v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph-ai --allow-dirty 2>&1
+	@echo "Publishing elph-agent v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph-agent --allow-dirty 2>&1
+	@echo "Publishing elph-tui v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph-tui --allow-dirty 2>&1
+	@echo "Publishing elph v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph --allow-dirty 2>&1
+	@echo "All crates published."
+
 # ─── Help ───────────────────────────────────────────────────────────────────
 
 help: ## Show this help
