@@ -22,7 +22,7 @@ crossbeam.workspace = true
 crossterm.workspace = true
 iocraft.workspace = true
 signal-hook.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 unicode-width = "0.2"
 
 [dev-dependencies]
