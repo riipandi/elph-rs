@@ -82,6 +82,12 @@ Documentation lives in [`docs/`](./docs/). Start with [docs/README.md](./docs/RE
 
 This project licensed under the [MIT license][license-mit]. See the [LICENSE](./LICENSE) file for more information.
 
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work
+by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional
+terms or conditions.
+
 ---
 
 <sub>🤫 Psst! If you like my work you can support me via [GitHub sponsors](https://github.com/sponsors/riipandi).</sub>

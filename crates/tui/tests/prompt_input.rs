@@ -1,6 +1,8 @@
-use elph_tui::{AgentMode, PromptInput};
+use elph_tui::{AgentMode, PromptInput, sigint_channel};
 use futures::{StreamExt, stream};
 use iocraft::prelude::*;
+use signal_hook::consts::SIGINT;
+use std::time::Duration;
 
 fn shift_enter(kind: KeyEventKind) -> KeyEvent {
     let mut event = KeyEvent::new(kind, KeyCode::Enter);
@@ -162,4 +164,66 @@ async fn shift_enter_inserts_newline_without_submit() {
         a_line && b_line
     });
     assert!(multiline, "expected multiline prompt text, got: {output:?}");
+}
+
+#[cfg(unix)]
+#[component]
+fn SigintPromptHarness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let mut system = hooks.use_context_mut::<SystemContext>();
+    let prompt = hooks.use_state(String::new);
+    let mut interrupted = hooks.use_state(|| false);
+    let mut should_exit = hooks.use_state(|| false);
+
+    hooks.use_future(async move {
+        let mut sigint = sigint_channel();
+        while let Some(signal) = sigint.recv().await {
+            if signal == SIGINT {
+                interrupted.set(true);
+                break;
+            }
+        }
+    });
+
+    if interrupted.get() || prompt.read().ends_with('!') {
+        should_exit.set(true);
+    }
+
+    if should_exit.get() {
+        system.exit();
+    }
+
+    element! {
+        View(width: 40, height: 8, padding: 1) {
+            PromptInput(
+                value: Some(prompt),
+                model_name: "test-model".to_string(),
+                mode: AgentMode::Build,
+                has_focus: true,
+                on_submit: |_| {},
+                on_mode_change: |_| {},
+            )
+        }
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sigint_channel_interrupts_prompt_input_loop() {
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(100));
+        nix::sys::signal::kill(nix::unistd::getpid(), nix::sys::signal::Signal::SIGINT).unwrap();
+    });
+
+    let events = stream::iter([] as [TerminalEvent; 0]);
+
+    let output = element!(SigintPromptHarness)
+        .mock_terminal_render_loop(MockTerminalConfig::with_events(events))
+        .map(|frame| frame.to_string())
+        .collect::<Vec<_>>()
+        .await;
+
+    assert!(
+        !output.is_empty(),
+        "sigint_channel should drive PromptInput harness to render and exit, got: {output:?}"
+    );
 }

@@ -379,6 +379,7 @@ dependencies = [
  "crossterm",
  "futures",
  "iocraft",
+ "nix",
  "signal-hook 0.4.4",
  "tokio",
  "unicode-width 0.2.2",

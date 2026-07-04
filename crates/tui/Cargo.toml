@@ -26,3 +26,6 @@ unicode-width = "0.2"
 [dev-dependencies]
 futures = "0.3"
 tokio = { workspace = true, features = ["macros"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true }

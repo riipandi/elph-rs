@@ -36,17 +36,46 @@ pub const EXIT_CONNECTION_ERROR: ExitCode = 6;
 pub const EXIT_SERVER_ERROR: ExitCode = 7;
 pub const EXIT_INTERRUPTED: ExitCode = 130;
 
-pub fn run() {
-    let result = tokio::runtime::Builder::new_current_thread()
+fn block_on<F: std::future::Future>(future: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("failed to create tokio runtime")
-        .block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
+        .block_on(future)
+}
+
+pub fn run() {
+    let result = block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
     if let Err(e) = disable_keyboard_enhancement() {
         eprintln!("Failed to restore keyboard enhancements: {e}");
     }
     exit_message::print_and_clear();
     if let Err(e) = result {
         eprintln!("App error: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::block_on;
+    use elph_tui::sigint_channel;
+    use signal_hook::consts::SIGINT;
+    use std::time::Duration;
+
+    #[cfg(unix)]
+    #[test]
+    fn block_on_drives_sigint_channel_receiver() {
+        block_on(async {
+            let mut sigint = sigint_channel();
+            std::thread::spawn(|| {
+                std::thread::sleep(Duration::from_millis(100));
+                nix::sys::signal::kill(nix::unistd::getpid(), nix::sys::signal::Signal::SIGINT).unwrap();
+            });
+            let signal = tokio::time::timeout(Duration::from_secs(2), sigint.recv())
+                .await
+                .expect("timed out waiting for SIGINT on tokio runtime")
+                .expect("sigint channel closed");
+            assert_eq!(signal, SIGINT);
+        });
     }
 }
