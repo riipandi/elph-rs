@@ -1,6 +1,8 @@
 # elph-agent
 
-Stateful agent with tool execution and event streaming. Built on `elph-ai`.
+App-agnostic agent runtime primitives shared by Elph applications.
+
+Provides path resolution, filesystem helpers, Turso migration utilities, and init progress reporting. Application-specific config layouts live in each binary crate (`elph`, `eclaw`, …).
 
 ## License
 

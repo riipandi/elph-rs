@@ -836,8 +836,14 @@ checksum = "117240f60069e65410b3ae1bb213295bd828f707b5bec6596a1afc8793ce0cbc"
 name = "eclaw"
 version = "0.0.10"
 dependencies = [
+ "chrono",
  "clap",
  "elph-agent",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "turso",
 ]
 
 [[package]]
@@ -857,16 +863,18 @@ dependencies = [
  "elph-tui",
  "iocraft",
  "nix",
+ "serde",
+ "serde_json",
  "signal-hook 0.4.4",
+ "tempfile",
  "tokio",
+ "turso",
 ]
 
 [[package]]
 name = "elph-agent"
 version = "0.0.10"
 dependencies = [
- "chrono",
- "elph-ai",
  "indicatif",
  "serde",
  "serde_json",

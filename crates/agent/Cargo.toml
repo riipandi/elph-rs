@@ -17,8 +17,6 @@ name = "elph_agent"
 path = "src/lib.rs"
 
 [dependencies]
-chrono.workspace = true
-elph-ai = { path = "../ai", version = "^0.0.10" }
 indicatif.workspace = true
 serde.workspace = true
 serde_json.workspace = true

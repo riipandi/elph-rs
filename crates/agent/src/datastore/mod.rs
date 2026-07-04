@@ -1,4 +1,4 @@
-//! Turso local databases for Elph (`metadata.db`, `memory.db`).
+//! Turso local database helpers and migration runner.
 
 mod migrations;
 
@@ -7,7 +7,7 @@ use std::path::Path;
 use thiserror::Error;
 use turso::Builder;
 
-use crate::appdir::Paths;
+pub use migrations::{Migration, run as run_migrations};
 
 #[derive(Debug, Error)]
 pub enum DatastoreError {
@@ -19,21 +19,29 @@ pub enum DatastoreError {
 
 pub type Result<T> = std::result::Result<T, DatastoreError>;
 
-/// Initialize local Turso databases and apply pending migrations.
-pub async fn ensure(paths: &Paths) -> Result<()> {
-    ensure_parent_dir(&paths.metadata_db_path())?;
-    ensure_parent_dir(&paths.memory_db_path())?;
+/// A local database file and its pending migrations.
+pub struct DatabaseSpec<'a> {
+    pub path: &'a Path,
+    pub migrations: &'static [Migration],
+}
 
-    open_and_migrate(&paths.metadata_db_path(), migrations::metadata_migrations()).await?;
-    open_and_migrate(&paths.memory_db_path(), migrations::memory_migrations()).await?;
+/// Initialize one local Turso database and apply pending migrations.
+pub async fn ensure_database(path: &Path, migrations: &'static [Migration]) -> Result<()> {
+    ensure_parent_dir(path)?;
+    open_and_migrate(path, migrations).await
+}
 
+/// Initialize multiple local Turso databases.
+pub async fn ensure_databases(specs: &[DatabaseSpec<'_>]) -> Result<()> {
+    for spec in specs {
+        ensure_database(spec.path, spec.migrations).await?;
+    }
     Ok(())
 }
 
-async fn open_and_migrate(path: &Path, migrations: &[migrations::Migration]) -> Result<()> {
+async fn open_and_migrate(path: &Path, migrations: &'static [Migration]) -> Result<()> {
     let db = Builder::new_local(&path.to_string_lossy()).build().await?;
     let conn = db.connect()?;
-
     migrations::run(&conn, migrations).await?;
     Ok(())
 }
@@ -48,16 +56,22 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::appdir::Paths;
+
+    static TEST_MIGRATIONS: [Migration; 1] = [Migration {
+        version: 1,
+        name: "create_notes",
+        up: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)",
+    }];
 
     #[tokio::test]
-    async fn creates_metadata_and_memory_databases() {
+    async fn ensure_database_applies_migrations() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let paths = Paths::from_dirs(tmp.path().join("config"), tmp.path().join("data"));
+        let db_path = tmp.path().join("test.db");
 
-        ensure(&paths).await.expect("ensure databases");
+        ensure_database(&db_path, &TEST_MIGRATIONS)
+            .await
+            .expect("ensure database");
 
-        assert!(paths.metadata_db_path().exists());
-        assert!(paths.memory_db_path().exists());
+        assert!(db_path.exists());
     }
 }

@@ -23,6 +23,11 @@ pub enum Commands {
 }
 
 pub fn run(cli: &Cli) -> ExitCode {
+    if let Err(err) = crate::layout::ensure_blocking(env!("CARGO_PKG_VERSION")) {
+        eprintln!("failed to initialize eclaw home: {err}");
+        return crate::runtime::EXIT_ERROR;
+    }
+
     match &cli.command {
         None => default::handle(),
         Some(Commands::Version) => version::handle(),

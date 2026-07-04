@@ -1,9 +1,16 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-const CONFIG_DIR_NAME: &str = ".elph";
-const DATA_DIR_NAME: &str = "elph";
+use elph_agent::PathResolver;
 
-/// Resolved Elph config and data directories.
+pub const RESOLVER: PathResolver = PathResolver {
+    home_env: "ECLAW_HOME",
+    data_env: "ECLAW_DATA_DIR",
+    project_env: "ECLAW_PROJECT_DIR",
+    config_dir_name: ".eclaw",
+    data_dir_name: "eclaw",
+};
+
+/// Eclaw config and data paths (`~/.eclaw`, `~/.local/share/eclaw`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paths {
     pub config_dir: PathBuf,
@@ -11,11 +18,15 @@ pub struct Paths {
 }
 
 impl Paths {
-    /// Resolve paths from `ELPH_HOME` and `XDG_DATA_HOME` (or defaults).
     pub fn resolve() -> std::io::Result<Self> {
-        Ok(Self::from_dirs(config_dir()?, data_dir()?))
+        let resolved = RESOLVER.resolve()?;
+        Ok(Self {
+            config_dir: resolved.config_dir,
+            data_dir: resolved.data_dir,
+        })
     }
 
+    #[allow(dead_code)]
     pub fn from_dirs(config_dir: PathBuf, data_dir: PathBuf) -> Self {
         Self { config_dir, data_dir }
     }
@@ -84,7 +95,6 @@ impl Paths {
         self.data_dir.join("version.json")
     }
 
-    /// All directories that must exist after initialization.
     pub fn required_dirs(&self) -> Vec<PathBuf> {
         vec![
             self.bundled_dir().join("agents"),
@@ -102,43 +112,6 @@ impl Paths {
             self.vendor_dir(),
         ]
     }
-}
-
-fn config_dir() -> std::io::Result<PathBuf> {
-    if let Ok(home) = std::env::var("ELPH_HOME") {
-        let trimmed = home.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
-    }
-
-    let home = user_home()?;
-    Ok(home.join(CONFIG_DIR_NAME))
-}
-
-fn data_dir() -> std::io::Result<PathBuf> {
-    if let Ok(dir) = std::env::var("ELPH_DATA_DIR") {
-        let trimmed = dir.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
-    }
-
-    if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-        let trimmed = xdg.trim();
-        if !trimmed.is_empty() {
-            return Ok(Path::new(trimmed).join(DATA_DIR_NAME));
-        }
-    }
-
-    let home = user_home()?;
-    Ok(home.join(".local").join("share").join(DATA_DIR_NAME))
-}
-
-fn user_home() -> std::io::Result<PathBuf> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "HOME is not set"))
 }
 
 #[cfg(test)]

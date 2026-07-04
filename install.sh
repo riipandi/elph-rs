@@ -4,18 +4,18 @@
 #
 # Usage:
 #   curl -fsSL https://elph.space/install.sh | bash
-#   curl -fsSL https://elph.space/install.sh | bash -s -- --pre
+#   curl -fsSL https://elph.space/install.sh | bash -s -- --canary
 #   curl -fsSL https://raw.githubusercontent.com/riipandi/elph/main/install.sh | bash
 #
 # Options:
 #   --version <tag>      Pin a specific version (default: latest)
-#   --pre                Use the latest pre-release (includes alpha/beta/rc)
+#   --canary             Use the canary release (pre-release)
 #   --home <dir>         Elph home directory (default: ~/.elph)
 #   --install-dir <dir>  Binary install directory (default: ~/.local/bin)
 #   --dry-run            Print what would happen without downloading
 #   --help               Show this help
 #
-# Also via env vars: ELPH_VERSION, ELPH_PRE_RELEASE, ELPH_HOME, ELPH_INSTALL_DIR
+# Also via env vars: ELPH_VERSION, ELPH_CANARY, ELPH_HOME, ELPH_INSTALL_DIR
 set -euo pipefail
 
 REPO_OWNER="riipandi"
@@ -26,7 +26,7 @@ ELPH_VERSION="${ELPH_VERSION:-}"
 ELPH_HOME="${ELPH_HOME:-"${HOME}/.elph"}"
 ELPH_INSTALL_DIR="${ELPH_INSTALL_DIR:-"${HOME}/.local/bin"}"
 ELPH_DRY_RUN="${ELPH_DRY_RUN:-}"
-ELPH_PRE_RELEASE=
+ELPH_CANARY=
 
 # -- Arg parsing ----
 while [[ $# -gt 0 ]]; do
@@ -59,8 +59,8 @@ while [[ $# -gt 0 ]]; do
     ELPH_DRY_RUN=1
     shift
     ;;
-  --pre)
-    ELPH_PRE_RELEASE=1
+  --canary)
+    ELPH_CANARY=1
     shift
     ;;
   --help)
@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   *)
     echo "Unknown option: $1" >&2
-    echo "Usage: \$0 [--version <tag>] [--pre] [--home <dir>] [--install-dir <dir>] [--dry-run] [--help]" >&2
+    echo "Usage: \$0 [--version <tag>] [--canary] [--home <dir>] [--install-dir <dir>] [--dry-run] [--help]" >&2
     exit 1
     ;;
   esac
@@ -156,7 +156,7 @@ resolve_version() {
   local api_url="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
   local tag=""
 
-  if [[ -n "${ELPH_PRE_RELEASE}" ]]; then
+  if [[ -n "${ELPH_CANARY}" ]]; then
     tag="$(curl -fsSL "${api_url}?per_page=10" 2>/dev/null |
       grep -m1 '"tag_name":' |
       sed 's/.*"tag_name": "\(.*\)",.*/\1/')"
@@ -178,7 +178,7 @@ resolve_version() {
 VERSION="$(resolve_version)"
 VERSION_NUM="${VERSION#v}"
 
-info "Elph ${VERSION} -- ${OS}/${ARCH}$([ -n "${ELPH_PRE_RELEASE}" ] && echo ' (pre-release)')"
+info "Elph ${VERSION} -- ${OS}/${ARCH}$([ -n "${ELPH_CANARY}" ] && echo ' (pre-release)')"
 
 # -- URLs ----
 BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${VERSION}"
@@ -191,7 +191,7 @@ if [[ -n "${ELPH_DRY_RUN}" ]]; then
   info "[DRY RUN] Would install:"
   echo
   printf "  ${BOLD}Version:${RESET}     %s\n" "${VERSION}"
-  if [[ -n "${ELPH_PRE_RELEASE}" ]]; then
+  if [[ -n "${ELPH_CANARY}" ]]; then
     printf "  ${BOLD}Channel:${RESET}      pre-release\n"
   fi
   printf "  ${BOLD}Platform:${RESET}    %s/%s\n" "${OS}" "${ARCH}"

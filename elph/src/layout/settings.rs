@@ -1,6 +1,8 @@
+use elph_agent::write_json_file;
 use serde::{Deserialize, Serialize};
 
-use crate::appdir::Paths;
+use super::InitError;
+use super::paths::Paths;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -70,13 +72,14 @@ impl Settings {
         }
     }
 
-    pub fn ensure(paths: &Paths) -> crate::init::Result<()> {
+    pub fn ensure(paths: &Paths) -> Result<(), InitError> {
         let path = paths.settings_path();
         if path.exists() {
             return Ok(());
         }
 
-        crate::init::write_json_file(&path, &Self::defaults())
+        write_json_file(&path, &Self::defaults())?;
+        Ok(())
     }
 }
 
@@ -131,10 +134,11 @@ mod tests {
     #[test]
     fn ensure_writes_only_when_missing() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let paths = Paths {
-            config_dir: tmp.path().to_path_buf(),
-            data_dir: tmp.path().join("data"),
-        };
+        let paths = Paths::from_dirs(
+            tmp.path().to_path_buf(),
+            tmp.path().join("data"),
+            tmp.path().join("repo"),
+        );
 
         Settings::ensure(&paths).expect("first ensure");
         assert!(paths.settings_path().exists());

@@ -1,7 +1,9 @@
 use chrono::Utc;
+use elph_agent::write_json_file;
 use serde::{Deserialize, Serialize};
 
-use crate::appdir::Paths;
+use super::InitError;
+use super::paths::Paths;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -26,12 +28,13 @@ impl VersionFile {
         }
     }
 
-    pub fn ensure(paths: &Paths, app_version: &str) -> crate::init::Result<()> {
+    pub fn ensure(paths: &Paths, app_version: &str) -> Result<(), InitError> {
         let path = paths.version_path();
         if path.exists() {
             return Ok(());
         }
 
-        crate::init::write_json_file(&path, &Self::defaults(app_version))
+        write_json_file(&path, &Self::defaults(app_version))?;
+        Ok(())
     }
 }

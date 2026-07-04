@@ -1,3 +1,3 @@
 mod app;
 
-pub use app::{EXIT_SUCCESS, ExitCode};
+pub use app::{EXIT_ERROR, EXIT_SUCCESS, ExitCode};

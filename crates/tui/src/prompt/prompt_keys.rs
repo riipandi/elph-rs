@@ -6,7 +6,7 @@ use iocraft::prelude::*;
 pub fn is_prompt_newline_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
     matches!(
         key_combination(code, modifiers),
-        key!(shift-enter) | key!(ctrl-j) | key!(ctrl-x)
+        key!(shift - enter) | key!(ctrl - j) | key!(ctrl - x)
     )
 }
 
@@ -22,12 +22,12 @@ pub fn is_submit_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
 
 /// Returns true for Ctrl+C (interrupt: clear prompt first, then exit).
 pub fn is_interrupt_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    matches!(key_combination(code, modifiers), key!(ctrl-c))
+    matches!(key_combination(code, modifiers), key!(ctrl - c))
 }
 
 /// Returns true for Ctrl+Q (force quit).
 pub fn is_force_quit_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    matches!(key_combination(code, modifiers), key!(ctrl-q))
+    matches!(key_combination(code, modifiers), key!(ctrl - q))
 }
 
 /// Returns true for Tab (cycle agent mode).
@@ -37,7 +37,7 @@ pub fn is_mode_cycle_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
 
 /// Returns true for Ctrl+T (toggle theme).
 pub fn is_theme_toggle_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    matches!(key_combination(code, modifiers), key!(ctrl-t))
+    matches!(key_combination(code, modifiers), key!(ctrl - t))
 }
 
 /// Returns true when submitted text is the Neovim-style quit command (`:q`).
@@ -48,29 +48,29 @@ pub fn is_quit_command(text: &str) -> bool {
 /// Line/word editing shortcuts handled by `PromptInput`.
 pub fn edit_action(code: KeyCode, modifiers: KeyModifiers) -> Option<EditAction> {
     match key_combination(code, modifiers) {
-        key!(cmd-backspace) => Some(EditAction::DeleteToLineStart),
-        key!(cmd-delete) => Some(EditAction::DeleteToLineEnd),
-        key!(cmd-a) | key!(cmd-left) | key!(cmd-home) => Some(EditAction::LineStart),
-        key!(cmd-e) | key!(cmd-right) | key!(cmd-end) => Some(EditAction::LineEnd),
+        key!(cmd - backspace) => Some(EditAction::DeleteToLineStart),
+        key!(cmd - delete) => Some(EditAction::DeleteToLineEnd),
+        key!(cmd - a) | key!(cmd - left) | key!(cmd - home) => Some(EditAction::LineStart),
+        key!(cmd - e) | key!(cmd - right) | key!(cmd - end) => Some(EditAction::LineEnd),
 
-        key!(alt-backspace) => Some(EditAction::DeleteWordBackward),
-        key!(alt-delete) => Some(EditAction::DeleteWordForward),
-        key!(alt-b) | key!(alt-left) => Some(EditAction::WordLeft),
-        key!(alt-f) | key!(alt-d) | key!(alt-right) => Some(EditAction::WordRight),
+        key!(alt - backspace) => Some(EditAction::DeleteWordBackward),
+        key!(alt - delete) => Some(EditAction::DeleteWordForward),
+        key!(alt - b) | key!(alt - left) => Some(EditAction::WordLeft),
+        key!(alt - f) | key!(alt - d) | key!(alt - right) => Some(EditAction::WordRight),
 
-        key!(ctrl-a) | key!(ctrl-home) => Some(EditAction::LineStart),
-        key!(ctrl-e) | key!(ctrl-end) => Some(EditAction::LineEnd),
-        key!(ctrl-w) => Some(EditAction::DeleteWordBackward),
-        key!(ctrl-u) => Some(EditAction::DeleteToLineStart),
-        key!(ctrl-k) => Some(EditAction::DeleteToLineEnd),
-        key!(ctrl-b) => Some(EditAction::CharLeft),
-        key!(ctrl-f) => Some(EditAction::CharRight),
-        key!(ctrl-h) => Some(EditAction::DeleteCharBackward),
-        key!(ctrl-d) => Some(EditAction::DeleteCharForward),
-        key!(ctrl-backspace) => Some(EditAction::DeleteWordBackward),
-        key!(ctrl-delete) => Some(EditAction::DeleteWordForward),
-        key!(ctrl-left) => Some(EditAction::WordLeft),
-        key!(ctrl-right) => Some(EditAction::WordRight),
+        key!(ctrl - a) | key!(ctrl - home) => Some(EditAction::LineStart),
+        key!(ctrl - e) | key!(ctrl - end) => Some(EditAction::LineEnd),
+        key!(ctrl - w) => Some(EditAction::DeleteWordBackward),
+        key!(ctrl - u) => Some(EditAction::DeleteToLineStart),
+        key!(ctrl - k) => Some(EditAction::DeleteToLineEnd),
+        key!(ctrl - b) => Some(EditAction::CharLeft),
+        key!(ctrl - f) => Some(EditAction::CharRight),
+        key!(ctrl - h) => Some(EditAction::DeleteCharBackward),
+        key!(ctrl - d) => Some(EditAction::DeleteCharForward),
+        key!(ctrl - backspace) => Some(EditAction::DeleteWordBackward),
+        key!(ctrl - delete) => Some(EditAction::DeleteWordForward),
+        key!(ctrl - left) => Some(EditAction::WordLeft),
+        key!(ctrl - right) => Some(EditAction::WordRight),
 
         _ => None,
     }
