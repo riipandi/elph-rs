@@ -1,13 +1,13 @@
+use crate::terminal::key_combination;
+use crokey::key;
 use iocraft::prelude::*;
 
 /// Returns true when the key should insert a newline via `PromptInput` (Shift+Enter, Ctrl+J, or Ctrl+X).
 pub fn is_prompt_newline_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    match code {
-        KeyCode::Enter if modifiers.contains(KeyModifiers::SHIFT) => true,
-        KeyCode::Char('j') | KeyCode::Char('J') if modifiers.contains(KeyModifiers::CONTROL) => true,
-        KeyCode::Char('x') | KeyCode::Char('X') if modifiers.contains(KeyModifiers::CONTROL) => true,
-        _ => false,
-    }
+    matches!(
+        key_combination(code, modifiers),
+        key!(shift-enter) | key!(ctrl-j) | key!(ctrl-x)
+    )
 }
 
 /// Returns true for any newline shortcut (including Shift+Enter).
@@ -17,12 +17,27 @@ pub fn is_newline_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
 
 /// Returns true when the key should submit the prompt (plain Enter).
 pub fn is_submit_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    code == KeyCode::Enter && !modifiers.intersects(KeyModifiers::SHIFT | KeyModifiers::CONTROL | KeyModifiers::ALT)
+    matches!(key_combination(code, modifiers), key!(enter))
 }
 
 /// Returns true for Ctrl+C (interrupt: clear prompt first, then exit).
 pub fn is_interrupt_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
-    code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)
+    matches!(key_combination(code, modifiers), key!(ctrl-c))
+}
+
+/// Returns true for Ctrl+Q (force quit).
+pub fn is_force_quit_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
+    matches!(key_combination(code, modifiers), key!(ctrl-q))
+}
+
+/// Returns true for Tab (cycle agent mode).
+pub fn is_mode_cycle_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
+    matches!(key_combination(code, modifiers), key!(tab))
+}
+
+/// Returns true for Ctrl+T (toggle theme).
+pub fn is_theme_toggle_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
+    matches!(key_combination(code, modifiers), key!(ctrl-t))
 }
 
 /// Returns true when submitted text is the Neovim-style quit command (`:q`).
@@ -30,66 +45,34 @@ pub fn is_quit_command(text: &str) -> bool {
     text.trim() == ":q"
 }
 
-/// Command (⌘) modifier without Control or Alt.
-pub fn is_command(modifiers: KeyModifiers) -> bool {
-    modifiers.contains(KeyModifiers::SUPER) && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-}
-
-/// Option (⌥) / Alt modifier without Control or Super.
-pub fn is_option(modifiers: KeyModifiers) -> bool {
-    modifiers.contains(KeyModifiers::ALT) && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::SUPER)
-}
-
-/// Control modifier without Super or Alt (emacs / Windows-style shortcuts).
-pub fn is_control_only(modifiers: KeyModifiers) -> bool {
-    modifiers.contains(KeyModifiers::CONTROL) && !modifiers.intersects(KeyModifiers::ALT | KeyModifiers::SUPER)
-}
-
 /// Line/word editing shortcuts handled by `PromptInput`.
 pub fn edit_action(code: KeyCode, modifiers: KeyModifiers) -> Option<EditAction> {
-    if is_command(modifiers) {
-        match code {
-            KeyCode::Backspace => Some(EditAction::DeleteToLineStart),
-            KeyCode::Delete => Some(EditAction::DeleteToLineEnd),
-            KeyCode::Char('a') | KeyCode::Char('A') => Some(EditAction::LineStart),
-            KeyCode::Char('e') | KeyCode::Char('E') => Some(EditAction::LineEnd),
-            KeyCode::Left | KeyCode::Home => Some(EditAction::LineStart),
-            KeyCode::Right | KeyCode::End => Some(EditAction::LineEnd),
-            _ => None,
-        }
-    } else if is_option(modifiers) {
-        match code {
-            KeyCode::Backspace => Some(EditAction::DeleteWordBackward),
-            KeyCode::Delete => Some(EditAction::DeleteWordForward),
-            // macOS terminals often emit Option+←/→ as Alt+b / Alt+f (meta key bindings).
-            KeyCode::Char('b') | KeyCode::Char('B') => Some(EditAction::WordLeft),
-            KeyCode::Char('f') | KeyCode::Char('F') => Some(EditAction::WordRight),
-            KeyCode::Char('d') | KeyCode::Char('D') => Some(EditAction::DeleteWordForward),
-            KeyCode::Left => Some(EditAction::WordLeft),
-            KeyCode::Right => Some(EditAction::WordRight),
-            _ => None,
-        }
-    } else if is_control_only(modifiers) {
-        match code {
-            KeyCode::Char('a') | KeyCode::Char('A') => Some(EditAction::LineStart),
-            KeyCode::Char('e') | KeyCode::Char('E') => Some(EditAction::LineEnd),
-            KeyCode::Char('w') | KeyCode::Char('W') => Some(EditAction::DeleteWordBackward),
-            KeyCode::Char('u') | KeyCode::Char('U') => Some(EditAction::DeleteToLineStart),
-            KeyCode::Char('k') | KeyCode::Char('K') => Some(EditAction::DeleteToLineEnd),
-            KeyCode::Char('b') | KeyCode::Char('B') => Some(EditAction::CharLeft),
-            KeyCode::Char('f') | KeyCode::Char('F') => Some(EditAction::CharRight),
-            KeyCode::Char('h') | KeyCode::Char('H') => Some(EditAction::DeleteCharBackward),
-            KeyCode::Char('d') | KeyCode::Char('D') => Some(EditAction::DeleteCharForward),
-            KeyCode::Backspace => Some(EditAction::DeleteWordBackward),
-            KeyCode::Delete => Some(EditAction::DeleteWordForward),
-            KeyCode::Left => Some(EditAction::WordLeft),
-            KeyCode::Right => Some(EditAction::WordRight),
-            KeyCode::Home => Some(EditAction::LineStart),
-            KeyCode::End => Some(EditAction::LineEnd),
-            _ => None,
-        }
-    } else {
-        None
+    match key_combination(code, modifiers) {
+        key!(cmd-backspace) => Some(EditAction::DeleteToLineStart),
+        key!(cmd-delete) => Some(EditAction::DeleteToLineEnd),
+        key!(cmd-a) | key!(cmd-left) | key!(cmd-home) => Some(EditAction::LineStart),
+        key!(cmd-e) | key!(cmd-right) | key!(cmd-end) => Some(EditAction::LineEnd),
+
+        key!(alt-backspace) => Some(EditAction::DeleteWordBackward),
+        key!(alt-delete) => Some(EditAction::DeleteWordForward),
+        key!(alt-b) | key!(alt-left) => Some(EditAction::WordLeft),
+        key!(alt-f) | key!(alt-d) | key!(alt-right) => Some(EditAction::WordRight),
+
+        key!(ctrl-a) | key!(ctrl-home) => Some(EditAction::LineStart),
+        key!(ctrl-e) | key!(ctrl-end) => Some(EditAction::LineEnd),
+        key!(ctrl-w) => Some(EditAction::DeleteWordBackward),
+        key!(ctrl-u) => Some(EditAction::DeleteToLineStart),
+        key!(ctrl-k) => Some(EditAction::DeleteToLineEnd),
+        key!(ctrl-b) => Some(EditAction::CharLeft),
+        key!(ctrl-f) => Some(EditAction::CharRight),
+        key!(ctrl-h) => Some(EditAction::DeleteCharBackward),
+        key!(ctrl-d) => Some(EditAction::DeleteCharForward),
+        key!(ctrl-backspace) => Some(EditAction::DeleteWordBackward),
+        key!(ctrl-delete) => Some(EditAction::DeleteWordForward),
+        key!(ctrl-left) => Some(EditAction::WordLeft),
+        key!(ctrl-right) => Some(EditAction::WordRight),
+
+        _ => None,
     }
 }
 

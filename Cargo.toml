@@ -12,6 +12,8 @@ members = [
 agent-client-protocol = "1.0.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 clap = { version = "4.5", features = ["derive"] }
+crokey = "1.4.0"
+crossbeam = { version = "0.8.4", default-features = false, features = ["std", "crossbeam-channel"] }
 crossterm = "0.29"
 cuid2 = "0.1.6"
 fff-search = "0.9.6"

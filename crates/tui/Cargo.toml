@@ -17,6 +17,8 @@ name = "elph_tui"
 path = "src/lib.rs"
 
 [dependencies]
+crokey.workspace = true
+crossbeam.workspace = true
 crossterm.workspace = true
 iocraft.workspace = true
 signal-hook.workspace = true

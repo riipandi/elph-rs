@@ -1,8 +1,8 @@
 use crate::runtime::exit_message::ExitSnapshot;
 use crate::runtime::{SHOULD_KILL_PARENT, WAS_INTERRUPTED, exit_message, handle_prompt_interrupt};
 use elph_tui::{
-    AgentMode, ChatStream, PromptInput, Theme, enable_keyboard_enhancement, is_interrupt_key, is_quit_command,
-    sigint_channel,
+    AgentMode, ChatStream, PromptInput, Theme, enable_keyboard_enhancement, is_force_quit_key, is_interrupt_key,
+    is_mode_cycle_key, is_quit_command, is_theme_toggle_key, sigint_channel,
 };
 use iocraft::prelude::*;
 use signal_hook::consts::SIGINT;
@@ -53,7 +53,7 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
             return;
         }
 
-        if code == KeyCode::Char('q') && modifiers.contains(KeyModifiers::CONTROL) {
+        if is_force_quit_key(code, modifiers) {
             should_exit.set(true);
             {
                 use std::sync::atomic::Ordering;
@@ -64,15 +64,12 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
             return;
         }
 
-        if code == KeyCode::Tab
-            && !modifiers.contains(KeyModifiers::SHIFT)
-            && !modifiers.contains(KeyModifiers::CONTROL)
-        {
+        if is_mode_cycle_key(code, modifiers) {
             mode.set(mode.get().next());
             return;
         }
 
-        if code == KeyCode::Char('t') && modifiers.contains(KeyModifiers::CONTROL) {
+        if is_theme_toggle_key(code, modifiers) {
             theme.set(theme.get().toggle());
         }
     });

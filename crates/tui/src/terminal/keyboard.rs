@@ -1,4 +1,4 @@
-use crossterm::event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags};
+use crokey::{pop_keyboard_enhancement_flags, push_keyboard_enhancement_flags};
 use crossterm::terminal;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,14 +13,8 @@ pub fn enable_keyboard_enhancement() -> io::Result<()> {
         return Ok(());
     }
 
-    let mut stdout = io::stdout();
-    crossterm::execute!(
-        stdout,
-        PushKeyboardEnhancementFlags(
-            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS,
-        )
-    )?;
-    stdout.flush()?;
+    push_keyboard_enhancement_flags()?;
+    io::stdout().flush()?;
     ENABLED.store(true, Ordering::Relaxed);
     Ok(())
 }
@@ -31,8 +25,7 @@ pub fn disable_keyboard_enhancement() -> io::Result<()> {
         return Ok(());
     }
 
-    let mut stdout = io::stdout();
-    crossterm::execute!(stdout, PopKeyboardEnhancementFlags)?;
-    stdout.flush()?;
+    pop_keyboard_enhancement_flags()?;
+    io::stdout().flush()?;
     Ok(())
 }

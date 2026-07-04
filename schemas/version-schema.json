@@ -1,0 +1,25 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Elph version metadata",
+    "description": "Release and sync metadata persisted at ~/.elph/version.json.",
+    "type": "object",
+    "properties": {
+        "lastSyncProviders": {
+            "type": "string",
+            "description": "RFC3339 timestamp of the last successful models.dev provider metadata sync."
+        },
+        "relaseCheckedAt": {
+            "type": "string",
+            "description": "RFC3339 timestamp of the last release check (placeholder until update checks are implemented)."
+        },
+        "stableVersion": {
+            "type": "string",
+            "description": "Latest known stable release version (placeholder)."
+        },
+        "version": {
+            "type": "string",
+            "description": "Installed or reported Elph version (placeholder)."
+        }
+    },
+    "additionalProperties": false
+}
