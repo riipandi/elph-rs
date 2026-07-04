@@ -22,7 +22,9 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
 
     hooks.use_effect(
         || {
-            let _ = enable_keyboard_enhancement();
+            if let Err(err) = enable_keyboard_enhancement() {
+                eprintln!("keyboard enhancement unavailable: {err}");
+            }
         },
         (),
     );
@@ -95,7 +97,11 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 padding_right: 0,
                 padding_top: 0,
             ) {
-                ChatStream(messages: messages.read().clone(), theme: palette)
+                ChatStream(
+                    messages: messages.read().clone(),
+                    scroll_enabled: false,
+                    theme: palette,
+                )
             }
             View(
                 flex_shrink: 0.0,

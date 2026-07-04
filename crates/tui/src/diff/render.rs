@@ -116,9 +116,7 @@ pub fn do_render(terminal: &mut dyn Terminal, state: &mut RenderState, next_line
         state.max_lines_rendered = state.max_lines_rendered.max(prepared.len());
     } else if let Some(start) = first_changed_line(&state.previous_lines, next_lines) {
         let row_diff = start as i32 - state.cursor_row as i32;
-        if row_diff > 0 {
-            terminal.move_by(row_diff);
-        } else if row_diff < 0 {
+        if row_diff != 0 {
             terminal.move_by(row_diff);
         }
         state.cursor_row = start;

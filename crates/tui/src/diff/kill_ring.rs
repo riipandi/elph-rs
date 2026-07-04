@@ -49,5 +49,6 @@ mod tests {
         ring.push("ab", false, false);
         ring.push("cd", false, true);
         assert_eq!(ring.peek(), Some("abcd"));
+        assert_eq!(ring.len(), 1);
     }
 }

@@ -88,7 +88,11 @@ refresh_checksums() {
       echo "no files to checksum in ${dir}" >&2
       exit 1
     fi
-    if command -v sha256sum >/dev/null 2>&1; then
+    if command -v rapidhash >/dev/null 2>&1; then
+      for f in "${files[@]}"; do
+        printf '%s  %s\n' "$(rapidhash "$f")" "$f"
+      done >SHA256SUMS
+    elif command -v sha256sum >/dev/null 2>&1; then
       sha256sum -- "${files[@]}" >SHA256SUMS
     else
       shasum -a 256 -- "${files[@]}" >SHA256SUMS

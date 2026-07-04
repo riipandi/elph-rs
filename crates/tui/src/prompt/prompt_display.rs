@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn splits_paste_marker_into_styled_segments() {
-        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40);
+        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 3);
         let value = format!("hi {} tail", paste.summary);
         let segments = styled_segments(&value, &[paste]);
         assert_eq!(segments.len(), 2);

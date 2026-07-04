@@ -41,7 +41,14 @@ build: ## Build all application binaries (elph + eclaw)
 	echo ""; \
 	for bin in $(APP_BINS); do \
 	  if [ -f "$(BUILD_DIR)/$$bin" ]; then \
-	    echo "Binary $$bin:$$(du -sh $(BUILD_DIR)/$$bin | cut -f1) ($$(shasum -a 1 $(BUILD_DIR)/$$bin | cut -d' ' -f1))"; \
+	    if command -v rapidhash >/dev/null 2>&1; then \
+	      hash=$$(rapidhash "$(BUILD_DIR)/$$bin"); \
+	    elif command -v sha256sum >/dev/null 2>&1; then \
+	      hash=$$(sha256sum "$(BUILD_DIR)/$$bin" | cut -d' ' -f1); \
+	    else \
+	      hash=$$(shasum -a 256 "$(BUILD_DIR)/$$bin" | cut -d' ' -f1); \
+	    fi; \
+	    echo "Binary $$bin:$$(du -sh $(BUILD_DIR)/$$bin | cut -f1) ($$hash)"; \
 	  else \
 	    echo "Binary $$bin:(not built)"; \
 	  fi; \
@@ -112,6 +119,7 @@ prepare: ## Install required toolchain
 	@command -v cargo-binstall >/dev/null 2>&1 || $(CARGO) install cargo-binstall --locked
 	@command -v cargo-tarpaulin >/dev/null 2>&1 || $(CARGO) binstall --locked -y cargo-tarpaulin
 	@command -v watchexec >/dev/null 2>&1 || $(CARGO) binstall --locked -y watchexec-cli
+	@command -v rapidhash >/dev/null 2>&1 || $(CARGO) install --locked -y rapidhash
 	@command -v cross >/dev/null 2>&1 || $(CARGO) install cross --locked
 	@while read -r t; do rustup target add "$$t" 2>/dev/null || true; done < ./scripts/cross-targets.sh
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \

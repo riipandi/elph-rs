@@ -1,13 +1,14 @@
 use std::time::Instant;
 
-use crate::prompt::prompt_buffer::{PromptBuffer, expand_for_display};
+use crate::prompt::prompt_buffer::{PromptBuffer, char_display_width, expand_for_display};
 use crate::prompt::prompt_edit::{
     char_left, char_right, delete_char_backward, delete_char_forward, delete_to_line_end, delete_to_line_start,
     delete_word_backward, delete_word_forward, line_end, line_start, word_left, word_right,
 };
 use crate::prompt::prompt_paste::{
-    CollapsedPaste, PASTE_COLLAPSE_MIN_CHARS, PASTE_COLLAPSE_MIN_LINES, expand_paste_markers, line_count,
-    normalize_paste_text, should_collapse_paste,
+    CollapsedPaste, PASTE_COLLAPSE_MIN_CHARS, PASTE_COLLAPSE_MIN_LINES, adjust_pastes_for_delete, expand_paste_markers,
+    line_count, normalize_paste_text, paste_block_range, reconcile_paste_offsets, remove_paste_block_and_adjust,
+    shift_paste_offsets_for_insert, should_collapse_paste,
 };
 use crate::utils::{pad_lines, truncate_to_width_no_ellipsis};
 
@@ -21,6 +22,11 @@ use super::paste_burst::PasteBurst;
 use super::undo_stack::UndoStack;
 
 const REVERSE_VIDEO: &str = "\x1b[7m";
+
+/// Callback invoked when the editor submits.
+pub type EditorSubmitCallback = Box<dyn FnMut(&str)>;
+/// Callback invoked when editor text changes.
+pub type EditorChangeCallback = Box<dyn FnMut(&str)>;
 
 /// Theme colors for the diff editor chrome.
 #[derive(Debug, Clone, Copy)]
@@ -61,11 +67,12 @@ pub struct Editor {
     paste_burst: PasteBurst,
     disable_submit: bool,
     pastes: Vec<CollapsedPaste>,
+    last_yank_len: usize,
     last_width: u16,
     cache_key: Option<(String, usize, u16, usize)>,
     cache_lines: Vec<Line>,
-    pub on_submit: Option<Box<dyn FnMut(&str)>>,
-    pub on_change: Option<Box<dyn FnMut(&str)>>,
+    pub on_submit: Option<EditorSubmitCallback>,
+    pub on_change: Option<EditorChangeCallback>,
 }
 
 impl Editor {
@@ -84,6 +91,7 @@ impl Editor {
             paste_burst: PasteBurst::default(),
             disable_submit: false,
             pastes: Vec::new(),
+            last_yank_len: 0,
             last_width: 80,
             cache_key: None,
             cache_lines: Vec::new(),
@@ -120,6 +128,7 @@ impl Editor {
     }
 
     pub fn set_text(&mut self, text: impl Into<String>) {
+        self.undo.clear();
         self.push_undo();
         self.text = text.into();
         self.cursor = self.text.len().min(self.cursor);
@@ -151,6 +160,10 @@ impl Editor {
     }
 
     fn push_undo(&mut self) {
+        const MAX_UNDO_DEPTH: usize = 200;
+        if self.undo.len() >= MAX_UNDO_DEPTH {
+            self.undo.clear();
+        }
         self.undo.push(self.snapshot());
     }
 
@@ -247,11 +260,13 @@ impl Editor {
 
     fn insert_normalized(&mut self, normalized: String, preview_width: usize) {
         if should_collapse_paste(&normalized) {
-            let collapsed = CollapsedPaste::new(normalized, preview_width);
+            let collapsed = CollapsedPaste::new(normalized, preview_width, self.cursor);
+            shift_paste_offsets_for_insert(&mut self.pastes, self.cursor, collapsed.summary.len());
             self.text.insert_str(self.cursor, &collapsed.summary);
             self.cursor += collapsed.summary.len();
             self.pastes.push(collapsed);
         } else {
+            shift_paste_offsets_for_insert(&mut self.pastes, self.cursor, normalized.len());
             self.text.insert_str(self.cursor, &normalized);
             self.cursor += normalized.len();
         }
@@ -259,6 +274,29 @@ impl Editor {
 
     fn kill_and_apply(&mut self, deleted: &str, prepend: bool, accumulate: bool, next: String, cursor: usize) {
         self.kill_ring.push(deleted, prepend, accumulate);
+        self.text = next;
+        self.cursor = cursor;
+        if !self.pastes.is_empty() {
+            reconcile_paste_offsets(&self.text, &mut self.pastes);
+        }
+        self.notify_change();
+        self.invalidate();
+    }
+
+    fn delete_paste_block_at(&mut self, range: std::ops::Range<usize>) -> bool {
+        let Some(next) = remove_paste_block_and_adjust(&self.text, range.clone(), &mut self.pastes) else {
+            return false;
+        };
+        self.text = next;
+        self.cursor = range.start;
+        self.last_yank_len = 0;
+        self.notify_change();
+        self.invalidate();
+        true
+    }
+
+    fn delete_scalar_range(&mut self, range: std::ops::Range<usize>, next: String, cursor: usize) {
+        adjust_pastes_for_delete(&mut self.pastes, range);
         self.text = next;
         self.cursor = cursor;
         self.notify_change();
@@ -328,17 +366,27 @@ impl Editor {
             }
             EditorAction::DeleteCharBackward => {
                 self.push_undo();
-                let (next, cursor) = delete_char_backward(&self.text, self.cursor);
-                let deleted = self.text[cursor..self.cursor].to_string();
-                self.kill_and_apply(&deleted, true, false, next, cursor);
+                if let Some(range) = paste_block_range(&self.text, self.cursor.saturating_sub(1), &self.pastes) {
+                    self.delete_paste_block_at(range);
+                } else {
+                    let (next, cursor) = delete_char_backward(&self.text, self.cursor);
+                    let deleted = self.text[cursor..self.cursor].to_string();
+                    self.kill_ring.push(&deleted, true, false);
+                    self.delete_scalar_range(cursor..self.cursor, next, cursor);
+                }
                 InputResult::Consumed
             }
             EditorAction::DeleteCharForward => {
                 self.push_undo();
-                let end = char_right(&self.text, self.cursor);
-                let deleted = self.text[self.cursor..end].to_string();
-                let (next, cursor) = delete_char_forward(&self.text, self.cursor);
-                self.kill_and_apply(&deleted, false, false, next, cursor);
+                if let Some(range) = paste_block_range(&self.text, self.cursor, &self.pastes) {
+                    self.delete_paste_block_at(range);
+                } else {
+                    let end = char_right(&self.text, self.cursor);
+                    let deleted = self.text[self.cursor..end].to_string();
+                    let (next, cursor) = delete_char_forward(&self.text, self.cursor);
+                    self.kill_ring.push(&deleted, false, false);
+                    self.delete_scalar_range(self.cursor..end, next, cursor);
+                }
                 InputResult::Consumed
             }
             EditorAction::DeleteWordBackward => {
@@ -377,7 +425,9 @@ impl Editor {
                 let yank = self.kill_ring.peek().map(str::to_string);
                 if let Some(text) = yank {
                     self.push_undo();
+                    shift_paste_offsets_for_insert(&mut self.pastes, self.cursor, text.len());
                     self.text.insert_str(self.cursor, &text);
+                    self.last_yank_len = text.len();
                     self.cursor += text.len();
                     self.notify_change();
                     self.invalidate();
@@ -385,11 +435,22 @@ impl Editor {
                 InputResult::Consumed
             }
             EditorAction::YankPop => {
+                if self.kill_ring.len() < 2 {
+                    return InputResult::Consumed;
+                }
                 self.kill_ring.rotate();
                 let yank = self.kill_ring.peek().map(str::to_string);
                 if let Some(text) = yank {
                     self.push_undo();
+                    if self.last_yank_len > 0 {
+                        let start = self.cursor.saturating_sub(self.last_yank_len);
+                        adjust_pastes_for_delete(&mut self.pastes, start..self.cursor);
+                        self.text.replace_range(start..self.cursor, "");
+                        self.cursor = start;
+                    }
+                    shift_paste_offsets_for_insert(&mut self.pastes, self.cursor, text.len());
                     self.text.insert_str(self.cursor, &text);
+                    self.last_yank_len = text.len();
                     self.cursor += text.len();
                     self.notify_change();
                     self.invalidate();
@@ -404,6 +465,7 @@ impl Editor {
             }
             EditorAction::NewLine => {
                 self.push_undo();
+                shift_paste_offsets_for_insert(&mut self.pastes, self.cursor, 1);
                 self.text.insert(self.cursor, '\n');
                 self.cursor += 1;
                 self.paste_burst.reset();
@@ -432,6 +494,7 @@ impl Editor {
             }
             EditorAction::Tab => {
                 self.push_undo();
+                shift_paste_offsets_for_insert(&mut self.pastes, self.cursor, 2);
                 self.text.insert_str(self.cursor, "  ");
                 self.cursor += 2;
                 self.notify_change();
@@ -508,7 +571,7 @@ fn slice_at_display_col(text: &str, start_col: usize, end_col: usize) -> String 
         if col >= start_col {
             out.push(ch);
         }
-        col += unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        col += char_display_width(ch, col);
     }
     out
 }
@@ -519,7 +582,7 @@ fn slice_at_display_col_offset(text: &str, col: usize) -> usize {
         if width >= col {
             return idx;
         }
-        width += unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        width += char_display_width(ch, width);
     }
     text.len()
 }

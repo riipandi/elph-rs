@@ -69,12 +69,14 @@ pub fn normalize_paste_text(text: &str) -> String {
 pub struct CollapsedPaste {
     pub full: String,
     pub summary: String,
+    /// Byte offset of `summary` in the display text at collapse time.
+    pub offset: usize,
 }
 
 impl CollapsedPaste {
-    pub fn new(full: String, preview_width: usize) -> Self {
+    pub fn new(full: String, preview_width: usize, offset: usize) -> Self {
         let summary = format_paste_summary(&full, preview_width);
-        Self { full, summary }
+        Self { full, summary, offset }
     }
 }
 
@@ -137,9 +139,7 @@ pub fn finalize_pending_paste(
     pastes: &mut Vec<CollapsedPaste>,
     burst_ended: bool,
 ) -> Option<PendingPaste> {
-    let Some(mut pending) = pending else {
-        return None;
-    };
+    let mut pending = pending?;
 
     let raw = normalize_paste_text(pending.slice(text));
     let cursor_delta = replace_pending_slice(text, &mut pending, &raw);
@@ -149,46 +149,133 @@ pub fn finalize_pending_paste(
         return if burst_ended { None } else { Some(pending) };
     }
 
-    let collapsed = CollapsedPaste::new(raw, wrap_width);
+    let collapsed = CollapsedPaste::new(raw, wrap_width, pending.start);
+    let old_end = pending.end;
     let tail = text[pending.end..].to_string();
     text.truncate(pending.start);
     text.push_str(&collapsed.summary);
     *cursor = pending.start + collapsed.summary.len();
     text.push_str(&tail);
+    let delta = collapsed.summary.len() as isize - (old_end.saturating_sub(pending.start) as isize);
+    pastes.retain(|paste| paste.offset < pending.start || paste.offset >= old_end);
+    shift_paste_offsets(pastes, old_end, delta);
     pastes.push(collapsed);
     None
 }
 
+/// Shifts stored offsets at or after `from` by `delta` bytes.
+pub fn shift_paste_offsets(pastes: &mut [CollapsedPaste], from: usize, delta: isize) {
+    if delta == 0 {
+        return;
+    }
+    for paste in pastes.iter_mut() {
+        if paste.offset >= from {
+            paste.offset = ((paste.offset as isize) + delta).max(0) as usize;
+        }
+    }
+}
+
+/// Shifts offsets for an insertion at `at` with byte length `len`.
+pub fn shift_paste_offsets_for_insert(pastes: &mut [CollapsedPaste], at: usize, len: usize) {
+    if len > 0 {
+        shift_paste_offsets(pastes, at, len as isize);
+    }
+}
+
+/// Removes pastes wholly inside `range` and shifts later markers.
+pub fn adjust_pastes_for_delete(pastes: &mut Vec<CollapsedPaste>, range: Range<usize>) {
+    let len = range.end.saturating_sub(range.start);
+    if len == 0 {
+        return;
+    }
+    pastes.retain(|paste| {
+        let end = paste.offset.saturating_add(paste.summary.len());
+        end <= range.start || paste.offset >= range.end
+    });
+    shift_paste_offsets(pastes, range.end, -(len as isize));
+}
+
+/// Re-syncs stored offsets against the current display text (handles preceding edits).
+pub fn reconcile_paste_offsets(display: &str, pastes: &mut [CollapsedPaste]) {
+    let mut used: Vec<Range<usize>> = Vec::new();
+    let mut order: Vec<usize> = (0..pastes.len()).collect();
+    order.sort_by_key(|idx| pastes[*idx].offset);
+
+    for idx in order {
+        let summary = pastes[idx].summary.clone();
+        let start = pastes[idx].offset;
+        let end = start.saturating_add(summary.len());
+        if end <= display.len()
+            && display.get(start..end) == Some(summary.as_str())
+            && !range_overlaps_used(start..end, &used)
+        {
+            used.push(start..end);
+            continue;
+        }
+
+        let mut search = 0usize;
+        let mut matched = false;
+        while search < display.len() {
+            let Some(rel) = display[search..].find(&summary) else {
+                break;
+            };
+            let at = search + rel;
+            let end = at.saturating_add(summary.len());
+            if end <= display.len() && !range_overlaps_used(at..end, &used) {
+                pastes[idx].offset = at;
+                used.push(at..end);
+                matched = true;
+                break;
+            }
+            search = at.saturating_add(1);
+        }
+        if !matched {
+            pastes[idx].offset = display.len();
+        }
+    }
+}
+
 /// Expands collapsed paste summaries back to full text for submit.
 pub fn expand_paste_markers(display: &str, pastes: &[CollapsedPaste]) -> String {
-    let mut out = String::new();
-    let mut rest = display;
-
-    for paste in pastes {
-        let Some(start) = rest.find(&paste.summary) else {
-            continue;
-        };
-        out.push_str(&rest[..start]);
-        out.push_str(&paste.full);
-        rest = &rest[start + paste.summary.len()..];
+    if pastes.is_empty() {
+        return display.to_string();
     }
 
-    out.push_str(rest);
+    let mut resolved = pastes.to_vec();
+    reconcile_paste_offsets(display, &mut resolved);
+
+    let mut ordered: Vec<&CollapsedPaste> = resolved.iter().collect();
+    ordered.sort_by_key(|paste| paste.offset);
+
+    let mut out = String::new();
+    let mut cursor = 0usize;
+    for paste in ordered {
+        if paste.offset < cursor || paste.offset > display.len() {
+            continue;
+        }
+        let end = paste.offset.saturating_add(paste.summary.len());
+        if end > display.len() || display[paste.offset..end] != paste.summary {
+            continue;
+        }
+        out.push_str(&display[cursor..paste.offset]);
+        out.push_str(&paste.full);
+        cursor = end;
+    }
+    out.push_str(&display[cursor..]);
     out
 }
 
 /// Finds the byte range of a collapsed paste summary covering `cursor`, if any.
 pub fn paste_block_range(value: &str, cursor: usize, pastes: &[CollapsedPaste]) -> Option<Range<usize>> {
     let cursor = cursor.min(value.len());
-    for paste in pastes {
-        let mut search_from = 0usize;
-        while let Some(start) = value[search_from..].find(&paste.summary) {
-            let start = search_from + start;
-            let end = start + paste.summary.len();
-            if cursor >= start && cursor <= end {
-                return Some(start..end);
-            }
-            search_from = end;
+    let mut resolved = pastes.to_vec();
+    reconcile_paste_offsets(value, &mut resolved);
+
+    for paste in &resolved {
+        let start = paste.offset;
+        let end = start.saturating_add(paste.summary.len());
+        if end <= value.len() && value[start..end] == paste.summary && cursor >= start && cursor <= end {
+            return Some(start..end);
         }
     }
     None
@@ -196,21 +283,42 @@ pub fn paste_block_range(value: &str, cursor: usize, pastes: &[CollapsedPaste]) 
 
 /// Removes the collapsed paste block at `range` and returns the removed paste index (0-based).
 pub fn remove_paste_block(value: &str, range: Range<usize>, pastes: &[CollapsedPaste]) -> (String, Option<usize>) {
-    for (idx, paste) in pastes.iter().enumerate() {
-        let mut search_from = 0usize;
-        while let Some(start) = value[search_from..].find(&paste.summary) {
-            let start = search_from + start;
-            let end = start + paste.summary.len();
-            if start == range.start && end == range.end {
-                let mut next = String::new();
-                next.push_str(&value[..range.start]);
-                next.push_str(&value[range.end..]);
-                return (next, Some(idx));
-            }
-            search_from = end;
-        }
+    if range.start > range.end || range.end > value.len() {
+        return (value.to_string(), None);
     }
-    (value.to_string(), None)
+    let matched = &value[range.start..range.end];
+    let mut resolved = pastes.to_vec();
+    reconcile_paste_offsets(value, &mut resolved);
+    let Some(idx) = resolved
+        .iter()
+        .position(|paste| paste.offset == range.start && paste.summary == matched)
+    else {
+        return (value.to_string(), None);
+    };
+
+    let mut next = String::new();
+    next.push_str(&value[..range.start]);
+    next.push_str(&value[range.end..]);
+    (next, Some(idx))
+}
+
+/// Removes a paste block, updates `pastes` offsets, and returns the new display text.
+pub fn remove_paste_block_and_adjust(
+    value: &str,
+    range: Range<usize>,
+    pastes: &mut Vec<CollapsedPaste>,
+) -> Option<String> {
+    let (next, idx) = remove_paste_block(value, range.clone(), pastes);
+    let idx = idx?;
+    reconcile_paste_offsets(value, pastes);
+    pastes.remove(idx);
+    adjust_pastes_for_delete(pastes, range);
+    Some(next)
+}
+
+fn range_overlaps_used(range: Range<usize>, used: &[Range<usize>]) -> bool {
+    used.iter()
+        .any(|other| range.start < other.end && other.start < range.end)
 }
 
 /// Parsed collapsed paste marker for styled rendering.
@@ -382,14 +490,23 @@ mod tests {
 
     #[test]
     fn expands_markers_on_submit() {
-        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40);
+        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 7);
         let display = format!("before {} after", paste.summary);
         assert_eq!(expand_paste_markers(&display, &[paste]), "before alpha\nbeta after");
     }
 
     #[test]
+    fn expands_by_stored_offset_not_first_substring_match() {
+        let summary = CollapsedPaste::new("real body".into(), 40, 0).summary;
+        let offset = summary.len() + 1;
+        let paste = CollapsedPaste::new("real body".into(), 40, offset);
+        let display = format!("{summary} {summary}");
+        assert_eq!(expand_paste_markers(&display, &[paste]), format!("{summary} real body"));
+    }
+
+    #[test]
     fn finds_paste_block_for_cursor() {
-        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40);
+        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 3);
         let value = format!("hi {}", paste.summary);
         let range = paste_block_range(&value, 4, &[paste.clone()]).expect("cursor on marker");
         assert_eq!(&value[range], paste.summary);
@@ -421,11 +538,87 @@ mod tests {
 
     #[test]
     fn removes_paste_block_and_returns_index() {
-        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40);
+        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 2);
         let value = format!("x {} y", paste.summary);
         let range = paste_block_range(&value, 3, &[paste.clone()]).unwrap();
         let (next, idx) = remove_paste_block(&value, range, &[paste]);
         assert_eq!(next, "x  y");
         assert_eq!(idx, Some(0));
+    }
+
+    #[test]
+    fn removes_correct_index_when_duplicate_summaries() {
+        let summary = CollapsedPaste::new("first body".into(), 40, 0).summary;
+        let offset1 = summary.len() + 1;
+        let paste0 = CollapsedPaste::new("first body".into(), 40, 0);
+        let paste1 = CollapsedPaste {
+            full: "second body".into(),
+            summary: summary.clone(),
+            offset: offset1,
+        };
+        let value = format!("{summary} {summary}");
+        let mut pastes = vec![paste0, paste1];
+
+        let range = paste_block_range(&value, offset1 + 2, &pastes).expect("cursor on second block");
+        assert_eq!(range.start, offset1);
+
+        let next = remove_paste_block_and_adjust(&value, range, &mut pastes).expect("removed");
+        assert_eq!(next, format!("{summary} "));
+        assert_eq!(pastes.len(), 1);
+        assert_eq!(pastes[0].full, "first body");
+        assert_eq!(pastes[0].offset, 0);
+    }
+
+    #[test]
+    fn delete_first_paste_then_expand_remaining() {
+        let summary = CollapsedPaste::new("first body".into(), 40, 0).summary;
+        let offset1 = summary.len() + 1;
+        let paste0 = CollapsedPaste::new("first body".into(), 40, 0);
+        let paste1 = CollapsedPaste {
+            full: "second body".into(),
+            summary: summary.clone(),
+            offset: offset1,
+        };
+        let value = format!("{summary} {summary}");
+        let mut pastes = vec![paste0, paste1];
+
+        let range = paste_block_range(&value, 1, &pastes).expect("cursor on first block");
+        let next = remove_paste_block_and_adjust(&value, range, &mut pastes).expect("removed first");
+        assert_eq!(next, format!(" {summary}"));
+        assert_eq!(expand_paste_markers(&next, &pastes), " second body");
+    }
+
+    #[test]
+    fn pre_edit_before_marker_then_expand() {
+        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 0);
+        let mut pastes = vec![paste.clone()];
+        let mut display = paste.summary.clone();
+        display.insert_str(0, "EDIT");
+        shift_paste_offsets_for_insert(&mut pastes, 0, "EDIT".len());
+        assert_eq!(expand_paste_markers(&display, &pastes), "EDITalpha\nbeta");
+    }
+
+    #[test]
+    fn pre_edit_before_marker_then_block_delete() {
+        let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 0);
+        let mut pastes = vec![paste.clone()];
+        let mut display = paste.summary.clone();
+        display.insert_str(0, "X");
+        shift_paste_offsets_for_insert(&mut pastes, 0, 1);
+        let range = paste_block_range(&display, pastes[0].offset + 1, &pastes).expect("find block");
+        let next = remove_paste_block_and_adjust(&display, range, &mut pastes).expect("delete");
+        assert_eq!(next, "X");
+        assert!(pastes.is_empty());
+    }
+
+    #[test]
+    fn adjust_pastes_for_delete_shifts_later_markers() {
+        let first = CollapsedPaste::new("a\nb".into(), 40, 0);
+        let gap = 1usize;
+        let second = CollapsedPaste::new("c\nd".into(), 40, first.summary.len() + gap);
+        let mut pastes = vec![first.clone(), second];
+        adjust_pastes_for_delete(&mut pastes, 0..first.summary.len());
+        assert_eq!(pastes.len(), 1);
+        assert_eq!(pastes[0].offset, gap);
     }
 }

@@ -56,6 +56,18 @@ impl Container {
         self.children.clear();
     }
 
+    pub fn len(&self) -> usize {
+        self.children.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.children.is_empty()
+    }
+
+    pub fn child_mut(&mut self, index: usize) -> Option<&mut Box<dyn LineComponent>> {
+        self.children.get_mut(index)
+    }
+
     pub fn render_children(&mut self, width: u16) -> Vec<Line> {
         let width = width.max(1);
         let mut lines = Vec::new();

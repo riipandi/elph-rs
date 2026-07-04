@@ -28,11 +28,17 @@ pub struct DiffLine {
     pub new_segments: Option<Vec<InlineSegment>>,
 }
 
-const TAB_WIDTH: usize = 8;
+/// Default tab width for [`expand_tabs`].
+pub const DEFAULT_TAB_WIDTH: usize = 8;
 const MIN_UNCHANGED_RATIO: f64 = 0.20;
 
 fn has_meaningful_content(s: &str) -> bool {
     s.chars().any(|c| !c.is_whitespace())
+}
+
+/// Expands tabs using [`DEFAULT_TAB_WIDTH`].
+pub fn expand_tabs_default(text: &str) -> String {
+    expand_tabs(text, DEFAULT_TAB_WIDTH)
 }
 
 /// Expands tabs to spaces for consistent display width.

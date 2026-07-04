@@ -62,13 +62,18 @@ pub fn truncate_to_width_no_ellipsis(text: &str, max_width: usize) -> String {
     truncate_to_width(text, max_width, "")
 }
 
+/// Truncates with the Unicode ellipsis character ([`ELLIPSIS`]).
+pub fn truncate_to_width_ellipsis(text: &str, max_width: usize) -> String {
+    truncate_to_width(text, max_width, ELLIPSIS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn truncates_plain_text() {
-        assert_eq!(truncate_to_width("Hello World", 8, "..."), "Hello...");
+        assert_eq!(truncate_to_width("Hello World", 8, ELLIPSIS), "Hello W…");
     }
 
     #[test]

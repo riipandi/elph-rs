@@ -1,10 +1,11 @@
 use crokey::{pop_keyboard_enhancement_flags, push_keyboard_enhancement_flags};
-use crossterm::event::DisableBracketedPaste;
+use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::terminal;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
+static BRACKETED_PASTE_DISABLED: AtomicBool = AtomicBool::new(false);
 
 /// Enables xterm keyboard enhancements needed for ⌘/⌥ modifier reporting.
 ///
@@ -16,6 +17,7 @@ pub fn enable_keyboard_enhancement() -> io::Result<()> {
 
     push_keyboard_enhancement_flags()?;
     crossterm::execute!(io::stdout(), DisableBracketedPaste)?;
+    BRACKETED_PASTE_DISABLED.store(true, Ordering::Relaxed);
     io::stdout().flush()?;
     ENABLED.store(true, Ordering::Relaxed);
     Ok(())
@@ -28,6 +30,19 @@ pub fn disable_keyboard_enhancement() -> io::Result<()> {
     }
 
     pop_keyboard_enhancement_flags()?;
+    if BRACKETED_PASTE_DISABLED.swap(false, Ordering::Relaxed) {
+        crossterm::execute!(io::stdout(), EnableBracketedPaste)?;
+    }
     io::stdout().flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disable_is_idempotent_when_not_enabled() {
+        disable_keyboard_enhancement().expect("idempotent disable");
+    }
 }

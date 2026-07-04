@@ -11,8 +11,9 @@ use super::prompt_keys::{
     should_insert_tab_in_prompt,
 };
 use super::prompt_paste::{
-    CollapsedPaste, PendingPaste, enter_should_finalize_paste, expand_paste_markers, finalize_pending_paste,
-    paste_block_range, remove_paste_block, should_collapse_paste,
+    CollapsedPaste, PendingPaste, adjust_pastes_for_delete, enter_should_finalize_paste, expand_paste_markers,
+    finalize_pending_paste, paste_block_range, remove_paste_block_and_adjust, shift_paste_offsets_for_insert,
+    should_collapse_paste,
 };
 use crate::theme::Theme;
 use iocraft::prelude::*;
@@ -71,7 +72,6 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
         .saturating_sub(HORIZONTAL_CHROME)
         .max(FALLBACK_TEXT_WIDTH);
     let measured_width = hooks.use_state(move || fallback_width);
-    let mut stable_height = hooks.use_state(|| MIN_INPUT_LINES);
     let mut cursor_offset = hooks.use_state(|| 0usize);
     let mut vertical_col_pref = hooks.use_state(|| None::<u16>);
     let mut field_clear_generation = hooks.use_state(|| 0u32);
@@ -83,31 +83,18 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
     let current = draft_text.read().clone().unwrap_or_else(|| value.read().clone());
     let text_width = measured_width.get().max(1);
     let computed_height = visual_line_count(&current, text_width);
-    let input_height = stable_height.get().max(computed_height).min(MAX_INPUT_LINES);
+    let input_height = computed_height;
     let mut on_submit = props.on_submit.take();
     let mut on_mode_change = props.on_mode_change.take();
     let current_mode = props.mode;
     let has_focus = props.has_focus;
     let reset_dep = props.reset_nonce.map(|nonce| nonce.get()).unwrap_or(0);
 
-    let is_empty = current.is_empty();
-    hooks.use_effect(
-        move || {
-            if is_empty {
-                stable_height.set(MIN_INPUT_LINES);
-            } else {
-                stable_height.set(computed_height.max(MIN_INPUT_LINES));
-            }
-        },
-        (is_empty, computed_height),
-    );
-
     hooks.use_effect(
         move || {
             if reset_dep == 0 {
                 return;
             }
-            stable_height.set(MIN_INPUT_LINES);
             cursor_offset.set(0);
             vertical_col_pref.set(None);
             pending_paste.write().take();
@@ -165,16 +152,18 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
             }
             let paste_active = paste_guard.read().is_paste_active(now);
             maybe_finalize_idle_paste(
-                &mut pending_paste.write(),
-                &mut collapsed_pastes.write(),
+                &mut PromptPasteCtx {
+                    paste_guard: &mut paste_guard.write(),
+                    pending: &mut pending_paste.write(),
+                    pastes: &mut collapsed_pastes.write(),
+                    value: &mut value,
+                    draft: &mut draft_text.write(),
+                    burst_since_sync: &mut burst_chars_since_sync.write(),
+                    cursor_offset: &mut cursor_offset,
+                },
                 in_burst,
                 paste_active,
                 wrap_width,
-                &mut paste_guard.write(),
-                &mut value,
-                &mut draft_text.write(),
-                &mut burst_chars_since_sync.write(),
-                &mut cursor_offset,
                 now,
             );
             text = load_prompt_text(&value, &draft_text.read());
@@ -183,14 +172,16 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
 
         if is_press(kind) && should_finalize_paste(code, modifiers) {
             finalize_pending_paste_input(
-                &mut pending_paste.write(),
-                &mut collapsed_pastes.write(),
+                &mut PromptPasteCtx {
+                    paste_guard: &mut paste_guard.write(),
+                    pending: &mut pending_paste.write(),
+                    pastes: &mut collapsed_pastes.write(),
+                    value: &mut value,
+                    draft: &mut draft_text.write(),
+                    burst_since_sync: &mut burst_chars_since_sync.write(),
+                    cursor_offset: &mut cursor_offset,
+                },
                 wrap_width,
-                &mut paste_guard.write(),
-                &mut value,
-                &mut draft_text.write(),
-                &mut burst_chars_since_sync.write(),
-                &mut cursor_offset,
                 now,
             );
             text = load_prompt_text(&value, &draft_text.read());
@@ -200,23 +191,27 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
         let paste_active = paste_guard.read().is_paste_active(now);
         let in_burst = paste_guard.read().is_in_burst(now);
 
-        if is_press(kind) && is_pasted_tab_key(code, modifiers) {
-            if should_insert_tab_in_prompt(&text, paste_active, in_burst) {
-                apply_pasted_char(
-                    '\t',
-                    &mut text,
-                    &mut cursor,
-                    &mut paste_guard.write(),
-                    &mut pending_paste.write(),
-                    &mut value,
-                    &mut draft_text.write(),
-                    &mut burst_chars_since_sync.write(),
-                    &mut cursor_offset,
-                    now,
-                );
-                vertical_col_pref.set(None);
-                return;
-            }
+        if is_press(kind)
+            && is_pasted_tab_key(code, modifiers)
+            && should_insert_tab_in_prompt(&text, paste_active, in_burst)
+        {
+            apply_pasted_char(
+                '\t',
+                &mut text,
+                &mut cursor,
+                &mut PromptPasteCtx {
+                    paste_guard: &mut paste_guard.write(),
+                    pending: &mut pending_paste.write(),
+                    pastes: &mut collapsed_pastes.write(),
+                    value: &mut value,
+                    draft: &mut draft_text.write(),
+                    burst_since_sync: &mut burst_chars_since_sync.write(),
+                    cursor_offset: &mut cursor_offset,
+                },
+                now,
+            );
+            vertical_col_pref.set(None);
+            return;
         }
 
         if should_cycle_agent_mode(&text, paste_active, in_burst, code, modifiers) && is_press(kind) {
@@ -229,7 +224,6 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                 value.set(String::new());
                 cursor_offset.set(0);
                 vertical_col_pref.set(None);
-                stable_height.set(MIN_INPUT_LINES);
                 field_clear_generation.set(field_clear_generation.get().wrapping_add(1));
                 pending_paste.write().take();
                 collapsed_pastes.write().clear();
@@ -258,6 +252,8 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                 EditAction::CharRight => (text.clone(), char_right(&text, cursor)),
             };
             if next != text {
+                let mut pastes = collapsed_pastes.write();
+                adjust_pastes_for_delete(&mut pastes, new_cursor..cursor);
                 commit_prompt_text(
                     &mut value,
                     &mut draft_text.write(),
@@ -277,18 +273,23 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                     '\n',
                     &mut text,
                     &mut cursor,
-                    &mut paste_guard.write(),
-                    &mut pending_paste.write(),
-                    &mut value,
-                    &mut draft_text.write(),
-                    &mut burst_chars_since_sync.write(),
-                    &mut cursor_offset,
+                    &mut PromptPasteCtx {
+                        paste_guard: &mut paste_guard.write(),
+                        pending: &mut pending_paste.write(),
+                        pastes: &mut collapsed_pastes.write(),
+                        value: &mut value,
+                        draft: &mut draft_text.write(),
+                        burst_since_sync: &mut burst_chars_since_sync.write(),
+                        cursor_offset: &mut cursor_offset,
+                    },
                     now,
                 );
                 return;
             }
             let (next, new_cursor) = insert_newline_at_cursor(&text, cursor);
             if next != text {
+                let inserted = next.len().saturating_sub(text.len());
+                shift_paste_offsets_for_insert(&mut collapsed_pastes.write(), cursor, inserted);
                 commit_prompt_text(
                     &mut value,
                     &mut draft_text.write(),
@@ -310,14 +311,16 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
 
             if enter_should_finalize_paste(&text, pending_snapshot.as_ref(), paste_recent, in_burst) {
                 finalize_pending_paste_input(
-                    &mut pending_paste.write(),
-                    &mut collapsed_pastes.write(),
+                    &mut PromptPasteCtx {
+                        paste_guard: &mut paste_guard.write(),
+                        pending: &mut pending_paste.write(),
+                        pastes: &mut collapsed_pastes.write(),
+                        value: &mut value,
+                        draft: &mut draft_text.write(),
+                        burst_since_sync: &mut burst_chars_since_sync.write(),
+                        cursor_offset: &mut cursor_offset,
+                    },
                     wrap_width,
-                    &mut paste_guard.write(),
-                    &mut value,
-                    &mut draft_text.write(),
-                    &mut burst_chars_since_sync.write(),
-                    &mut cursor_offset,
                     now,
                 );
                 return;
@@ -333,7 +336,6 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                 let submitted = expand_paste_markers(&text, &collapsed_pastes.read());
                 on_submit(submitted);
                 value.set(String::new());
-                stable_height.set(MIN_INPUT_LINES);
                 field_clear_generation.set(field_clear_generation.get().wrapping_add(1));
                 cursor_offset.set(0);
                 vertical_col_pref.set(None);
@@ -360,12 +362,15 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                             '\t',
                             &mut text,
                             &mut cursor,
-                            &mut paste_guard.write(),
-                            &mut pending_paste.write(),
-                            &mut value,
-                            &mut draft_text.write(),
-                            &mut burst_chars_since_sync.write(),
-                            &mut cursor_offset,
+                            &mut PromptPasteCtx {
+                                paste_guard: &mut paste_guard.write(),
+                                pending: &mut pending_paste.write(),
+                                pastes: &mut collapsed_pastes.write(),
+                                value: &mut value,
+                                draft: &mut draft_text.write(),
+                                burst_since_sync: &mut burst_chars_since_sync.write(),
+                                cursor_offset: &mut cursor_offset,
+                            },
                             now,
                         );
                     }
@@ -374,32 +379,36 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                         ch,
                         &mut text,
                         &mut cursor,
-                        &mut paste_guard.write(),
-                        &mut pending_paste.write(),
-                        &mut value,
-                        &mut draft_text.write(),
-                        &mut burst_chars_since_sync.write(),
-                        &mut cursor_offset,
+                        &mut PromptPasteCtx {
+                            paste_guard: &mut paste_guard.write(),
+                            pending: &mut pending_paste.write(),
+                            pastes: &mut collapsed_pastes.write(),
+                            value: &mut value,
+                            draft: &mut draft_text.write(),
+                            burst_since_sync: &mut burst_chars_since_sync.write(),
+                            cursor_offset: &mut cursor_offset,
+                        },
                         now,
                     );
                 }
             }
             KeyCode::Backspace => {
-                let pastes = collapsed_pastes.read().clone();
-                if let Some(range) = paste_block_range(&text, cursor.saturating_sub(1), &pastes) {
-                    let (next, removed_idx) = remove_paste_block(&text, range.clone(), &pastes);
-                    if let Some(idx) = removed_idx {
-                        collapsed_pastes.write().remove(idx);
+                let paste_snapshot = collapsed_pastes.read().clone();
+                if let Some(range) = paste_block_range(&text, cursor.saturating_sub(1), &paste_snapshot) {
+                    if let Some(next) =
+                        remove_paste_block_and_adjust(&text, range.clone(), &mut collapsed_pastes.write())
+                    {
+                        commit_prompt_text(
+                            &mut value,
+                            &mut draft_text.write(),
+                            &mut burst_chars_since_sync.write(),
+                            next,
+                        );
+                        cursor_offset.set(range.start);
                     }
-                    commit_prompt_text(
-                        &mut value,
-                        &mut draft_text.write(),
-                        &mut burst_chars_since_sync.write(),
-                        next,
-                    );
-                    cursor_offset.set(range.start);
                 } else if cursor > 0 {
                     let (next, new_cursor) = delete_char_backward(&text, cursor);
+                    adjust_pastes_for_delete(&mut collapsed_pastes.write(), new_cursor..cursor);
                     commit_prompt_text(
                         &mut value,
                         &mut draft_text.write(),
@@ -410,21 +419,22 @@ pub fn PromptInput(mut hooks: Hooks, props: &mut PromptInputProps) -> impl Into<
                 }
             }
             KeyCode::Delete => {
-                let pastes = collapsed_pastes.read().clone();
-                if let Some(range) = paste_block_range(&text, cursor, &pastes) {
-                    let (next, removed_idx) = remove_paste_block(&text, range.clone(), &pastes);
-                    if let Some(idx) = removed_idx {
-                        collapsed_pastes.write().remove(idx);
+                let paste_snapshot = collapsed_pastes.read().clone();
+                if let Some(range) = paste_block_range(&text, cursor, &paste_snapshot) {
+                    if let Some(next) =
+                        remove_paste_block_and_adjust(&text, range.clone(), &mut collapsed_pastes.write())
+                    {
+                        commit_prompt_text(
+                            &mut value,
+                            &mut draft_text.write(),
+                            &mut burst_chars_since_sync.write(),
+                            next,
+                        );
+                        cursor_offset.set(range.start);
                     }
-                    commit_prompt_text(
-                        &mut value,
-                        &mut draft_text.write(),
-                        &mut burst_chars_since_sync.write(),
-                        next,
-                    );
-                    cursor_offset.set(range.start);
                 } else if cursor < text.len() {
                     let (next, new_cursor) = delete_char_forward(&text, cursor);
+                    adjust_pastes_for_delete(&mut collapsed_pastes.write(), cursor..new_cursor);
                     commit_prompt_text(
                         &mut value,
                         &mut draft_text.write(),
@@ -570,67 +580,63 @@ fn flush_draft_if_any(value: &mut State<String>, draft: &mut Option<String>, bur
     }
 }
 
-fn apply_pasted_char(
-    ch: char,
-    text: &mut String,
-    cursor: &mut usize,
-    paste_guard: &mut PasteGuard,
-    pending: &mut Option<PendingPaste>,
-    value: &mut State<String>,
-    draft: &mut Option<String>,
-    burst_since_sync: &mut usize,
-    cursor_offset: &mut State<usize>,
-    now: Instant,
-) {
+struct PromptPasteCtx<'a> {
+    paste_guard: &'a mut PasteGuard,
+    pending: &'a mut Option<PendingPaste>,
+    pastes: &'a mut Vec<CollapsedPaste>,
+    value: &'a mut State<String>,
+    draft: &'a mut Option<String>,
+    burst_since_sync: &'a mut usize,
+    cursor_offset: &'a mut State<usize>,
+}
+
+fn apply_pasted_char(ch: char, text: &mut String, cursor: &mut usize, ctx: &mut PromptPasteCtx<'_>, now: Instant) {
     let prev_len = text.len();
     let cursor_before = *cursor;
-    let was_in_burst = paste_guard.is_in_burst(now);
+    let was_in_burst = ctx.paste_guard.is_in_burst(now);
     if *cursor == text.len() {
         text.push(ch);
     } else {
         text.insert(*cursor, ch);
     }
-    *cursor += ch.len_utf8();
-    paste_guard.record_change(prev_len, text.len(), now);
-    if paste_guard.is_paste_active(now) || was_in_burst {
-        match pending.as_mut() {
+    let inserted = ch.len_utf8();
+    shift_paste_offsets_for_insert(ctx.pastes, cursor_before, inserted);
+    *cursor += inserted;
+    ctx.paste_guard.record_change(prev_len, text.len(), now);
+    if ctx.paste_guard.is_paste_active(now) || was_in_burst {
+        match ctx.pending.as_mut() {
             Some(run) => run.extend(*cursor, now),
-            None => *pending = Some(PendingPaste::new(cursor_before, *cursor, now)),
+            None => *ctx.pending = Some(PendingPaste::new(cursor_before, *cursor, now)),
         }
     } else {
-        pending.take();
+        ctx.pending.take();
     }
 
-    *draft = Some(text.clone());
-    *burst_since_sync += ch.len_utf8();
-    let paste_run_len = pending
+    *ctx.draft = Some(text.clone());
+    *ctx.burst_since_sync += ch.len_utf8();
+    let paste_run_len = ctx
+        .pending
         .as_ref()
         .map(|run| run.end.saturating_sub(run.start))
         .unwrap_or(0);
-    let defer_sync = paste_guard.is_paste_active(now)
-        && paste_guard.is_in_burst(now)
+    let defer_sync = ctx.paste_guard.is_paste_active(now)
+        && ctx.paste_guard.is_in_burst(now)
         && paste_run_len >= BURST_BATCH_MIN_CHARS
-        && *burst_since_sync < BURST_VALUE_SYNC_INTERVAL;
+        && *ctx.burst_since_sync < BURST_VALUE_SYNC_INTERVAL;
     if !defer_sync {
-        commit_prompt_text(value, draft, burst_since_sync, text.clone());
+        commit_prompt_text(ctx.value, ctx.draft, ctx.burst_since_sync, text.clone());
     }
-    cursor_offset.set(*cursor);
+    ctx.cursor_offset.set(*cursor);
 }
 
 fn maybe_finalize_idle_paste(
-    pending: &mut Option<PendingPaste>,
-    pastes: &mut Vec<CollapsedPaste>,
+    ctx: &mut PromptPasteCtx<'_>,
     in_burst: bool,
     _paste_active: bool,
     wrap_width: usize,
-    paste_guard: &mut PasteGuard,
-    value: &mut State<String>,
-    draft: &mut Option<String>,
-    burst_since_sync: &mut usize,
-    cursor_offset: &mut State<usize>,
     now: Instant,
 ) {
-    let Some(run) = pending.as_ref() else {
+    let Some(run) = ctx.pending.as_ref() else {
         return;
     };
 
@@ -638,50 +644,30 @@ fn maybe_finalize_idle_paste(
         return;
     }
 
-    finalize_pending_paste_input(
-        pending,
-        pastes,
-        wrap_width,
-        paste_guard,
-        value,
-        draft,
-        burst_since_sync,
-        cursor_offset,
-        now,
-    );
+    finalize_pending_paste_input(ctx, wrap_width, now);
 }
 
-fn finalize_pending_paste_input(
-    pending: &mut Option<PendingPaste>,
-    pastes: &mut Vec<CollapsedPaste>,
-    wrap_width: usize,
-    paste_guard: &mut PasteGuard,
-    value: &mut State<String>,
-    draft: &mut Option<String>,
-    burst_since_sync: &mut usize,
-    cursor_offset: &mut State<usize>,
-    now: Instant,
-) {
-    flush_draft_if_any(value, draft, burst_since_sync);
+fn finalize_pending_paste_input(ctx: &mut PromptPasteCtx<'_>, wrap_width: usize, now: Instant) {
+    flush_draft_if_any(ctx.value, ctx.draft, ctx.burst_since_sync);
 
-    let Some(run) = pending.take() else {
+    let Some(run) = ctx.pending.take() else {
         return;
     };
 
-    let mut text = value.read().clone();
-    let notify = paste_guard.is_paste_active(now) || should_collapse_paste(run.slice(&text));
-    let mut cursor = cursor_offset.get().min(text.len());
+    let mut text = ctx.value.read().clone();
+    let notify = ctx.paste_guard.is_paste_active(now) || should_collapse_paste(run.slice(&text));
+    let mut cursor = ctx.cursor_offset.get().min(text.len());
     let before = text.clone();
     let cursor_before = cursor;
-    *pending = finalize_pending_paste(Some(run), &mut text, &mut cursor, wrap_width, pastes, true);
+    *ctx.pending = finalize_pending_paste(Some(run), &mut text, &mut cursor, wrap_width, ctx.pastes, true);
     if text != before || cursor != cursor_before {
-        commit_prompt_text(value, draft, burst_since_sync, text);
-        cursor_offset.set(cursor);
+        commit_prompt_text(ctx.value, ctx.draft, ctx.burst_since_sync, text);
+        ctx.cursor_offset.set(cursor);
     } else if notify {
-        commit_prompt_text(value, draft, burst_since_sync, text);
+        commit_prompt_text(ctx.value, ctx.draft, ctx.burst_since_sync, text);
     }
     if notify {
-        paste_guard.release_paste_active();
+        ctx.paste_guard.release_paste_active();
     }
 }
 

@@ -28,6 +28,6 @@ pub use terminal::{
 };
 pub use theme::{Theme, ThemeMode};
 pub use utils::{
-    TAB_STOP, char_display_width, pad_lines, str_display_width, truncate_to_width, wrap_ansi_line, wrap_ansi_text,
-    wrap_text,
+    TAB_STOP, char_display_width, pad_lines, str_display_width, truncate_to_width, truncate_to_width_ellipsis,
+    wrap_ansi_line, wrap_ansi_text, wrap_text,
 };

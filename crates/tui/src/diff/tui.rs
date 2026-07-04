@@ -11,6 +11,7 @@ const MIN_RENDER_INTERVAL: Duration = Duration::from_millis(16);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FocusTarget {
     None,
+    Container(usize),
     Overlay(usize),
 }
 
@@ -45,7 +46,11 @@ impl DiffTui {
     }
 
     pub fn add_child(&mut self, child: Box<dyn LineComponent>) {
+        let idx = self.container.len();
         self.container.add_child(child);
+        if !matches!(self.focused, FocusTarget::Overlay(_)) {
+            self.set_focus(FocusTarget::Container(idx));
+        }
     }
 
     pub fn clear_children(&mut self) {
@@ -91,7 +96,7 @@ impl DiffTui {
         self.focus_order_counter += 1;
         let pre_focus = match self.focused {
             FocusTarget::Overlay(idx) => Some(idx),
-            FocusTarget::None => None,
+            FocusTarget::None | FocusTarget::Container(_) => None,
         };
         let slot = self.overlays.len();
         let entry = OverlayEntry {
@@ -184,10 +189,10 @@ impl DiffTui {
         }
 
         let now = Instant::now();
-        if let Some(last) = self.last_render_at {
-            if now.duration_since(last) < MIN_RENDER_INTERVAL {
-                return Ok(());
-            }
+        if let Some(last) = self.last_render_at
+            && now.duration_since(last) < MIN_RENDER_INTERVAL
+        {
+            return Ok(());
         }
 
         self.render_requested = false;
@@ -217,29 +222,54 @@ impl DiffTui {
     }
 
     fn dispatch_input(&mut self, data: &str) -> bool {
-        if let FocusTarget::Overlay(idx) = self.focused {
-            if let Some(entry) = self.overlays.get_mut(idx) {
-                if entry.alive && !entry.hidden {
-                    return entry.component.handle_input(data) == InputResult::Consumed;
-                }
-            }
+        if let FocusTarget::Overlay(idx) = self.focused
+            && let Some(entry) = self.overlays.get_mut(idx)
+            && entry.alive
+            && !entry.hidden
+        {
+            return entry.component.handle_input(data) == InputResult::Consumed;
+        }
+        if let FocusTarget::Container(idx) = self.focused
+            && let Some(child) = self.container.child_mut(idx)
+        {
+            return child.handle_input(data) == InputResult::Consumed;
         }
         false
     }
 
     fn set_focus(&mut self, target: FocusTarget) {
-        if let FocusTarget::Overlay(idx) = self.focused {
-            if let Some(entry) = self.overlays.get_mut(idx) {
-                entry.component.set_focused(false);
-            }
-        }
+        self.clear_focus();
 
         self.focused = target;
 
-        if let FocusTarget::Overlay(idx) = self.focused {
-            if let Some(entry) = self.overlays.get_mut(idx) {
-                entry.component.set_focused(true);
+        match self.focused {
+            FocusTarget::Overlay(idx) => {
+                if let Some(entry) = self.overlays.get_mut(idx) {
+                    entry.component.set_focused(true);
+                }
             }
+            FocusTarget::Container(idx) => {
+                if let Some(child) = self.container.child_mut(idx) {
+                    child.set_focused(true);
+                }
+            }
+            FocusTarget::None => {}
+        }
+    }
+
+    fn clear_focus(&mut self) {
+        match self.focused {
+            FocusTarget::Overlay(idx) => {
+                if let Some(entry) = self.overlays.get_mut(idx) {
+                    entry.component.set_focused(false);
+                }
+            }
+            FocusTarget::Container(idx) => {
+                if let Some(child) = self.container.child_mut(idx) {
+                    child.set_focused(false);
+                }
+            }
+            FocusTarget::None => {}
         }
     }
 

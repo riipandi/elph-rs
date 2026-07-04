@@ -12,6 +12,8 @@ pub const PAGE_SCROLL_VIEWPORT: u16 = 0;
 pub struct ChatStreamProps {
     /// Submitted messages, oldest first.
     pub messages: Vec<String>,
+    /// When false, keyboard scroll keys are ignored (e.g. while the prompt has focus).
+    pub scroll_enabled: bool,
     /// Pin to bottom while the user has not scrolled up.
     pub auto_scroll: bool,
     /// Lines to scroll per Up/Down key press.
@@ -26,6 +28,7 @@ impl Default for ChatStreamProps {
     fn default() -> Self {
         Self {
             messages: Vec::new(),
+            scroll_enabled: true,
             auto_scroll: true,
             line_scroll_step: DEFAULT_LINE_SCROLL_STEP,
             page_scroll_step: PAGE_SCROLL_VIEWPORT,
@@ -41,12 +44,17 @@ pub fn ChatStream(mut hooks: Hooks, props: &mut ChatStreamProps) -> impl Into<An
     let line_scroll_step = props.line_scroll_step.max(1) as i32;
     let page_scroll_step = props.page_scroll_step;
     let auto_scroll = props.auto_scroll;
+    let scroll_enabled = props.scroll_enabled;
     let messages = props.messages.clone();
     let theme = props.theme;
 
     hooks.use_terminal_events({
         let mut handle = handle;
         move |event| {
+            if !scroll_enabled {
+                return;
+            }
+
             let TerminalEvent::Key(KeyEvent { code, kind, .. }) = event else {
                 return;
             };

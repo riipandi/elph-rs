@@ -50,6 +50,7 @@ pub fn match_editor_action(data: &str) -> Option<EditorAction> {
         "\x19" => Some(EditorAction::Yank),
         "\x1bY" | "\x1by" => Some(EditorAction::YankPop),
         "\x1f" | "\x1b-" | "\x1b\x1f" => Some(EditorAction::Undo),
+        "\x18" => Some(EditorAction::NewLine),
         "\x1b\r" | "\x1b\n" | "\x1b[13;2~" | "\x1b[27;2;13~" => Some(EditorAction::NewLine),
         "\r" | "\n" => Some(EditorAction::Submit),
         "\t" => Some(EditorAction::Tab),

@@ -79,7 +79,7 @@ impl MarkdownTheme {
     }
 
     fn paint_hr(&self, width: usize) -> String {
-        let len = width.min(80).max(3);
+        let len = width.clamp(3, 80);
         styled(&ansi::fg(self.hr), &"─".repeat(len))
     }
 
@@ -246,11 +246,11 @@ impl<'a> Renderer<'a> {
                 self.flush_paragraph();
                 self.in_code_block = true;
                 self.code_block_lines.clear();
-                if let CodeBlockKind::Fenced(lang) = kind {
-                    if !lang.is_empty() {
-                        self.code_block_lines
-                            .push(self.theme.paint_bullet(&format!("```{lang}")));
-                    }
+                if let CodeBlockKind::Fenced(lang) = kind
+                    && !lang.is_empty()
+                {
+                    self.code_block_lines
+                        .push(self.theme.paint_bullet(&format!("```{lang}")));
                 }
             }
             Tag::List(first) => {
@@ -383,7 +383,7 @@ impl<'a> Renderer<'a> {
             self.lines.push(line);
             return;
         }
-        self.lines.extend(wrap_ansi_line(&line, self.width).into_iter());
+        self.lines.extend(wrap_ansi_line(&line, self.width));
     }
 
     fn finish(self) -> Vec<String> {

@@ -52,6 +52,11 @@ impl SelectListTheme {
     }
 }
 
+/// Callback when a list item is selected.
+pub type SelectCallback = Box<dyn FnMut(&SelectItem)>;
+/// Callback when list selection changes.
+pub type SelectChangeCallback = Box<dyn FnMut(&SelectItem)>;
+
 /// Scrollable fuzzy-filtered list (pi-tui `SelectList`).
 pub struct SelectList {
     items: Vec<SelectItem>,
@@ -61,9 +66,9 @@ pub struct SelectList {
     filter: String,
     theme: SelectListTheme,
     focused: bool,
-    pub on_select: Option<Box<dyn FnMut(&SelectItem)>>,
+    pub on_select: Option<SelectCallback>,
     pub on_cancel: Option<Box<dyn FnMut()>>,
-    pub on_selection_change: Option<Box<dyn FnMut(&SelectItem)>>,
+    pub on_selection_change: Option<SelectChangeCallback>,
 }
 
 impl SelectList {
@@ -160,25 +165,25 @@ impl SelectList {
             .map(|d| d.replace(['\r', '\n'], " ").trim().to_string())
             .filter(|d| !d.is_empty());
 
-        if let Some(desc) = description {
-            if width > 40 {
-                let effective_primary = primary_width.min(width.saturating_sub(prefix_width + 4));
-                let max_primary = effective_primary.saturating_sub(PRIMARY_GAP).max(1);
-                let value = truncate_to_width_no_ellipsis(Self::display_value(item), max_primary);
-                let value_width = str_display_width(&value);
-                let spacing = " ".repeat(effective_primary.saturating_sub(value_width).max(1));
-                let remaining = width.saturating_sub(prefix_width + value_width + spacing.len() + 2);
-                if remaining > MIN_DESCRIPTION_WIDTH {
-                    let truncated_desc = truncate_to_width_no_ellipsis(&desc, remaining);
-                    if selected {
-                        return styled(
-                            &ansi::fg(self.theme.selected),
-                            &format!("{prefix}{value}{spacing}{truncated_desc}"),
-                        );
-                    }
-                    let desc_styled = styled(&ansi::fg(self.theme.description), &format!("{spacing}{truncated_desc}"));
-                    return format!("{prefix}{value}{desc_styled}");
+        if let Some(desc) = description
+            && width > 40
+        {
+            let effective_primary = primary_width.min(width.saturating_sub(prefix_width + 4));
+            let max_primary = effective_primary.saturating_sub(PRIMARY_GAP).max(1);
+            let value = truncate_to_width_no_ellipsis(Self::display_value(item), max_primary);
+            let value_width = str_display_width(&value);
+            let spacing = " ".repeat(effective_primary.saturating_sub(value_width).max(1));
+            let remaining = width.saturating_sub(prefix_width + value_width + spacing.len() + 2);
+            if remaining > MIN_DESCRIPTION_WIDTH {
+                let truncated_desc = truncate_to_width_no_ellipsis(&desc, remaining);
+                if selected {
+                    return styled(
+                        &ansi::fg(self.theme.selected),
+                        &format!("{prefix}{value}{spacing}{truncated_desc}"),
+                    );
                 }
+                let desc_styled = styled(&ansi::fg(self.theme.description), &format!("{spacing}{truncated_desc}"));
+                return format!("{prefix}{value}{desc_styled}");
             }
         }
 

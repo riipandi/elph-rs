@@ -2,7 +2,9 @@ use crate::utils::{str_display_width, truncate_to_width_no_ellipsis};
 
 use super::ansi::{self, styled};
 use super::component::{Line, LineComponent};
-use super::content::{ChangeType, DiffLine, InlineSegment, compute_side_by_side, count_added_removed};
+use super::content::{
+    ChangeType, DEFAULT_TAB_WIDTH, DiffLine, InlineSegment, compute_side_by_side, count_added_removed,
+};
 
 /// Side-by-side diff viewer using the Lumen-style content diff engine.
 pub struct DiffView {
@@ -19,7 +21,7 @@ impl DiffView {
         Self {
             old_text: old_text.into(),
             new_text: new_text.into(),
-            tab_width: 8,
+            tab_width: DEFAULT_TAB_WIDTH,
             title: None,
             cache_key: None,
             cache_lines: Vec::new(),

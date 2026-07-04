@@ -36,11 +36,19 @@ pub const EXIT_CONNECTION_ERROR: ExitCode = 6;
 pub const EXIT_SERVER_ERROR: ExitCode = 7;
 pub const EXIT_INTERRUPTED: ExitCode = 130;
 
-pub fn run() {
-    let result = block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
-    if let Err(e) = disable_keyboard_enhancement() {
-        eprintln!("Failed to restore keyboard enhancements: {e}");
+struct KeyboardEnhancementGuard;
+
+impl Drop for KeyboardEnhancementGuard {
+    fn drop(&mut self) {
+        if let Err(e) = disable_keyboard_enhancement() {
+            eprintln!("Failed to restore keyboard enhancements: {e}");
+        }
     }
+}
+
+pub fn run() {
+    let _guard = KeyboardEnhancementGuard;
+    let result = block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
     exit_message::print_and_clear();
     if let Err(e) = result {
         eprintln!("App error: {e}");

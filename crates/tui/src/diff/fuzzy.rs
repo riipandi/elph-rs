@@ -68,10 +68,10 @@ fn match_query(query: &str, text: &str) -> FuzzyMatch {
                 score -= (consecutive_matches * 5) as f64;
             } else {
                 consecutive_matches = 0;
-                if let Some(last) = last_match_index {
-                    if i > last + 1 {
-                        score += ((i - last - 1) * 2) as f64;
-                    }
+                if let Some(last) = last_match_index
+                    && i > last + 1
+                {
+                    score += ((i - last - 1) * 2) as f64;
                 }
             }
 

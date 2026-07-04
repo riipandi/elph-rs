@@ -23,7 +23,8 @@ mod undo_stack;
 pub use ansi::{BOLD, DIM, ITALIC, RESET, STRIKE, StylePrefix, UNDERLINE, hyperlink};
 pub use component::{Container, Focusable, InputResult, Line, LineComponent, TextBlock};
 pub use content::{
-    ChangeType, DiffLine, InlineSegment, compute_side_by_side, count_added_removed, expand_tabs, find_hunk_starts,
+    ChangeType, DiffLine, InlineSegment, compute_side_by_side, count_added_removed, expand_tabs, expand_tabs_default,
+    find_hunk_starts,
 };
 pub use cursor::CursorPosition;
 pub use cursor::{CURSOR_MARKER, LINE_RESET, extract_and_strip_cursor};

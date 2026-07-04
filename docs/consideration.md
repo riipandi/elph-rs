@@ -16,4 +16,7 @@
 - https://github.com/run-llama/liteparse
 - https://github.com/teloxide/teloxide
 - https://github.com/pulldown-cmark/pulldown-cmark
+- https://crates.io/crates/rapidhash
 - https://crates.io/crates/syntect
+- https://crates.io/crates/rustix
+- https://crates.io/crates/ffizer

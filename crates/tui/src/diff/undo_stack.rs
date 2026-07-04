@@ -33,3 +33,19 @@ impl<S: Clone> Default for UndoStack<S> {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn push_pop_and_clear() {
+        let mut stack = UndoStack::new();
+        stack.push(1);
+        stack.push(2);
+        assert_eq!(stack.len(), 2);
+        assert_eq!(stack.pop(), Some(2));
+        stack.clear();
+        assert_eq!(stack.len(), 0);
+    }
+}

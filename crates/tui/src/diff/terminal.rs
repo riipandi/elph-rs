@@ -281,10 +281,10 @@ impl RecordingTerminal {
                 if let Ok(n) = num.parse::<usize>() {
                     self.cursor_row = self.cursor_row.saturating_sub(n);
                 }
-            } else if let Some(num) = rest.strip_suffix('B') {
-                if let Ok(n) = num.parse::<usize>() {
-                    self.cursor_row = (self.cursor_row + n).min(self.viewport.len().saturating_sub(1));
-                }
+            } else if let Some(num) = rest.strip_suffix('B')
+                && let Ok(n) = num.parse::<usize>()
+            {
+                self.cursor_row = (self.cursor_row + n).min(self.viewport.len().saturating_sub(1));
             }
         }
     }
