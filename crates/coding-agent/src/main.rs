@@ -2,6 +2,10 @@ mod app;
 mod cli;
 mod command;
 mod component;
+mod exit_message;
+mod interrupt;
+mod keyboard_enhancement;
+mod signal_interrupt;
 
 use clap::Parser;
 

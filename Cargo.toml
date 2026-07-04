@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/agent", "crates/ai", "crates/coding-agent", "crates/tui"]
 
 [workspace.dependencies]
 # Internal dependencies
@@ -10,8 +10,12 @@ elph-tui = { path = "crates/tui", version = "0.0.7" }
 
 # External dependencies
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+clap = { version = "4.5", features = ["derive"] }
+cuid2 = "0.1.6"
+crossterm = "0.29"
 iocraft = "0.8.3"
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
+signal-hook = "0.4.4"
 smol = "2.0.2"
 
 [profile.release]

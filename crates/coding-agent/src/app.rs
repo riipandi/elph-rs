@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::component::Example;
+use super::component::App;
 use iocraft::prelude::*;
 use std::sync::atomic::AtomicBool;
 
@@ -9,6 +9,8 @@ use nix::sys::signal::{Signal, kill};
 
 #[cfg(unix)]
 use nix::unistd::getppid;
+
+pub static WAS_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(unix)]
 pub static SHOULD_KILL_PARENT: AtomicBool = AtomicBool::new(false);
@@ -33,7 +35,12 @@ pub const EXIT_SERVER_ERROR: ExitCode = 7;
 pub const EXIT_INTERRUPTED: ExitCode = 130;
 
 pub fn run() {
-    if let Err(e) = smol::block_on(element!(Example).fullscreen().disable_mouse_capture()) {
+    let result = smol::block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
+    if let Err(e) = crate::keyboard_enhancement::disable() {
+        eprintln!("Failed to restore keyboard enhancements: {e}");
+    }
+    crate::exit_message::print_and_clear();
+    if let Err(e) = result {
         eprintln!("App error: {e}");
     }
 }

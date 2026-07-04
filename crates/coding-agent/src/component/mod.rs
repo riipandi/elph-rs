@@ -1,3 +1,3 @@
-mod example;
+mod app;
 
-pub use example::Example;
+pub use app::App;
