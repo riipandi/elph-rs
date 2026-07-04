@@ -84,6 +84,11 @@ pub enum Commands {
 }
 
 pub fn run(cli: &Cli) -> ExitCode {
+    if let Err(err) = elph_agent::ensure_blocking(env!("CARGO_PKG_VERSION")) {
+        eprintln!("failed to initialize elph home: {err}");
+        return crate::runtime::EXIT_ERROR;
+    }
+
     let Some(cmd) = &cli.command else {
         return default::handle();
     };
