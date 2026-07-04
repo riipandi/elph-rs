@@ -12,7 +12,7 @@ BUILD_DIR    := ./target/release
 
 UNAME_S := $(shell uname -s)
 
-# Single-platform override: make cross-one CROSS_TARGET=aarch64-unknown-linux-musl
+# Single-platform override: make cross CROSS_TARGET=aarch64-unknown-linux-musl
 
 # ─── Args ───────────────────────────────────────────────────────────────────
 
@@ -23,8 +23,8 @@ $(foreach a,$(_RESIDUAL_),$(eval .PHONY: $a))
 $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
 .PHONY: build run watch test lint fmt clean check coverage help
-.PHONY: prepare cross cross-one release
-.PHONY: bump-major bump-minor bump-patch publish
+.PHONY: prepare cross cross-pull release bump-major bump-minor bump-patch publish
+
 # ─── Build ──────────────────────────────────────────────────────────────────
 
 check: ## Check code compiles (fast, no codegen)
@@ -64,20 +64,19 @@ test: ## Run all workspace tests
 
 # ─── Cross-Compilation ─────────────────────────────────────────────────────────
 # Output: release/{eclaw,elph}-<platform>-<arch>.{tar.gz,zip} + SHA256SUMS
-#   linux-*     Ubuntu / Raspberry Pi OS (glibc)
-#   linux-armv7 Raspberry Pi 3 (32-bit)
+#   linux-*     Ubuntu / Raspberry Pi OS 64-bit (glibc, Pi 3/4/5)
 #   alpine-*    Alpine Linux (musl)
 #   macos-*     macOS (native build on Mac)
 #   win-*       Windows
 
-cross: ## Cross-compile one platform (CROSS_TARGET=<triple>)
-	@test -n "$(CROSS_TARGET)" || { echo "Usage: make cross-one CROSS_TARGET=<triple>" >&2; exit 1; }
-	@$(CROSS) build --release -p eclaw --target $(CROSS_TARGET)
-	@$(CROSS) build --release -p elph --target $(CROSS_TARGET)
-	@./scripts/cross-stage.sh $(CROSS_TARGET) $(ECLAW_BIN)
-	@./scripts/cross-stage.sh $(CROSS_TARGET) $(ELPH_BIN)
+cross-pull: ## Pull ghcr.io/cross-rs images into local Docker cache
+	@./scripts/cross-pull-images.sh
 
-release: ## Cross-compile + package all platforms into `release`
+cross: ## Build one platform (CROSS_TARGET=<triple>, host-aware)
+	@test -n "$(CROSS_TARGET)" || { echo "Usage: make cross CROSS_TARGET=<triple>" >&2; exit 1; }
+	@./scripts/cross-build.sh $(CROSS_TARGET)
+
+release: ## Build release (host-aware: cargo native, cross remote)
 	@./scripts/cross-release.sh
 
 # ─── Code Quality ───────────────────────────────────────────────────────────

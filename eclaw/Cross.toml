@@ -1,5 +1,6 @@
 # Cross-compilation config for eclaw.
-# Linux desktop: Ubuntu/Raspberry Pi OS (glibc), Alpine (musl), Pi 3 32-bit (armv7).
+# Linux desktop: Ubuntu/Raspberry Pi OS 64-bit (glibc), Alpine (musl).
+# armv7 (Pi 3 32-bit) unsupported — turso/io-uring lacks armv7 bindings.
 # Artifacts packaged to release/eclaw-<platform>-<arch>.{tar.gz,zip}.
 # Windows: optional. macOS: `make cross-darwin PKG=eclaw` (native).
 #
@@ -9,6 +10,8 @@
 
 [build]
 default-target = "x86_64-unknown-linux-gnu"
+# Default image: ghcr.io/cross-rs/<target>:<cross-version>
+# Pre-pull all: make cross-pull  (or: docker pull ghcr.io/cross-rs/<target>:0.2.5)
 
 [build.env]
 passthrough = [
@@ -27,13 +30,6 @@ pre-build = [
 ]
 
 [target.aarch64-unknown-linux-gnu]
-pre-build = [
-    "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update",
-    "apt-get install --assume-yes pkg-config libzstd-dev:$CROSS_DEB_ARCH",
-]
-
-[target.armv7-unknown-linux-gnueabihf]
 pre-build = [
     "dpkg --add-architecture $CROSS_DEB_ARCH",
     "apt-get update",

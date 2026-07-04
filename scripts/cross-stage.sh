@@ -23,10 +23,6 @@ aarch64-unknown-linux-gnu)
   platform="linux"
   arch="arm64"
   ;;
-armv7-unknown-linux-gnueabihf)
-  platform="linux"
-  arch="armv7"
-  ;;
 x86_64-unknown-linux-musl)
   platform="alpine"
   arch="x86_64"
