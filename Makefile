@@ -10,23 +10,9 @@ APP_BINS     := $(ELPH_BIN) $(ECLAW_BIN)
 INSTALL_DIR  := $(HOME)/.local/bin
 BUILD_DIR    := ./target/release
 
-# Auto-detect cross-compilation target based on host platform
 UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
-ifeq ($(UNAME_S),Darwin)
-  ifeq ($(UNAME_M),arm64)
-    CROSS_TARGET ?= x86_64-unknown-linux-gnu
-  else
-    CROSS_TARGET ?= aarch64-unknown-linux-gnu
-  endif
-else
-  ifeq ($(UNAME_M),aarch64)
-    CROSS_TARGET ?= x86_64-unknown-linux-gnu
-  else
-    CROSS_TARGET ?= aarch64-unknown-linux-gnu
-  endif
-endif
-# Override: make cross CROSS_TARGET=<triple>
+
+# Single-platform override: make cross-one CROSS_TARGET=aarch64-unknown-linux-musl
 
 # ─── Args ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +23,8 @@ $(foreach a,$(_RESIDUAL_),$(eval .PHONY: $a))
 $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
 .PHONY: build run watch test lint fmt clean check coverage help
-.PHONY: prepare cross bump-major bump-minor bump-patch publish
+.PHONY: prepare cross cross-one release
+.PHONY: bump-major bump-minor bump-patch publish
 # ─── Build ──────────────────────────────────────────────────────────────────
 
 check: ## Check code compiles (fast, no codegen)
@@ -76,13 +63,22 @@ test: ## Run all workspace tests
 	@$(CARGO) test --workspace $(or $(_RESIDUAL_),$(ARGS))
 
 # ─── Cross-Compilation ─────────────────────────────────────────────────────────
+# Output: release/{eclaw,elph}-<platform>-<arch>.{tar.gz,zip} + SHA256SUMS
+#   linux-*     Ubuntu / Raspberry Pi OS (glibc)
+#   linux-armv7 Raspberry Pi 3 (32-bit)
+#   alpine-*    Alpine Linux (musl)
+#   macos-*     macOS (native build on Mac)
+#   win-*       Windows
 
-cross: ## Cross-compile all binaries for $CROSS_TARGET
-	@echo "Cross-building for $(CROSS_TARGET)..."
-	@$(CROSS) build --release --target $(CROSS_TARGET)
-	@for bin in $(APP_BINS); do \
-	  echo "Binary: target/$(CROSS_TARGET)/release/$$bin"; \
-	done
+cross: ## Cross-compile one platform (CROSS_TARGET=<triple>)
+	@test -n "$(CROSS_TARGET)" || { echo "Usage: make cross-one CROSS_TARGET=<triple>" >&2; exit 1; }
+	@$(CROSS) build --release -p eclaw --target $(CROSS_TARGET)
+	@$(CROSS) build --release -p elph --target $(CROSS_TARGET)
+	@./scripts/cross-stage.sh $(CROSS_TARGET) $(ECLAW_BIN)
+	@./scripts/cross-stage.sh $(CROSS_TARGET) $(ELPH_BIN)
+
+release: ## Cross-compile + package all platforms into `release`
+	@./scripts/cross-release.sh
 
 # ─── Code Quality ───────────────────────────────────────────────────────────
 
@@ -106,7 +102,7 @@ prepare: ## Install required toolchain
 	@command -v cargo-tarpaulin >/dev/null 2>&1 || $(CARGO) binstall --locked -y cargo-tarpaulin
 	@command -v watchexec >/dev/null 2>&1 || $(CARGO) binstall --locked -y watchexec-cli
 	@command -v cross >/dev/null 2>&1 || $(CARGO) install cross --locked
-	@rustup target add $(CROSS_TARGET) 2>/dev/null || true
+	@while read -r t; do rustup target add "$$t" 2>/dev/null || true; done < ./scripts/cross-targets.sh
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
 	  if xcrun --find metal 2>/dev/null >/dev/null; then \
 	    echo "Metal toolchain already installed at $$(xcrun --find metal)"; \

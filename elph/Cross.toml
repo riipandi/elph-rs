@@ -1,0 +1,61 @@
+# Cross-compilation config for elph.
+# Linux desktop: Ubuntu/Raspberry Pi OS (glibc), Alpine (musl), Pi 3 32-bit (armv7).
+# Artifacts packaged to release/elph-<platform>-<arch>.{tar.gz,zip}.
+# Windows: optional. macOS: `make cross-darwin PKG=elph` (native).
+#
+# Usage:
+#   cross build --release -p elph --target aarch64-unknown-linux-gnu
+#   make cross CROSS_TARGET=x86_64-unknown-linux-musl
+
+[build]
+default-target = "x86_64-unknown-linux-gnu"
+
+[build.env]
+passthrough = [
+    "RUSTFLAGS",
+    "RUST_BACKTRACE",
+    "CARGO_NET_GIT_FETCH_WITH_CLI",
+]
+
+# ─── Linux (glibc) ───────────────────────────────────────────────────────────
+
+[target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update",
+    "apt-get install --assume-yes pkg-config libzstd-dev:$CROSS_DEB_ARCH",
+]
+
+[target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update",
+    "apt-get install --assume-yes pkg-config libzstd-dev:$CROSS_DEB_ARCH",
+]
+
+[target.armv7-unknown-linux-gnueabihf]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update",
+    "apt-get install --assume-yes pkg-config libzstd-dev:$CROSS_DEB_ARCH",
+]
+
+# ─── Linux (musl / Alpine) ───────────────────────────────────────────────────
+
+[target.x86_64-unknown-linux-musl]
+pre-build = [
+    "apk add --no-cache musl-dev pkgconfig zstd-dev",
+]
+
+[target.aarch64-unknown-linux-musl]
+pre-build = [
+    "apk add --no-cache musl-dev pkgconfig zstd-dev",
+]
+
+# ─── Windows ─────────────────────────────────────────────────────────────────
+
+[target.x86_64-pc-windows-gnu]
+
+[target.x86_64-pc-windows-msvc]
+
+[target.aarch64-pc-windows-msvc]
