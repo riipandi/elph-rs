@@ -1,6 +1,6 @@
 [package]
 name = "eclaw"
-version = "0.0.8"
+version = "0.0.10"
 license = "MIT"
 description = "Personal AI assistant powered by Elph"
 homepage = "https://elph.space"
@@ -18,4 +18,4 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-elph-agent = { path = "../crates/agent", version = "0.0.8" }
+elph-agent = { path = "../crates/agent", version = "^0.0.10" }

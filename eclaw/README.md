@@ -12,3 +12,7 @@ Interactive mode and agent runtime are not yet implemented.
 eclaw              # run interactive assistant
 eclaw --version    # print version information
 ```
+
+## License
+
+Licensed under the [MIT license](https://www.tldrlegal.com/license/mit-license).

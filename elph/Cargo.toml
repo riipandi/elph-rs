@@ -1,6 +1,6 @@
 [package]
 name = "elph"
-version = "0.0.8"
+version = "0.0.10"
 license = "MIT"
 description = "Minimalist AI agent companion for coding"
 homepage = "https://elph.space"
@@ -20,8 +20,8 @@ path = "src/main.rs"
 chrono.workspace = true
 clap.workspace = true
 cuid2.workspace = true
-elph-agent = { path = "../crates/agent", version = "0.0.8" }
-elph-tui = { path = "../crates/tui", version = "0.0.8" }
+elph-agent = { path = "../crates/agent", version = "^0.0.10" }
+elph-tui = { path = "../crates/tui", version = "^0.0.10" }
 iocraft.workspace = true
 nix.workspace = true
 signal-hook.workspace = true

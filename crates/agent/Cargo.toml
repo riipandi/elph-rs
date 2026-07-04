@@ -1,6 +1,6 @@
 [package]
 name = "elph-agent"
-version = "0.0.8"
+version = "0.0.10"
 license = "MIT"
 description = "Agent runtime for Elph coding assistant"
 homepage = "https://elph.space"
@@ -18,4 +18,4 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono.workspace = true
-elph-ai = { path = "../ai", version = "0.0.8" }
+elph-ai = { path = "../ai", version = "^0.0.10" }

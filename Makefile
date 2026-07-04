@@ -136,9 +136,10 @@ define _bump
 	@for f in crates/*/Cargo.toml elph/Cargo.toml eclaw/Cargo.toml; do \
 	  sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(1)"/' "$$f"; \
 	done
-	@sed -i '' 's/\(elph-agent = .* version = \)"[0-9]*\.[0-9]*\.[0-9]*"/\1"$(1)"/' elph/Cargo.toml
-	@sed -i '' 's/\(elph-tui = .* version = \)"[0-9]*\.[0-9]*\.[0-9]*"/\1"$(1)"/' elph/Cargo.toml
-	@sed -i '' 's/\(elph-ai = .* version = \)"[0-9]*\.[0-9]*\.[0-9]*"/\1"$(1)"/' crates/agent/Cargo.toml
+	@sed -i '' 's/\(elph-agent = .* version = \)"\^*[0-9]*\.[0-9]*\.[0-9]*"/\1"^$(1)"/' elph/Cargo.toml
+	@sed -i '' 's/\(elph-tui = .* version = \)"\^*[0-9]*\.[0-9]*\.[0-9]*"/\1"^$(1)"/' elph/Cargo.toml
+	@sed -i '' 's/\(elph-ai = .* version = \)"\^*[0-9]*\.[0-9]*\.[0-9]*"/\1"^$(1)"/' crates/agent/Cargo.toml
+	@sed -i '' 's/\(elph-agent = .* version = \)"\^*[0-9]*\.[0-9]*\.[0-9]*"/\1"^$(1)"/' eclaw/Cargo.toml
 endef
 
 bump-patch: ## Bump patch (0.0.x)
