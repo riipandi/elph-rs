@@ -37,7 +37,11 @@ pub const EXIT_SERVER_ERROR: ExitCode = 7;
 pub const EXIT_INTERRUPTED: ExitCode = 130;
 
 pub fn run() {
-    let result = smol::block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
+    let result = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to create tokio runtime")
+        .block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
     if let Err(e) = disable_keyboard_enhancement() {
         eprintln!("Failed to restore keyboard enhancements: {e}");
     }

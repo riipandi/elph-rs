@@ -20,10 +20,9 @@ path = "src/lib.rs"
 crossterm.workspace = true
 iocraft.workspace = true
 signal-hook.workspace = true
-smol.workspace = true
+tokio.workspace = true
 unicode-width = "0.2"
 
 [dev-dependencies]
 futures = "0.3"
-macro_rules_attribute = "0.2"
-smol-macros = "0.1"
+tokio = { workspace = true, features = ["macros"] }

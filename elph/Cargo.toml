@@ -25,4 +25,4 @@ elph-tui = { path = "../crates/tui", version = "0.0.8" }
 iocraft.workspace = true
 nix.workspace = true
 signal-hook.workspace = true
-smol.workspace = true
+tokio.workspace = true

@@ -1,8 +1,6 @@
 use elph_tui::{AgentMode, PromptInput};
 use futures::{StreamExt, stream};
 use iocraft::prelude::*;
-use macro_rules_attribute::apply;
-use smol_macros::test;
 
 fn shift_enter(kind: KeyEventKind) -> KeyEvent {
     let mut event = KeyEvent::new(kind, KeyCode::Enter);
@@ -67,7 +65,7 @@ fn EnterHarness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     }
 }
 
-#[apply(test)]
+#[tokio::test]
 async fn typing_updates_prompt() {
     let events = stream::iter([
         TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('h'))),
@@ -119,7 +117,7 @@ fn PrefilledEnterHarness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     }
 }
 
-#[apply(test)]
+#[tokio::test]
 async fn plain_enter_submits_without_newline() {
     let events = stream::iter([
         TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Enter)),
@@ -139,7 +137,7 @@ async fn plain_enter_submits_without_newline() {
     assert!(output.len() > 1, "plain Enter should submit and exit, got: {output:?}");
 }
 
-#[apply(test)]
+#[tokio::test]
 async fn shift_enter_inserts_newline_without_submit() {
     let events = stream::iter([
         TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('a'))),

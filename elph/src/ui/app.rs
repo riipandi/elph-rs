@@ -26,8 +26,8 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     );
 
     hooks.use_future(async move {
-        let sigint = sigint_channel();
-        while let Ok(signal) = sigint.recv().await {
+        let mut sigint = sigint_channel();
+        while let Some(signal) = sigint.recv().await {
             if signal != SIGINT {
                 continue;
             }
