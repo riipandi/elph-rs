@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/agent", "crates/ai", "crates/coding-agent", "crates/tui"]
+members = [
+    "crates/agent",
+    "crates/ai",
+    "crates/claw-agent",
+    "crates/coding-agent",
+    "crates/tui",
+]
 
 [workspace.dependencies]
 # Internal dependencies

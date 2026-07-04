@@ -491,6 +491,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "eclaw"
+version = "0.0.7"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "elph"
 version = "0.0.7"
 dependencies = [

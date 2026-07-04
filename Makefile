@@ -1,11 +1,13 @@
 .DEFAULT_GOAL := help
 
-BINARY_NAME  := elph
+ELPH_BIN     := elph
+ECLAW_BIN    := eclaw
+BIN          ?= $(ELPH_BIN)
 CARGO        := $$(which cargo)
 CROSS        := $$(which cross)
 PKG_VERSION  := $(shell grep '^version' crates/coding-agent/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
 BUILD_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
-INSTALL_NAME := $(BINARY_NAME)-next
+APP_BINS     := $(ELPH_BIN) $(ECLAW_BIN)
 INSTALL_DIR  := $(HOME)/.local/bin
 BUILD_DIR    := ./target/release
 
@@ -25,7 +27,7 @@ else
     CROSS_TARGET ?= aarch64-unknown-linux-gnu
   endif
 endif
-# Override: make cross-build CROSS_TARGET=<triple>
+# Override: make cross CROSS_TARGET=<triple>
 
 # ─── Args ───────────────────────────────────────────────────────────────────
 
@@ -37,42 +39,59 @@ $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
 .PHONY: build run watch test lint fmt clean check coverage help
 .PHONY: prepare cross bump-major bump-minor bump-patch publish
+.PHONY: run-eclaw watch-eclaw
 
 # ─── Build ──────────────────────────────────────────────────────────────────
 
 check: ## Check code compiles (fast, no codegen)
 	@$(CARGO) check --workspace 2>&1
 
-build: ## Build the application binary
-	@echo "Building Elph v$(PKG_VERSION) ($(BUILD_HASH))"
+build: ## Build all application binaries (elph + eclaw)
+	@echo "Building workspace v$(PKG_VERSION) ($(BUILD_HASH))"
 	@_start=$$(python3 -c "import time; print(int(time.time()*1000))"); \
 	$(CARGO) build --release 2>&1; \
 	_end=$$(python3 -c "import time; print(int(time.time()*1000))"); \
 	_elapsed=$$(( _end - _start )); \
-	echo "\nBinary size: $$(du -sh $(BUILD_DIR)/$(BINARY_NAME) | cut -f1) ($$(shasum -a 1 $(BUILD_DIR)/$(BINARY_NAME) | cut -d' ' -f1))"; \
-	echo "Binary file: $(BUILD_DIR)/$(BINARY_NAME)"; \
+	echo ""; \
+	for bin in $(APP_BINS); do \
+	  if [ -f "$(BUILD_DIR)/$$bin" ]; then \
+	    echo "$$bin: $$(du -sh $(BUILD_DIR)/$$bin | cut -f1) ($$(shasum -a 1 $(BUILD_DIR)/$$bin | cut -d' ' -f1))"; \
+	  else \
+	    echo "$$bin: (not built)"; \
+	  fi; \
+	done; \
 	printf "Build time:  %d.%03ds\n" $$(( _elapsed / 1000 )) $$(( _elapsed % 1000 ))
 
-install: build ## Build and copy binary to $INSTALL_DIR
+install: build ## Install elph-next and eclaw-next to $INSTALL_DIR
 	@mkdir -p $(INSTALL_DIR)
-	@cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/$(INSTALL_NAME)
-	@echo "Installed at $$(command -v $(INSTALL_DIR)/$(INSTALL_NAME) 2>/dev/null || echo $(INSTALL_DIR)/$(INSTALL_NAME))"
+	@for bin in $(APP_BINS); do \
+	  cp "$(BUILD_DIR)/$$bin" "$(INSTALL_DIR)/$$bin-next"; \
+	  echo "Installed $$bin-next at $(INSTALL_DIR)/$$bin-next"; \
+	done
 
-run: ## Run the application
-	@$(CARGO) run --bin $(BINARY_NAME) $(or $(_RESIDUAL_),$(ARGS))
+run: ## Run a binary (BIN=elph|eclaw, default elph)
+	@$(CARGO) run --bin $(BIN) $(or $(_RESIDUAL_),$(ARGS))
 
-watch: ## Run with hot reload (requires watchexec)
-	@-$(CARGO) watch -c -- cargo run --bin $(BINARY_NAME) 2>&1
+run-eclaw: ## Run eclaw
+	@$(MAKE) run BIN=$(ECLAW_BIN) $(_RESIDUAL_)
+
+watch: ## Run with hot reload (BIN=elph|eclaw, requires watchexec)
+	@-$(CARGO) watch -c -- cargo run --bin $(BIN) $(or $(_RESIDUAL_),$(ARGS)) 2>&1
+
+watch-eclaw: ## Run eclaw with hot reload
+	@$(MAKE) watch BIN=$(ECLAW_BIN) $(_RESIDUAL_)
 
 test: ## Run all workspace tests
 	@$(CARGO) test --workspace $(or $(_RESIDUAL_),$(ARGS))
 
 # ─── Cross-Compilation ─────────────────────────────────────────────────────────
 
-cross: ## Cross-compile for $CROSS_TARGET
+cross: ## Cross-compile all binaries for $CROSS_TARGET
 	@echo "Cross-building for $(CROSS_TARGET)..."
 	@$(CROSS) build --release --target $(CROSS_TARGET)
-	@echo "Binary: target/$(CROSS_TARGET)/release/$(BINARY_NAME)"
+	@for bin in $(APP_BINS); do \
+	  echo "Binary: target/$(CROSS_TARGET)/release/$$bin"; \
+	done
 
 # ─── Code Quality ───────────────────────────────────────────────────────────
 
@@ -136,6 +155,7 @@ publish: ## Publish all crates to crates.io
 	@echo "Publishing elph-agent v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph-agent --allow-dirty 2>&1
 	@echo "Publishing elph-tui v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph-tui --allow-dirty 2>&1
 	@echo "Publishing elph v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p elph --allow-dirty 2>&1
+	@echo "Publishing eclaw v$(PKG_VERSION) to crates.io" && $(CARGO) publish --quiet -p eclaw --allow-dirty 2>&1
 	@echo "All crates published."
 
 # ─── Help ───────────────────────────────────────────────────────────────────
