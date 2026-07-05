@@ -13,6 +13,7 @@ pub use router::build;
 
 use anyhow::Result;
 use axum::serve;
+use elph_agent::try_block_on;
 use tokio::net::TcpListener;
 use tokio::signal;
 
@@ -52,11 +53,7 @@ async fn shutdown_signal() {
 }
 
 pub fn run_blocking(config: ServerConfig) -> Result<()> {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?
-        .block_on(run(config))?;
-    Ok(())
+    try_block_on(run(config))?
 }
 
 #[cfg(test)]
