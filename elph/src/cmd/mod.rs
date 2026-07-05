@@ -90,8 +90,8 @@ pub enum Commands {
     Worktree(WorktreeArgs),
 }
 
-fn init_layout() -> Result<crate::runtime::Paths, ExitCode> {
-    crate::runtime::ensure_layout_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
+fn init_home() -> Result<crate::runtime::Paths, ExitCode> {
+    crate::runtime::ensure_home_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
         tracing::error!(error = %err, "failed to initialize elph home");
         crate::runtime::EXIT_ERROR
     })
@@ -135,7 +135,7 @@ pub fn run(cli: &Cli) -> ExitCode {
         }
     };
 
-    let paths = match init_layout() {
+    let paths = match init_home() {
         Ok(paths) => paths,
         Err(code) => return code,
     };

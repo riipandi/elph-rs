@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-/// Environment and naming knobs for an application layout.
+/// Environment and naming knobs for an application's home directories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PathResolver {
     /// Override env var for the config/home directory (e.g. `ELPH_HOME`).

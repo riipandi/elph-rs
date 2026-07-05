@@ -1,11 +1,9 @@
 # elph-ai
 
-Unified LLM API with provider collections, automatic auth resolution, token and cost tracking,
-and simple context persistence and hand-off to other models mid-session.
-
-**Note**: This library only includes models that support tool calling (function calling),
-as this is essential for agentic workflows.
+AI provider integration for Elph agent applications. Offers a unified LLM API with provider
+collections, authentication resolution, token and cost tracking, and session context hand-off
+between models. Includes only models that support tool calling for agentic workflows.
 
 ## License
 
-Licensed under the [MIT license](https://www.tldrlegal.com/license/mit-license).
+Licensed under the [MIT License](https://opensource.org/licenses/MIT).

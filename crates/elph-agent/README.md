@@ -1,14 +1,9 @@
 # elph-agent
 
-App-agnostic agent runtime primitives shared by Elph applications.
-
-Provides path resolution, filesystem helpers, Turso migration utilities, and init progress reporting.
-Application-specific config layouts live in each binary crate (`elph`, `eclaw`, etc).
-
-## Built-in Tools
-
-Bash, Read, Write, Edit, Glob, Grep, WebFetch, WebSearch, Subagent, AskUser, Worktrees, ToolSearch
+App-agnostic agent runtime for Elph applications. Provides initialization progress reporting,
+Turso database setup and migrations, async runtime helpers, and a builder for shared agent
+configuration. Application-specific home scaffolding lives in each binary crate (`elph`, `eclaw`).
 
 ## License
 
-Licensed under the [MIT license](https://www.tldrlegal.com/license/mit-license).
+Licensed under the [MIT License](https://opensource.org/licenses/MIT).

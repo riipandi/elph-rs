@@ -37,15 +37,15 @@ pub enum Commands {
     Version,
 }
 
-fn init_layout() -> Result<crate::layout::Paths, ExitCode> {
-    crate::layout::ensure_layout_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
+fn init_home() -> Result<crate::runtime::Paths, ExitCode> {
+    crate::runtime::ensure_home_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
         tracing::error!(error = %err, "failed to initialize eclaw home");
         crate::runtime::EXIT_ERROR
     })
 }
 
-fn init_datastore(paths: &crate::layout::Paths) -> Result<(), ExitCode> {
-    crate::layout::ensure_datastore_blocking(paths).map_err(|err| {
+fn init_datastore(paths: &crate::runtime::Paths) -> Result<(), ExitCode> {
+    crate::runtime::ensure_datastore_blocking(paths).map_err(|err| {
         tracing::error!(error = %err, "failed to initialize eclaw databases");
         crate::runtime::EXIT_ERROR
     })
@@ -58,7 +58,7 @@ pub fn run(cli: &Cli) -> ExitCode {
         .quiet_env("ECLAW_QUIET")
         .console_enabled(true);
 
-    let _log_guard = match crate::layout::Paths::resolve() {
+    let _log_guard = match crate::runtime::Paths::resolve() {
         Ok(paths) => {
             let init = agent_builder.logs_dir(paths.logs_dir()).build();
             elph_core::logger::init(init.logging)
@@ -69,7 +69,7 @@ pub fn run(cli: &Cli) -> ExitCode {
         }
     };
 
-    let paths = match init_layout() {
+    let paths = match init_home() {
         Ok(paths) => paths,
         Err(code) => return code,
     };

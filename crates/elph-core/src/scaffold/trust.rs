@@ -1,4 +1,4 @@
-use crate::layout::files::write_json_file;
+use crate::fs::write_json_file;
 use crate::utils::path::AppPaths;
 use anyhow::Result;
 

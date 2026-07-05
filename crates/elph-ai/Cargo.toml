@@ -1,6 +1,6 @@
 [package]
 name = "elph-ai"
-version = "0.0.15"
+version = "0.0.16"
 license = "MIT"
 description = "AI provider integration for Elph agent"
 keywords = ["ai", "llm", "provider", "api", "elph"]

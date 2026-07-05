@@ -26,7 +26,7 @@ mod tests {
         let project = tmp.path().join("repo");
         let paths = Paths::from_dirs(tmp.path().join("config"), tmp.path().join("data"), project);
 
-        ensure(&paths).expect("ensure project layout");
+        ensure(&paths).expect("ensure project home");
 
         let gitignore = paths.project_gitignore_path();
         assert!(gitignore.exists());
