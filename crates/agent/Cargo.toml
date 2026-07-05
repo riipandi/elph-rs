@@ -1,6 +1,6 @@
 [package]
 name = "elph-agent"
-version = "0.0.11"
+version = "0.0.12"
 license = "MIT"
 description = "Agent runtime for Elph coding assistant"
 homepage = "https://elph.space"

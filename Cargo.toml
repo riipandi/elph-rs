@@ -1,20 +1,25 @@
 [workspace]
 resolver = "2"
-members = [
-    "crates/agent",
-    "crates/ai",
-    "crates/tui",
-    "eclaw",
-    "elph",
-]
+members = ["crates/agent", "crates/ai", "crates/tui", "eclaw", "elph"]
 
 [workspace.dependencies]
 # Planned — not yet wired into crates:
 # agent-client-protocol = "1.0.1"
 # fff-search = "0.9.6"
 # rmcp = { version = "2.1.0", features = ["auth", "client"] }
+anyhow = "1.0.103"
+elph-ai = { path = "crates/ai", version = "0.0.12" }
+elph-agent = { path = "crates/agent", version = "0.0.12" }
+elph-tui = { path = "crates/tui", version = "0.0.12" }
 axum = { version = "0.8.8", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
-clap = { version = "4.5", default-features = false, features = ["color", "derive", "error-context", "help", "std", "usage"] }
+clap = { version = "4.5", default-features = false, features = [
+  "color",
+  "derive",
+  "error-context",
+  "help",
+  "std",
+  "usage",
+] }
 crokey = "1.4.0"
 crossterm = { version = "0.29", default-features = false, features = ["bracketed-paste", "events"] }
 libc = "0.2"
@@ -31,13 +36,13 @@ tower-http = { version = "0.7.0", default-features = false, features = ["catch-p
 turso = { version = "0.6.1", default-features = false }
 
 [profile.release]
-opt-level = 2        # Optimization level: 2 = balanced runtime perf vs compile time
-lto = "thin"         # Thin LTO: cross-crate inlining without full-program analysis cost
-codegen-units = 16   # Parallel codegen: 16 units = faster compile, minimal optimization loss
-panic = "abort"      # panic=abort: removes unwind tables — smaller binary, cannot catch panics
-strip = "symbols"    # Strip all symbols from final binary
-debug = false        # No debug symbols in release
+opt-level = 2 # Optimization level: 2 = balanced runtime perf vs compile time
+lto = "thin" # Thin LTO: cross-crate inlining without full-program analysis cost
+codegen-units = 16 # Parallel codegen: 16 units = faster compile, minimal optimization loss
+panic = "abort" # panic=abort: removes unwind tables — smaller binary, cannot catch panics
+strip = "symbols" # Strip all symbols from final binary
+debug = false # No debug symbols in release
 
 [profile.dev]
-incremental = true   # Incremental: rebuild only changed code — much faster iteration
-debug = "limited"    # Limited debug info: line numbers only, no type/variable debug
+incremental = true # Incremental: rebuild only changed code — much faster iteration
+debug = "limited" # Limited debug info: line numbers only, no type/variable debug
