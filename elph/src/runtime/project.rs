@@ -1,6 +1,6 @@
 use elph_agent::write_file_if_missing;
 
-use super::InitError;
+use super::layout::InitError;
 use super::paths::Paths;
 
 const GITIGNORE: &str = "\
@@ -18,7 +18,7 @@ pub fn ensure(paths: &Paths) -> Result<(), InitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::paths::Paths;
+    use crate::runtime::paths::Paths;
 
     #[test]
     fn writes_project_gitignore() {

@@ -1,6 +1,6 @@
 use elph_agent::write_json_file;
 
-use super::InitError;
+use super::layout::InitError;
 use super::paths::Paths;
 
 pub struct TrustStore;

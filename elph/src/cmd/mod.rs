@@ -88,15 +88,15 @@ pub enum Commands {
     Worktree(WorktreeArgs),
 }
 
-fn init_layout() -> Result<crate::layout::Paths, ExitCode> {
-    crate::layout::ensure_layout_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
+fn init_layout() -> Result<crate::runtime::Paths, ExitCode> {
+    crate::runtime::ensure_layout_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
         eprintln!("failed to initialize elph home: {err}");
         crate::runtime::EXIT_ERROR
     })
 }
 
-fn init_datastore(paths: &crate::layout::Paths) -> Result<(), ExitCode> {
-    crate::layout::ensure_datastore_blocking(paths).map_err(|err| {
+fn init_datastore(paths: &crate::runtime::Paths) -> Result<(), ExitCode> {
+    crate::runtime::ensure_datastore_blocking(paths).map_err(|err| {
         eprintln!("failed to initialize elph databases: {err}");
         crate::runtime::EXIT_ERROR
     })

@@ -1,16 +1,7 @@
-mod bundled;
-mod datastore;
-mod migrations;
-mod paths;
-mod project;
-mod settings;
-mod trust;
-mod version;
-
 use elph_agent::{InitProgress, ensure_dirs, try_block_on};
 
-pub use datastore::ensure_blocking as ensure_datastore_blocking;
-pub use paths::Paths;
+pub use super::datastore::ensure_blocking as ensure_datastore_blocking;
+pub use super::paths::Paths;
 
 pub type InitError = elph_agent::InitError;
 pub type Result<T> = std::result::Result<T, InitError>;
@@ -58,11 +49,11 @@ fn ensure_layout_dirs(paths: &Paths) -> Result<()> {
 }
 
 fn ensure_files(paths: &Paths, app_version: &str) -> Result<()> {
-    settings::Settings::ensure(paths)?;
-    trust::TrustStore::ensure(paths)?;
-    version::VersionFile::ensure(paths, app_version)?;
-    bundled::BundledManifest::ensure(paths, app_version)?;
-    project::ensure(paths)?;
+    super::settings::Settings::ensure(paths)?;
+    super::trust::TrustStore::ensure(paths)?;
+    super::version::VersionFile::ensure(paths, app_version)?;
+    super::bundled::BundledManifest::ensure(paths, app_version)?;
+    super::project::ensure(paths)?;
     Ok(())
 }
 
@@ -85,7 +76,9 @@ mod tests {
         assert!(paths.version_path().exists());
         assert!(paths.bundled_manifest_path().exists());
 
-        datastore::ensure(&paths).await.expect("ensure datastore");
+        crate::runtime::datastore::ensure(&paths)
+            .await
+            .expect("ensure datastore");
         assert!(paths.metadata_db_path().exists());
         assert!(paths.memory_db_path().exists());
         assert!(paths.project_gitignore_path().exists());

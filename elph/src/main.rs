@@ -3,7 +3,6 @@ mod cmd;
 mod command;
 mod config;
 mod datastore;
-mod layout;
 mod memory;
 mod plugins;
 mod prompt;

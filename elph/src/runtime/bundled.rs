@@ -2,7 +2,7 @@ use elph_agent::write_json_file;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use super::InitError;
+use super::layout::InitError;
 use super::paths::Paths;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
