@@ -2,6 +2,26 @@
 
 use std::time::{Duration, Instant};
 
+/// Default maximum transcript entries retained in memory (oldest dropped first).
+pub const DEFAULT_TRANSCRIPT_CAP: usize = 500;
+
+/// Truncates `entries` to the newest `max` items. No-op when `max` is zero.
+pub fn cap_entries<T>(entries: &mut Vec<T>, max: usize) {
+    if max == 0 {
+        return;
+    }
+    let excess = entries.len().saturating_sub(max);
+    if excess > 0 {
+        entries.drain(..excess);
+    }
+}
+
+/// Appends `item` and drops the oldest entries when the list exceeds `max`.
+pub fn push_capped<T>(entries: &mut Vec<T>, item: T, max: usize) {
+    entries.push(item);
+    cap_entries(entries, max);
+}
+
 /// Role of a transcript entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TranscriptRole {
@@ -208,5 +228,21 @@ mod tests {
         assert_eq!(user.role, TranscriptRole::User);
         let tool = TranscriptEntry::tool(ToolExecutionState::new("1", "bash"));
         assert_eq!(tool.role, TranscriptRole::Tool);
+    }
+
+    #[test]
+    fn cap_entries_drops_oldest() {
+        let mut entries: Vec<u32> = (0..10).collect();
+        cap_entries(&mut entries, 4);
+        assert_eq!(entries, vec![6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn push_capped_enforces_limit() {
+        let mut entries = Vec::new();
+        for i in 0..5 {
+            push_capped(&mut entries, i, 3);
+        }
+        assert_eq!(entries, vec![2, 3, 4]);
     }
 }

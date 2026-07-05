@@ -3,8 +3,8 @@ use crate::runtime::SHOULD_KILL_PARENT;
 use crate::runtime::exit_message::ExitSnapshot;
 use crate::runtime::{WAS_INTERRUPTED, exit_message, handle_prompt_interrupt};
 use elph_tui::{
-    AgentMode, ChatStream, PromptInput, Theme, enable_keyboard_enhancement, is_force_quit_key, is_interrupt_key,
-    is_quit_command, is_theme_toggle_key, sigint_channel,
+    AgentMode, ChatStream, DEFAULT_TRANSCRIPT_CAP, PromptInput, Theme, enable_keyboard_enhancement, is_force_quit_key,
+    is_interrupt_key, is_quit_command, is_theme_toggle_key, push_capped, sigint_channel,
 };
 use iocraft::prelude::*;
 
@@ -98,7 +98,7 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 padding_top: 0,
             ) {
                 ChatStream(
-                    messages: messages.read().clone(),
+                    messages_state: Some(messages),
                     scroll_enabled: false,
                     theme: palette,
                 )
@@ -123,9 +123,7 @@ pub fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                             should_exit.set(true);
                             return;
                         }
-                        let mut next = messages.read().clone();
-                        next.push(text);
-                        messages.set(next);
+                        push_capped(&mut messages.write(), text, DEFAULT_TRANSCRIPT_CAP);
                     },
                     on_mode_change: move |next| mode.set(next),
                 )

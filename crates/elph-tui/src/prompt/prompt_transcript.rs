@@ -3,7 +3,9 @@ use iocraft::prelude::*;
 
 #[derive(Props)]
 pub struct PromptTranscriptProps {
-    /// Submitted prompt messages, oldest first.
+    /// Live message list (preferred — avoids cloning the full vector each render).
+    pub messages_state: Option<State<Vec<String>>>,
+    /// Static messages for tests and one-shot renders.
     pub messages: Vec<String>,
     pub theme: Theme,
 }
@@ -12,6 +14,7 @@ pub struct PromptTranscriptProps {
 impl Default for PromptTranscriptProps {
     fn default() -> Self {
         Self {
+            messages_state: None,
             messages: Vec::new(),
             theme: Theme::default(),
         }
@@ -20,8 +23,14 @@ impl Default for PromptTranscriptProps {
 
 #[component]
 pub fn PromptTranscript(props: &PromptTranscriptProps) -> impl Into<AnyElement<'static>> {
+    let content = if let Some(state) = &props.messages_state {
+        format_transcript(&state.read())
+    } else {
+        format_transcript(&props.messages)
+    };
+
     element! {
-        Text(color: props.theme.text_color(), content: format_transcript(&props.messages))
+        Text(color: props.theme.text_color(), content: content)
     }
 }
 

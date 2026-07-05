@@ -6,6 +6,9 @@ use iocraft::prelude::{HandlerMut, *};
 
 #[derive(Props)]
 pub struct TranscriptViewProps {
+    /// Live transcript entries (preferred — avoids cloning the full vector each render).
+    pub entries_state: Option<State<Vec<TranscriptEntry>>>,
+    /// Static entries for tests and one-shot renders.
     pub entries: Vec<TranscriptEntry>,
     pub theme: Theme,
     pub show_thinking: bool,
@@ -14,6 +17,7 @@ pub struct TranscriptViewProps {
 impl Default for TranscriptViewProps {
     fn default() -> Self {
         Self {
+            entries_state: None,
             entries: Vec::new(),
             theme: Theme::default(),
             show_thinking: true,
@@ -25,13 +29,24 @@ impl Default for TranscriptViewProps {
 pub fn TranscriptView(props: &TranscriptViewProps) -> impl Into<AnyElement<'static>> {
     let theme = props.theme;
     let show_thinking = props.show_thinking;
-    let mut children = Vec::with_capacity(props.entries.len());
-    children.extend(
-        props
-            .entries
-            .iter()
-            .filter_map(|entry| render_entry(entry, theme, show_thinking)),
-    );
+    let mut children = Vec::new();
+    if let Some(state) = &props.entries_state {
+        let entries = state.read();
+        children.reserve(entries.len());
+        children.extend(
+            entries
+                .iter()
+                .filter_map(|entry| render_entry(entry, theme, show_thinking)),
+        );
+    } else {
+        children.reserve(props.entries.len());
+        children.extend(
+            props
+                .entries
+                .iter()
+                .filter_map(|entry| render_entry(entry, theme, show_thinking)),
+        );
+    }
 
     element! {
         View(flex_direction: FlexDirection::Column, width: 100pct) {

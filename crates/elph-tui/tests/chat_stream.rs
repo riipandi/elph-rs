@@ -10,6 +10,7 @@ fn sample_messages(count: usize) -> Vec<String> {
 fn Harness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let mut system = hooks.use_context_mut::<SystemContext>();
     let mut should_exit = hooks.use_state(|| false);
+    let messages = hooks.use_state(|| sample_messages(12));
 
     hooks.use_terminal_events(move |event| {
         let TerminalEvent::Key(KeyEvent {
@@ -30,7 +31,7 @@ fn Harness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     element! {
         View(width: 30, height: 6, padding: 1) {
             ChatStream(
-                messages: sample_messages(12),
+                messages_state: Some(messages),
                 auto_scroll: false,
                 line_scroll_step: 1u16,
                 page_scroll_step: 0u16,
@@ -66,6 +67,7 @@ async fn chat_stream_scrolls_with_keyboard() {
 fn FastScrollHarness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let mut system = hooks.use_context_mut::<SystemContext>();
     let mut should_exit = hooks.use_state(|| false);
+    let messages = hooks.use_state(|| sample_messages(12));
 
     hooks.use_terminal_events(move |event| {
         let TerminalEvent::Key(KeyEvent {
@@ -86,7 +88,7 @@ fn FastScrollHarness(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     element! {
         View(width: 30, height: 6, padding: 1) {
             ChatStream(
-                messages: sample_messages(12),
+                messages_state: Some(messages),
                 auto_scroll: false,
                 line_scroll_step: 3u16,
                 page_scroll_step: 0u16,

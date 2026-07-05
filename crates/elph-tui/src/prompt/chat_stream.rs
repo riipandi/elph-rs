@@ -12,7 +12,9 @@ pub const PAGE_SCROLL_VIEWPORT: u16 = 0;
 
 #[derive(Props)]
 pub struct ChatStreamProps {
-    /// Submitted messages, oldest first.
+    /// Live message list (preferred — parent avoids cloning on every render).
+    pub messages_state: Option<State<Vec<String>>>,
+    /// Static messages for tests and one-shot renders.
     pub messages: Vec<String>,
     /// When false, keyboard scroll keys are ignored (e.g. while the prompt has focus).
     pub scroll_enabled: bool,
@@ -24,7 +26,9 @@ pub struct ChatStreamProps {
     pub page_scroll_step: u16,
     /// Active color palette.
     pub theme: Theme,
-    /// Rich transcript entries. When set, renders [`TranscriptView`] instead of plain messages.
+    /// Live rich transcript entries (preferred over [`Self::entries`]).
+    pub entries_state: Option<State<Vec<TranscriptEntry>>>,
+    /// Static rich transcript entries. When set, renders [`TranscriptView`] instead of plain messages.
     pub entries: Option<Vec<TranscriptEntry>>,
     /// Whether thinking blocks are shown in rich transcript mode.
     pub show_thinking: bool,
@@ -33,12 +37,14 @@ pub struct ChatStreamProps {
 impl Default for ChatStreamProps {
     fn default() -> Self {
         Self {
+            messages_state: None,
             messages: Vec::new(),
             scroll_enabled: true,
             auto_scroll: true,
             line_scroll_step: DEFAULT_LINE_SCROLL_STEP,
             page_scroll_step: PAGE_SCROLL_VIEWPORT,
             theme: Theme::default(),
+            entries_state: None,
             entries: None,
             show_thinking: true,
         }
@@ -55,6 +61,10 @@ pub fn ChatStream(mut hooks: Hooks, props: &mut ChatStreamProps) -> impl Into<An
     let scroll_enabled = props.scroll_enabled;
     let show_thinking = props.show_thinking;
     let theme = props.theme;
+    let messages_state = props.messages_state;
+    let messages = props.messages.clone();
+    let entries_state = props.entries_state;
+    let entries = props.entries.clone();
 
     hooks.use_terminal_events({
         let mut handle = handle;
@@ -109,10 +119,19 @@ pub fn ChatStream(mut hooks: Hooks, props: &mut ChatStreamProps) -> impl Into<An
                 scrollbar_track_color: Some(theme.scrollbar_track),
                 handle: Some(handle),
             ) {
-                #(if let Some(entries) = props.entries.clone() {
-                    element!(TranscriptView(entries: entries, theme: theme, show_thinking: show_thinking)).into_any()
+                #(if entries_state.is_some() || entries.is_some() {
+                    element!(TranscriptView(
+                        entries_state: entries_state,
+                        entries: entries.unwrap_or_default(),
+                        theme: theme,
+                        show_thinking: show_thinking,
+                    )).into_any()
                 } else {
-                    element!(PromptTranscript(messages: props.messages.clone(), theme: theme)).into_any()
+                    element!(PromptTranscript(
+                        messages_state: messages_state,
+                        messages: messages,
+                        theme: theme,
+                    )).into_any()
                 })
             }
         }

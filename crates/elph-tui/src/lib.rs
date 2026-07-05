@@ -44,7 +44,10 @@ pub use terminal::{
     SigintReceiver, disable_keyboard_enhancement, enable_keyboard_enhancement, key_combination, sigint_channel,
 };
 pub use theme::{Theme, ThemeMode};
-pub use transcript::{StreamingBuffer, ToolExecutionState, ToolExecutionStatus, TranscriptEntry, TranscriptRole};
+pub use transcript::{
+    DEFAULT_TRANSCRIPT_CAP, StreamingBuffer, ToolExecutionState, ToolExecutionStatus, TranscriptEntry, TranscriptRole,
+    cap_entries, push_capped,
+};
 pub use utils::{
     TAB_STOP, char_display_width, pad_lines, str_display_width, truncate_to_width, truncate_to_width_ellipsis,
     wrap_ansi_line, wrap_ansi_text, wrap_text,
