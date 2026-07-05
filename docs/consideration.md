@@ -1,100 +1,145 @@
 # Consideration
 
-Dependency candidates for elph-rs. Evaluated against current architecture: `elph-ai` (unified LLM, stubs), `elph-agent` (runtime + Turso), `elph-tui` (iocraft + pulldown-cmark), workspace plans (`fff-search`, `rmcp`, `jsonschema`, `agent-client-protocol`).
+Dependency candidates for elph-rs, mapped to crates and planned workspace deps (`fff-search`, `rmcp`, `jsonschema`, `agent-client-protocol`).
 
-**Recommended near-term stack:** `genai` + `schemars` → `elph-ai`; `fff-search` + `rmcp` + `jsonschema` → `elph-agent`; `syntect` → `elph-tui`; keep `tracing`, `pulldown-cmark`, `tokio`.
+**Verdicts:** **Adopt** · **Keep** · **Defer** · **Ref** (study only) · **Skip**
 
-Verdicts: **Adopt** wire soon · **Keep** in use · **Defer** valid, later · **Ref** study only · **Skip** redundant or poor fit
+**Near-term stack**
+
+| Layer                | Crates                              |
+| -------------------- | ----------------------------------- |
+| `elph-ai`            | `genai`, `schemars`                 |
+| `elph-agent`         | `fff-search`, `rmcp`, `jsonschema`  |
+| `elph-tui`           | `syntect` (+ keep `pulldown-cmark`) |
+| `elph-core` / `elph` | `figment`, `jsonc-parser`           |
+| Shared               | `tracing`, `tokio`                  |
 
 ---
 
 ## LLM & provider (`elph-ai`)
 
-| Verdict   | Item                                                                            | Rationale                                                                                                                                 |
-| --------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **Adopt** | [genai](https://crates.io/crates/genai)                                         | Best match for README: 25+ providers, streaming, tools, auth resolver, token usage. Pin `0.6.5` for prod; try `0.7.0-beta.9` on a branch. |
-| **Adopt** | [schemars](https://crates.io/crates/schemars)                                   | Generate tool JSON Schema from Rust types; complements `schemas/elph-provider-schema.json`.                                               |
-| **Defer** | [adk-anthropic](https://crates.io/crates/adk-anthropic)                         | Mature Anthropic-only client (thinking, cache, batch). Use if genai lacks a specific Anthropic feature.                                   |
-| **Defer** | [anthropic-auth](https://crates.io/crates/anthropic-auth)                       | Claude OAuth/PKCE; pairs with TUI `oauth_selector` when provider login ships.                                                             |
-| **Defer** | [anthropic-async](https://crates.io/crates/anthropic-async)                     | Anthropic-only + prompt caching; niche vs genai.                                                                                          |
-| **Defer** | [async-openai](https://github.com/64bit/async-openai)                           | Deep OpenAI coverage (⭐1956); only if genai OpenAI path is insufficient.                                                                 |
-| **Defer** | [llm-bridge-core](https://crates.io/crates/llm-bridge-core)                     | Anthropic↔OpenAI protocol transform; useful only for a unified gateway/proxy.                                                             |
-| **Defer** | [iac-rs](https://crates.io/crates/iac-rs)                                       | Inter/intra-agent protocol; relevant for `elph-swarm`, not MVP.                                                                           |
-| **Defer** | [adk-rust](https://github.com/zavora-ai/adk-rust)                               | Full agent framework (39 crates, MCP, RAG, browser). Alternative to building `elph-agent` — heavy adopt.                                  |
-| **Skip**  | [anthropic-ai-sdk](https://crates.io/crates/anthropic-ai-sdk)                   | Anthropic-only; superseded by genai or adk-anthropic.                                                                                     |
-| **Skip**  | [anthropic-rs](https://github.com/AbdelStark/anthropic-rs)                      | Smaller Anthropic SDK (⭐81).                                                                                                             |
-| **Skip**  | [claude-sdk](https://crates.io/crates/claude-sdk)                               | Anthropic-only (1.5k dl).                                                                                                                 |
-| **Skip**  | [genai-rs](https://crates.io/crates/genai-rs)                                   | Gemini-only; name collides with genai.                                                                                                    |
-| **Skip**  | [openai-api-rs](https://crates.io/crates/openai-api-rs)                         | OpenAI-only despite high downloads.                                                                                                       |
-| **Skip**  | [openai_dive](https://github.com/tjardoo/openai-client/tree/master/openai_dive) | OpenAI-only, low traction (⭐82).                                                                                                         |
-| **Skip**  | [agent-sdk-rs](https://crates.io/crates/agent-sdk-rs)                           | Agent loop crate; 90 downloads, too immature to depend on.                                                                                |
-| **Skip**  | [ai.rs](https://github.com/prabirshrestha/ai.rs)                                | Immature (⭐12).                                                                                                                          |
+| Verdict   | Item                                                                                                                                                                         | Rationale                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Adopt** | [genai](https://crates.io/crates/genai)                                                                                                                                      | 25+ providers, streaming, tools, auth. Pin `0.6.5`; try `0.7.0-beta.9` on branch. |
+| **Adopt** | [schemars](https://crates.io/crates/schemars)                                                                                                                                | Tool JSON Schema from Rust types; pairs with `schemas/elph-provider-schema.json`. |
+| **Defer** | [adk-anthropic](https://crates.io/crates/adk-anthropic)                                                                                                                      | Anthropic-only fallback if genai lacks thinking/cache/batch.                      |
+| **Defer** | [anthropic-auth](https://crates.io/crates/anthropic-auth)                                                                                                                    | Claude OAuth/PKCE for `oauth_selector`.                                           |
+| **Defer** | [anthropic-async](https://crates.io/crates/anthropic-async)                                                                                                                  | Anthropic + prompt cache; niche vs genai.                                         |
+| **Defer** | [async-openai](https://github.com/64bit/async-openai)                                                                                                                        | Deep OpenAI (⭐1956); only if genai OpenAI path falls short.                      |
+| **Defer** | [llm-bridge-core](https://crates.io/crates/llm-bridge-core)                                                                                                                  | Protocol transform; gateway/proxy only.                                           |
+| **Defer** | [iac-rs](https://crates.io/crates/iac-rs)                                                                                                                                    | Inter-agent protocol; `elph-swarm`, not MVP.                                      |
+| **Defer** | [adk-rust](https://github.com/zavora-ai/adk-rust)                                                                                                                            | Full framework (39 crates); alternative to custom `elph-agent`.                   |
+| **Skip**  | [anthropic-ai-sdk](https://crates.io/crates/anthropic-ai-sdk), [anthropic-rs](https://github.com/AbdelStark/anthropic-rs), [claude-sdk](https://crates.io/crates/claude-sdk) | Anthropic-only; superseded.                                                       |
+| **Skip**  | [genai-rs](https://crates.io/crates/genai-rs)                                                                                                                                | Gemini-only; name collision with genai.                                           |
+| **Skip**  | [openai-api-rs](https://crates.io/crates/openai-api-rs), [openai_dive](https://github.com/tjardoo/openai-client/tree/master/openai_dive)                                     | OpenAI-only.                                                                      |
+| **Skip**  | [agent-sdk-rs](https://crates.io/crates/agent-sdk-rs), [ai.rs](https://github.com/prabirshrestha/ai.rs)                                                                      | Immature.                                                                         |
 
 ---
 
 ## Agent runtime (`elph-agent`)
 
-| Verdict   | Item                                                                     | Rationale                                                                                                                         |
-| --------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Adopt** | [fff-search](https://crates.io/crates/fff-search)                        | Fast file finder for agent tools; already commented in workspace `Cargo.toml`. Pin version explicitly (nightly tags move).        |
-| **Ref**   | [yoagent](https://github.com/yologdev/yoagent)                           | Pi-inspired loop, events, MCP, skills (⭐171, 7.9k dl). Blueprint for custom `elph-agent` — adopt as dep overlaps with `elph-ai`. |
-| **Ref**   | [open-agent-sdk-rust](https://github.com/codeany-ai/open-agent-sdk-rust) | 25+ tools, hooks, session (⭐23). Architecture reference, not production dep.                                                     |
-| **Ref**   | [jcode](https://github.com/1jehuang/jcode)                               | Coding-agent harness (⭐8170); UX/loop patterns, not a Rust library.                                                              |
-| **Ref**   | [rusty-gitclaw](https://github.com/open-gitagent/rusty-gitclaw)          | Git-native agent (⭐12); similar problem space.                                                                                   |
-| **Ref**   | [codeany](https://github.com/codeany-ai/codeany)                         | Go terminal agent (⭐184); competitor/reference.                                                                                  |
-| **Skip**  | [zag](https://github.com/niclaslindstedt/zag)                            | Multi-provider CLI (⭐6), not mature.                                                                                             |
+| Verdict   | Item                                                                                                                                                          | Rationale                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **Adopt** | [fff-search](https://crates.io/crates/fff-search)                                                                                                             | Fast file finder; commented in workspace `Cargo.toml`. Pin version.       |
+| **Ref**   | [yoagent](https://github.com/yologdev/yoagent)                                                                                                                | Pi-style loop blueprint (⭐171). Don't adopt as dep — overlaps `elph-ai`. |
+| **Ref**   | [open-agent-sdk-rust](https://github.com/codeany-ai/open-agent-sdk-rust)                                                                                      | Tools/hooks/session patterns (⭐23).                                      |
+| **Ref**   | [jcode](https://github.com/1jehuang/jcode), [rusty-gitclaw](https://github.com/open-gitagent/rusty-gitclaw), [codeany](https://github.com/codeany-ai/codeany) | Competitors / UX reference, not libs.                                     |
+| **Skip**  | [zag](https://github.com/niclaslindstedt/zag)                                                                                                                 | Immature multi-provider CLI (⭐6).                                        |
 
 ---
 
-## TUI & markdown (`elph-tui`)
+## TUI, markdown & prompts
 
-| Verdict   | Item                                                               | Rationale                                                                              |
-| --------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark) | In use via `render_markdown_lines`; fast CommonMark parser.                            |
-| **Adopt** | [syntect](https://crates.io/crates/syntect)                        | Syntax-highlight fenced code blocks (Pi parity); cheaper than swapping markdown stack. |
-| **Defer** | [termimad](https://github.com/Canop/termimad)                      | TUI-rich markdown renderer (⭐1198); redundant if pulldown + syntect suffice.          |
-| **Skip**  | [comrak](https://github.com/kivikakk/comrak)                       | GFM parser; heavier, no TUI renderer — would still need custom layout.                 |
-| **Skip**  | [markdown-rs](https://github.com/wooorm/markdown-rs)               | Parser only; same issue as comrak.                                                     |
+### Agent shell (`elph-tui` + iocraft)
 
----
+| Verdict   | Item                                                                                               | Rationale                                                      |
+| --------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark)                                 | `render_markdown_lines` in production.                         |
+| **Adopt** | [syntect](https://crates.io/crates/syntect)                                                        | Code-block highlighting (Pi parity).                           |
+| **Defer** | [termimad](https://github.com/Canop/termimad)                                                      | Full markdown TUI (⭐1198); redundant with pulldown + syntect. |
+| **Skip**  | [comrak](https://github.com/kivikakk/comrak), [markdown-rs](https://github.com/wooorm/markdown-rs) | Parser-only; still need custom layout.                         |
 
-## Infra & utilities
+### CLI prompts (`elph` / `eclaw` subcommands only)
 
-| Verdict   | Item                                                  | Rationale                                                                                                  |
-| --------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Keep**  | [tracing](https://github.com/tokio-rs/tracing)        | Active in `elph-core`; extend spans in agent loop.                                                         |
-| **Defer** | [config-rs](https://github.com/rust-cli/config-rs)    | Layered config (⭐3186); `elph` already uses `settings.json` + `Paths` — adopt when merge/env layers grow. |
-| **Defer** | [rapidhash](https://crates.io/crates/rapidhash)       | Fast hashing for cache keys and content fingerprints.                                                      |
-| **Skip**  | [rustix](https://crates.io/crates/rustix)             | Already transitive via crossterm/turso; no direct dep needed.                                              |
-| **Skip**  | [async-stream](https://crates.io/crates/async-stream) | Transitively available; add only if macro streams are written in-tree.                                     |
+Blocking prompts for wizards and pickers — **not** inside the iocraft agent loop (raw-mode conflict).
 
----
+| Verdict   | Item                                              | Rationale                                                                                                      |
+| --------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Defer** | [inquire](https://github.com/mikaelmello/inquire) | Select/Confirm/Text wizards for CLI (`session` picker, `doctor`, bootstrap). Pin `0.9.x`, `crossterm` backend. |
+| **Skip**  | [dialoguer](https://crates.io/crates/dialoguer)   | Superseded by inquire for new code.                                                                            |
+| **Skip**  | inquire in `elph-tui`                             | `PromptInput`, `SelectList`, overlay selectors already cover agent UX.                                         |
 
-## Memory, parsing, integrations
-
-| Verdict   | Item                                                            | Rationale                                                                                                                    |
-| --------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Defer** | [memelord](https://github.com/glommer/memelord)                 | Per-project agent memory on Turso (⭐187); aligns with elph DB story, but separate product/MCP — evaluate when memory ships. |
-| **Defer** | [cortex-mem](https://github.com/sopaco/cortex-mem)              | Cognitive memory foundation (⭐288); future long-term memory layer.                                                          |
-| **Defer** | [liteparse](https://github.com/run-llama/liteparse)             | Document parser for RAG (⭐11k); not needed until ingestion tools exist.                                                     |
-| **Defer** | [obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) | Embedded browser (V8 from source, git dep); only for web-browse tools — high build cost.                                     |
-| **Defer** | [pest](https://github.com/pest-parser/pest)                     | Custom grammars; only if elph adds a DSL beyond JSON/markdown.                                                               |
-| **Skip**  | [teloxide](https://github.com/teloxide/teloxide)                | Telegram bots (⭐4175); out of scope unless a Telegram channel is planned.                                                   |
+**Overlap:** inquire `Text`/`Select` ≈ `PromptInput`/`SelectList`/`session_selector` — use iocraft components in `App`; use inquire only when subcommand runs and exits.
 
 ---
 
-## Dev & CI tooling (not runtime deps)
+## Configuration (`elph-core` / `elph`)
 
-| Verdict | Item                                             | Rationale                                                                                                                 |
-| ------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| **Ref** | [crit](https://github.com/tomasz-tomczyk/crit)   | Human→agent review loop for plans/diffs/UI (⭐681, Go binary). Dev workflow integration (Pi-compatible), not a crate dep. |
-| **Ref** | [ast-grep](https://github.com/ast-grep/ast-grep) | Structural search/lint CLI (⭐15k); CI and agent `grep` tooling, not embedded.                                            |
-| **Ref** | [ffizer](https://crates.io/crates/ffizer)        | Project scaffolding from templates; contributor onboarding only.                                                          |
+Schema: `schemas/elph-config-schema.json`. Types: `elph/src/runtime/settings.rs`.
+
+**Merge order (low → high):** defaults → `~/.elph/settings.*` → `<workDir>/.elph/settings.*` → `ELPH_*` env → CLI (later).
+
+| Format            | figment native | Notes                               |
+| ----------------- | -------------- | ----------------------------------- |
+| JSON              | ✅             | Canonical on save (`settings.json`) |
+| JSONC             | ❌             | Via `jsonc-parser` pre-pass         |
+| TOML / YAML / ENV | ✅             | Optional user formats               |
+
+| Verdict   | Item                                                                                                                 | Rationale                                                               |
+| --------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Adopt** | [figment](https://crates.io/crates/figment)                                                                          | Layered merge + serde extract. Features: `json`, `toml`, `yaml`, `env`. |
+| **Adopt** | [jsonc-parser](https://crates.io/crates/jsonc-parser)                                                                | Comments + trailing commas → `serde_json`.                              |
+| **Defer** | [dotenvy](https://crates.io/crates/dotenvy)                                                                          | `.env` for local dev secrets.                                           |
+| **Defer** | [confique](https://crates.io/crates/confique)                                                                        | Derive DX if `Settings` boilerplate grows.                              |
+| **Defer** | [json5](https://crates.io/crates/json5), [json_comments](https://crates.io/crates/json_comments)                     | Alternative JSONC paths — pick one dialect.                             |
+| **Defer** | [shellexpand](https://crates.io/crates/shellexpand)                                                                  | `${VAR}` / `~` in config strings.                                       |
+| **Defer** | [config-rs](https://github.com/rust-cli/config-rs)                                                                   | Overlaps figment; weaker error provenance.                              |
+| **Skip**  | [twelf](https://crates.io/crates/twelf), [envy](https://crates.io/crates/envy), [ron](https://github.com/ron-rs/ron) | Too narrow or extra format.                                             |
+
+**Wire:** `Figment` merge chain → extract `Settings` → validate with `jsonschema` → write strict JSON to home on save.
+
+---
+
+## Infra
+
+| Verdict   | Item                                                                                             | Rationale                                       |
+| --------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| **Keep**  | [tracing](https://github.com/tokio-rs/tracing)                                                   | Active in `elph-core`.                          |
+| **Defer** | [rapidhash](https://crates.io/crates/rapidhash)                                                  | Cache keys / content fingerprints.              |
+| **Skip**  | [rustix](https://crates.io/crates/rustix), [async-stream](https://crates.io/crates/async-stream) | Already transitive; add only if needed in-tree. |
+
+---
+
+## Memory & integrations
+
+| Verdict   | Item                                                            | Rationale                                                 |
+| --------- | --------------------------------------------------------------- | --------------------------------------------------------- |
+| **Defer** | [memelord](https://github.com/glommer/memelord)                 | Turso agent memory (⭐187); evaluate with memory feature. |
+| **Defer** | [cortex-mem](https://github.com/sopaco/cortex-mem)              | Long-term memory layer (⭐288).                           |
+| **Defer** | [liteparse](https://github.com/run-llama/liteparse)             | RAG ingestion (⭐11k).                                    |
+| **Defer** | [obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) | Embedded browser; high build cost.                        |
+| **Defer** | [pest](https://github.com/pest-parser/pest)                     | Custom DSL only.                                          |
+| **Skip**  | [teloxide](https://github.com/teloxide/teloxide)                | Telegram; out of scope.                                   |
+
+---
+
+## Dev & CI (not runtime deps)
+
+| Verdict | Item                                             | Rationale                              |
+| ------- | ------------------------------------------------ | -------------------------------------- |
+| **Ref** | [crit](https://github.com/tomasz-tomczyk/crit)   | Human→agent review (⭐681, Go binary). |
+| **Ref** | [ast-grep](https://github.com/ast-grep/ast-grep) | Structural lint/search CLI (⭐15k).    |
+| **Ref** | [ffizer](https://crates.io/crates/ffizer)        | Scaffolding templates.                 |
 
 ---
 
 ## Decisions to avoid
 
-- **One provider layer:** do not combine `genai` + `adk-anthropic` + `async-openai` in `elph-ai`.
-- **One agent framework:** pick custom loop (Ref yoagent) _or_ adopt `adk-rust` / `yoagent` — not both plus `open-agent-sdk-rust`.
-- **Markdown:** keep pulldown-cmark; add syntect for highlighting, not a second parser.
+| Rule                | Detail                                                                      |
+| ------------------- | --------------------------------------------------------------------------- |
+| One provider layer  | Not `genai` + `adk-anthropic` + `async-openai`.                             |
+| One agent framework | Custom loop (yoagent ref) _or_ `adk-rust` — not both + SDK refs.            |
+| One markdown stack  | `pulldown-cmark` + `syntect`; no second parser.                             |
+| One config stack    | `figment` + one JSONC helper; not `config-rs` + `confique`.                 |
+| One comment dialect | JSONC (VS Code) _or_ JSON5.                                                 |
+| Two prompt layers   | iocraft for agent shell; inquire for CLI only — never nested in active TUI. |
