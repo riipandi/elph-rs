@@ -5,4 +5,4 @@ with prompt input, diff views, overlays, themes, and terminal helpers for intera
 
 ## License
 
-Licensed under the [MIT License](https://opensource.org/licenses/MIT).
+Licensed under the [MIT License](https://www.tldrlegal.com/license/mit-license).

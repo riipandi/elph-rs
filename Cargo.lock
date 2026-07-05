@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "eclaw"
-version = "0.0.15"
+version = "0.0.17"
 dependencies = [
  "anyhow",
  "axum",
@@ -787,7 +787,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
 name = "elph"
-version = "0.0.15"
+version = "0.0.17"
 dependencies = [
  "anyhow",
  "clap",
@@ -806,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "elph-agent"
-version = "0.0.15"
+version = "0.0.17"
 dependencies = [
  "anyhow",
  "elph-core",
@@ -820,14 +820,14 @@ dependencies = [
 
 [[package]]
 name = "elph-ai"
-version = "0.0.15"
+version = "0.0.17"
 dependencies = [
  "anyhow",
 ]
 
 [[package]]
 name = "elph-core"
-version = "0.0.3"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "serde",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "elph-tui"
-version = "0.0.15"
+version = "0.0.17"
 dependencies = [
  "anyhow",
  "crokey",

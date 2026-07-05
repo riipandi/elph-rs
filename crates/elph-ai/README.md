@@ -6,4 +6,4 @@ between models. Includes only models that support tool calling for agentic workf
 
 ## License
 
-Licensed under the [MIT License](https://opensource.org/licenses/MIT).
+Licensed under the [MIT License](https://www.tldrlegal.com/license/mit-license).

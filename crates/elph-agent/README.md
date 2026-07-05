@@ -6,4 +6,4 @@ configuration. Application-specific home scaffolding lives in each binary crate 
 
 ## License
 
-Licensed under the [MIT License](https://opensource.org/licenses/MIT).
+Licensed under the [MIT License](https://www.tldrlegal.com/license/mit-license).

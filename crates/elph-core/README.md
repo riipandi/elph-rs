@@ -6,4 +6,4 @@ config/data path resolution utilities.
 
 ## License
 
-Licensed under the [MIT License](https://opensource.org/licenses/MIT).
+Licensed under the [MIT License](https://www.tldrlegal.com/license/mit-license).
