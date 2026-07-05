@@ -1,8 +1,16 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
+
+/// Create every directory in `dirs`, including parents.
+pub fn ensure_dirs(dirs: &[PathBuf]) -> Result<()> {
+    for dir in dirs {
+        fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
+    }
+    Ok(())
+}
 
 /// Write a pretty-printed JSON file with mode `0600` on Unix.
 pub fn write_json_file<T: Serialize>(path: &Path, value: &T) -> Result<()> {
@@ -37,5 +45,35 @@ pub fn write_private_file(path: &Path, contents: &[u8]) -> Result<()> {
     {
         fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))?;
         Ok(())
+    }
+}
+
+/// Write a file only when it does not already exist.
+pub fn write_file_if_missing(path: &Path, contents: &[u8]) -> Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_file_if_missing_is_idempotent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("marker.txt");
+
+        write_file_if_missing(&path, b"first").expect("first write");
+        write_file_if_missing(&path, b"second").expect("second write");
+
+        assert_eq!(fs::read_to_string(path).expect("read marker"), "first");
     }
 }

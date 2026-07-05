@@ -832,6 +832,7 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+ "tempfile",
  "time",
  "tracing",
  "tracing-appender",

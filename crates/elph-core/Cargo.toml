@@ -21,3 +21,6 @@ time.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
