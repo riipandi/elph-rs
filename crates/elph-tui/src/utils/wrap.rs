@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn wraps_ansi_line_preserving_color() {
-        let line = format!("\x1b[31mhello\x1b[0m world foo");
+        let line = "\x1b[31mhello\x1b[0m world foo".to_string();
         let wrapped = wrap_ansi_line(&line, 8);
         assert!(wrapped.len() >= 2);
         assert!(wrapped[0].contains("\x1b[31m"));

@@ -147,10 +147,10 @@ pub fn run(cli: &Cli) -> ExitCode {
         return default::handle();
     };
 
-    if command_needs_datastore(cmd) {
-        if let Err(code) = init_datastore(&paths) {
-            return code;
-        }
+    if command_needs_datastore(cmd)
+        && let Err(code) = init_datastore(&paths)
+    {
+        return code;
     }
 
     match cmd {

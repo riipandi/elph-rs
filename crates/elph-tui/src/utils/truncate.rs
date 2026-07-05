@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn preserves_ansi_prefix() {
-        let styled = format!("\x1b[31mHello\x1b[0m World");
+        let styled = "\x1b[31mHello\x1b[0m World".to_string();
         let truncated = truncate_to_width(&styled, 8, "…");
         assert!(truncated.contains("\x1b[31m"));
         assert!(str_display_width(&truncated) <= 8);

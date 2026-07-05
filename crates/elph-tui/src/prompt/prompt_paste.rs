@@ -597,7 +597,7 @@ mod tests {
     fn finds_paste_block_for_cursor() {
         let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 3);
         let value = format!("hi {}", paste.summary);
-        let range = paste_block_range(&value, 4, &[paste.clone()]).expect("cursor on marker");
+        let range = paste_block_range(&value, 4, std::slice::from_ref(&paste)).expect("cursor on marker");
         assert_eq!(&value[range], paste.summary);
     }
 
@@ -629,7 +629,7 @@ mod tests {
     fn removes_paste_block_and_returns_index() {
         let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 2);
         let value = format!("x {} y", paste.summary);
-        let range = paste_block_range(&value, 3, &[paste.clone()]).unwrap();
+        let range = paste_block_range(&value, 3, std::slice::from_ref(&paste)).unwrap();
         let (next, idx) = remove_paste_block(&value, range, &[paste]);
         assert_eq!(next, "x  y");
         assert_eq!(idx, Some(0));
@@ -692,7 +692,7 @@ mod tests {
         let paste = CollapsedPaste::new("alpha\nbeta".into(), 40, 0);
         let mut pastes = vec![paste.clone()];
         let mut display = paste.summary.clone();
-        display.insert_str(0, "X");
+        display.insert(0, 'X');
         shift_paste_offsets_for_insert(&mut pastes, 0, 1);
         let range = paste_block_range(&display, pastes[0].offset + 1, &pastes).expect("find block");
         let next = remove_paste_block_and_adjust(&display, range, &mut pastes).expect("delete");

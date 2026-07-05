@@ -103,7 +103,7 @@ build-windows: ## Build Windows release (x86_64 + arm64)
 # ─── Code Quality ───────────────────────────────────────────────────────────
 
 lint: ## Run clippy linter
-	@$(CARGO) clippy --workspace -- -D warnings
+	@$(CARGO) clippy --workspace --all-targets -- -D warnings
 
 fmt: ## Format all code
 	@$(CARGO) fmt --all

@@ -38,7 +38,7 @@ pub fn write_private_file(path: &Path, contents: &[u8]) -> Result<()> {
             .open(path)
             .with_context(|| format!("failed to write {}", path.display()))?;
         file.write_all(contents)?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(unix))]
