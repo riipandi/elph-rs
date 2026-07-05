@@ -20,3 +20,4 @@
 - https://crates.io/crates/syntect
 - https://crates.io/crates/rustix
 - https://crates.io/crates/ffizer
+- https://github.com/zavora-ai/adk-rust

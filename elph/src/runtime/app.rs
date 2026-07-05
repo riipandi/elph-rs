@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use super::exit_message;
-use crate::ui::App;
+use crate::app::App;
 use elph_agent::block_on;
 use elph_tui::disable_keyboard_enhancement;
 use iocraft::prelude::*;

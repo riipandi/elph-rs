@@ -1,7 +1,17 @@
+mod app;
 mod cmd;
+mod command;
+mod config;
+mod datastore;
 mod layout;
+mod memory;
+mod plugins;
+mod prompt;
 mod runtime;
-mod ui;
+mod session;
+mod skills;
+mod widget;
+mod worktree;
 
 use clap::Parser;
 
