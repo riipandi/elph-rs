@@ -28,9 +28,11 @@ cross_host_is_windows() {
 }
 
 # ghcr.io/cross-rs/<target> is not published for every Rust triple.
+# Catalog: https://github.com/orgs/cross-rs/packages?repo_name=cross
+# MSVC and Apple Darwin images are not shipped (see cross-rs README).
 cross_image_published() {
     case "$1" in
-    aarch64-pc-windows-msvc) return 1 ;;
+    *-pc-windows-msvc | *-apple-darwin) return 1 ;;
     *) return 0 ;;
     esac
 }

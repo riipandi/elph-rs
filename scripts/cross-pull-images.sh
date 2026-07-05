@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pre-pull ghcr.io/cross-rs images into local Docker cache.
 # cross reuses these automatically on subsequent builds.
+# Image catalog: https://github.com/orgs/cross-rs/packages?repo_name=cross
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,11 +13,7 @@ if ! command -v docker >/dev/null; then
     exit 1
 fi
 
-cross_ver=""
-if command -v cross >/dev/null; then
-    cross_ver="$(cross --version 2>/dev/null | awk 'NR==1 {print $2}')"
-fi
-tag="${CROSS_IMAGE_TAG:-${cross_ver:-main}}"
+tag="${CROSS_IMAGE_TAG:-latest}"
 
 # cross-rs images are linux/amd64 only; Apple Silicon / ARM64 hosts need --platform.
 docker_platform=()
@@ -29,15 +26,10 @@ elif [[ "$(cross_host_rust_arch)" == "aarch64" ]]; then
     platform_note="linux/amd64"
 fi
 
-# Docker targets only (macOS has no cross-rs image)
-all_targets=(
-    x86_64-unknown-linux-gnu
-    aarch64-unknown-linux-gnu
-    x86_64-unknown-linux-musl
-    aarch64-unknown-linux-musl
-    x86_64-pc-windows-gnu
-    aarch64-pc-windows-msvc
-)
+all_targets=()
+while IFS= read -r _target; do
+    [[ -n "$_target" ]] && all_targets+=("$_target")
+done < <("${root}/scripts/cross-targets.sh")
 
 docker_targets=()
 for target in "${all_targets[@]}"; do
@@ -65,21 +57,36 @@ if ((${#docker_targets[@]} == 0)); then
     exit 0
 fi
 
+_add_pull_tag() {
+    local candidate="$1" existing
+    for existing in "${pull_tags[@]:-}"; do
+        [[ "$existing" == "$candidate" ]] && return 0
+    done
+    pull_tags+=("$candidate")
+}
+
 pull_image() {
     local target="$1"
-    local image="ghcr.io/cross-rs/${target}:${tag}"
-    if docker pull --quiet "${docker_platform[@]}" "$image" >/dev/null 2>&1; then
-        printf '  %-34s  pulled\n' "$target"
-        return 0
-    fi
-    if [[ "$tag" != "main" ]]; then
-        local fallback="ghcr.io/cross-rs/${target}:main"
-        if docker pull --quiet "${docker_platform[@]}" "$fallback" >/dev/null 2>&1; then
-            printf '  %-34s  pulled (main)\n' "$target"
+    local image tag_used output
+    pull_tags=()
+
+    _add_pull_tag "$tag"
+    _add_pull_tag latest
+
+    for tag_used in "${pull_tags[@]}"; do
+        image="ghcr.io/cross-rs/${target}:${tag_used}"
+        if output=$(docker pull "${docker_platform[@]}" "$image" 2>&1); then
+            if [[ "$tag_used" == "$tag" ]]; then
+                printf '  %-34s  pulled\n' "$target"
+            else
+                printf '  %-34s  pulled (%s)\n' "$target" "$tag_used"
+            fi
             return 0
         fi
-    fi
+    done
+
     printf '  %-34s  failed\n' "$target" >&2
+    echo "$output" | tail -3 | sed 's/^/    /' >&2
     return 1
 }
 
@@ -97,4 +104,5 @@ fi
 
 echo
 echo "Cached"
-docker image ls 'ghcr.io/cross-rs/*' --format '  {{.Repository}}:{{.Tag}}  {{.Size}}' | sort
+docker image ls --filter reference='ghcr.io/cross-rs/*' \
+    --format '  {{.Repository}}:{{.Tag}}  {{.Size}}' | sort

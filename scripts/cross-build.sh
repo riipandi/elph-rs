@@ -45,7 +45,14 @@ fi
 
 cross_log_target "$target" "$tool"
 
+build_args=(build --release -p)
+if [[ "${CROSS_QUIET:-}" == "1" ]]; then
+    build_args+=(-q)
+elif [[ "${CROSS_VERBOSE:-}" == "1" ]]; then
+    build_args+=(--verbose)
+fi
+
 for pkg in eclaw elph; do
-    "$builder" build --release -q -p "$pkg" --target "$target"
+    "$builder" "${build_args[@]}" "$pkg" --target "$target"
     "$stage" "$target" "$pkg"
 done

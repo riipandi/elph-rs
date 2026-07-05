@@ -84,7 +84,7 @@ test: ## Run all workspace tests
 cross-pull: ## Pull ghcr.io/cross-rs images into local Docker cache
 	@./scripts/cross-pull-images.sh
 
-cross: ## Build one platform (CROSS_TARGET=<triple>, host-aware)
+cross: ## Build one platform (CROSS_TARGET=<triple>; CROSS_QUIET=1 / CROSS_VERBOSE=1)
 	@test -n "$(CROSS_TARGET)" || { echo "Usage: make cross CROSS_TARGET=<triple>" >&2; exit 1; }
 	@./scripts/cross-build.sh $(CROSS_TARGET)
 
