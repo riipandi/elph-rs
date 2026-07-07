@@ -4,11 +4,13 @@
 
 ## Tool groups
 
-| Helper                  | Tools                                      |
-| ----------------------- | ------------------------------------------ |
-| `create_coding_tools`   | `read`, `bash`, `edit`, `write`            |
-| `create_read_only_tools`| `read`, `grep`, `find`, `ls`               |
-| `create_all_tools`      | all seven built-in tools above             |
+| Helper                    | Tools                                      |
+| ------------------------- | ------------------------------------------ |
+| `create_coding_tools`     | `read`, `bash`, `edit`, `write`            |
+| `create_read_only_tools`  | `read`, `grep`, `find`, `ls`               |
+| `create_all_tools`        | all seven built-in tools above             |
+| `create_web_tools`        | `web_search`, `web_fetch`                  |
+| `create_all_tools_with_web` | all built-in tools + web tools           |
 
 ```rust
 use elph_agent::{LocalExecutionEnv, create_all_tools};
@@ -108,6 +110,61 @@ List entries in a directory.
 | `limit`   | number | no       | `1000`  | Maximum entries returned |
 
 Directories are suffixed with `/`. Names are sorted case-insensitively.
+
+### `web_search`
+
+Search the web using multiple search engines with automatic fallback. Supports DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, and SerpAPI.
+
+| Parameter | Type   | Required | Default | Description                                          |
+| --------- | ------ | -------- | ------- | ---------------------------------------------------- |
+| `query`   | string | yes      | —       | Search query string                                  |
+| `engine`  | string | no       | `auto`  | Preferred engine (auto, duckduckgo, brave, exa, firecrawl, jina, perplexity, tavily, serpapi) |
+| `limit`   | number | no       | `5`     | Maximum number of results (max: 20)                  |
+
+Engine selection is automatic based on available API keys in environment variables:
+- `BRAVE_SEARCH_API_KEY` - Brave Search
+- `EXA_API_KEY` - Exa
+- `FIRECRAWL_API_KEY` - Firecrawl (optional, can work without)
+- `JINA_API_KEY` - Jina AI
+- `PERPLEXITY_API_KEY` - Perplexity
+- `TAVILY_API_KEY` - Tavily
+- `SERPAPI_KEY` - SerpAPI
+
+DuckDuckGo is always available as a fallback (no API key required).
+
+Output format:
+```
+engine: duckduckgo
+query: rust programming
+results: 5
+
+1. Rust Programming Language
+   url: https://www.rust-lang.org/
+   snippet: A language empowering everyone to build reliable and efficient software.
+```
+
+### `web_fetch`
+
+Fetch and extract content from a web page. Supports text extraction, HTML, and markdown formats. Falls back to headless browser for JavaScript-rendered pages when the `browser` feature is enabled.
+
+| Parameter    | Type    | Required | Default | Description                                          |
+| ------------ | ------- | -------- | ------- | ---------------------------------------------------- |
+| `url`        | string  | yes      | —       | URL to fetch (must start with http:// or https://)   |
+| `format`     | string  | no       | `text`  | Output format: text, html, or markdown               |
+| `maxLength`  | number  | no       | `50000` | Maximum content length in characters                 |
+| `useBrowser` | boolean | no       | `false` | Force using headless browser instead of HTTP client  |
+| `waitMs`     | number  | no       | `2000`  | Wait time in milliseconds for browser to settle      |
+
+Output format:
+```
+url: https://example.com
+title: Example Domain
+status: 200
+format: Text
+
+Example Domain
+This domain is for use in illustrative examples in documents.
+```
 
 ## Cancellation
 

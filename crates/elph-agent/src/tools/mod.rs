@@ -8,6 +8,7 @@ mod find;
 mod grep;
 mod ls;
 mod read;
+pub mod web;
 mod write;
 
 use std::future::Future;
@@ -26,6 +27,10 @@ pub use find::create_find_tool;
 pub use grep::create_grep_tool;
 pub use ls::create_ls_tool;
 pub use read::create_read_tool;
+pub use web::{
+    Engine as WebSearchEngine, SearchResult as WebSearchResult, create_web_fetch_tool, create_web_search_tool,
+    create_web_tools,
+};
 pub use write::create_write_tool;
 
 pub fn simple_tool(
@@ -96,4 +101,11 @@ pub fn create_all_tools(env: Arc<dyn ExecutionEnv>) -> Vec<AgentTool> {
         create_find_tool(env.clone()),
         create_ls_tool(env),
     ]
+}
+
+/// All built-in tools including web tools.
+pub fn create_all_tools_with_web(env: Arc<dyn ExecutionEnv>) -> Vec<AgentTool> {
+    let mut tools = create_all_tools(env);
+    tools.extend(create_web_tools());
+    tools
 }

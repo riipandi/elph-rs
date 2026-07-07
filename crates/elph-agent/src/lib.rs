@@ -91,8 +91,10 @@ pub use skills::{
     LoadSkillsResult, LoadSourcedSkillsResult, SkillDiagnostic, SkillDiagnosticCode, SourcedSkill,
     SourcedSkillDiagnostic, format_skill_invocation, load_skills, load_sourced_skills,
 };
+pub use tools::{WebSearchEngine, WebSearchResult};
 pub use tools::{
-    create_all_tools, create_bash_tool, create_coding_tools, create_edit_tool, create_find_tool, create_grep_tool,
-    create_ls_tool, create_read_only_tools, create_read_tool, create_write_tool, echo_tool, simple_tool,
+    create_all_tools, create_all_tools_with_web, create_bash_tool, create_coding_tools, create_edit_tool,
+    create_find_tool, create_grep_tool, create_ls_tool, create_read_only_tools, create_read_tool,
+    create_web_fetch_tool, create_web_search_tool, create_web_tools, create_write_tool, echo_tool, simple_tool,
 };
 pub use types::*;
