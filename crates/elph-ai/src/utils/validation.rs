@@ -1,0 +1,36 @@
+use jsonschema::Validator;
+use once_cell::sync::OnceCell;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+use crate::types::{Tool, ToolCall};
+
+fn validator(schema: &Value) -> Option<Validator> {
+    static CACHE: OnceCell<Mutex<HashMap<u64, Validator>>> = OnceCell::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        schema.to_string().hash(&mut hasher);
+        hasher.finish()
+    };
+    let mut guard = cache.lock().ok()?;
+    if !guard.contains_key(&key) {
+        let compiled = Validator::new(schema).ok()?;
+        guard.insert(key, compiled);
+    }
+    guard.remove(&key)
+}
+
+/// Validate tool call arguments against a tool's JSON Schema parameters.
+pub fn validate_tool_call(tool: &Tool, call: &ToolCall) -> Result<(), String> {
+    let Some(schema) = validator(&tool.parameters) else {
+        return Ok(());
+    };
+    if let Err(error) = schema.validate(&call.arguments) {
+        return Err(error.to_string());
+    }
+    Ok(())
+}
