@@ -195,18 +195,20 @@ async fn execute_tool_calls_parallel(
         }
     }
 
-    let mut finalized_calls = Vec::new();
-    for entry in entries {
-        let finalized = match entry {
-            Entry::Immediate(f) => f,
-            Entry::Deferred(fut) => {
-                let f = fut.await;
-                emit_tool_execution_end(&f, emit).await;
-                f
+    let finalized_calls = futures::future::join_all(entries.into_iter().map(|entry| {
+        let emit = emit.clone();
+        async move {
+            match entry {
+                Entry::Immediate(f) => f,
+                Entry::Deferred(fut) => {
+                    let f = fut.await;
+                    emit_tool_execution_end(&f, &emit).await;
+                    f
+                }
             }
-        };
-        finalized_calls.push(finalized);
-    }
+        }
+    }))
+    .await;
 
     let mut messages = Vec::new();
     for finalized in &finalized_calls {
@@ -277,7 +279,7 @@ async fn prepare_tool_call(
 
     let prepared_tool_call = prepare_tool_call_arguments(tool, tool_call);
 
-    let validated_args = match validate_tool_call(&tool.tool, &prepared_tool_call) {
+    let mut validated_args = match validate_tool_call(&tool.tool, &prepared_tool_call) {
         Ok(()) => prepared_tool_call.arguments.clone(),
         Err(msg) => {
             return Preparation::Immediate {
@@ -304,17 +306,20 @@ async fn prepare_tool_call(
                 is_error: true,
             };
         }
-        if let Some(result) = before_result
-            && result.block
-        {
-            return Preparation::Immediate {
-                result: AgentToolResult::error(
-                    result
-                        .reason
-                        .unwrap_or_else(|| "Tool execution was blocked".to_string()),
-                ),
-                is_error: true,
-            };
+        if let Some(result) = before_result {
+            if result.block {
+                return Preparation::Immediate {
+                    result: AgentToolResult::error(
+                        result
+                            .reason
+                            .unwrap_or_else(|| "Tool execution was blocked".to_string()),
+                    ),
+                    is_error: true,
+                };
+            }
+            if let Some(args) = result.args {
+                validated_args = args;
+            }
         }
     }
 

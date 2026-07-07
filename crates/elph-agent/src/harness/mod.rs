@@ -26,6 +26,7 @@ pub use types::{
     TreePreparation, err, get_or_throw, get_or_undefined, ok, to_error,
 };
 pub use utils::{
-    DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, GREP_MAX_LINE_LENGTH, TruncatedBy, TruncationOptions, finalize_shell_capture,
-    format_size, sanitize_binary_output, truncate_head, truncate_line, truncate_tail,
+    DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, GREP_MAX_LINE_LENGTH, ShellCaptureOptions, TruncatedBy, TruncationOptions,
+    execute_shell_with_capture, finalize_shell_capture, format_size, sanitize_binary_output, truncate_head,
+    truncate_line, truncate_tail,
 };

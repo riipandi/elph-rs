@@ -4,6 +4,8 @@ pub mod backends;
 pub mod context;
 pub mod id;
 pub mod migrations;
+pub mod repo;
+pub mod repo_utils;
 pub mod storage_utils;
 pub mod tree;
 pub mod types;
@@ -14,6 +16,11 @@ pub use backends::{
 };
 pub use context::build_session_context;
 pub use migrations::SESSION_TREE_MIGRATIONS;
+pub use repo::{
+    InMemorySessionCreateOptions, InMemorySessionRepo, JsonlSessionListOptions, JsonlSessionRepo,
+    JsonlSessionRepoCreateOptions,
+};
+pub use repo_utils::{ForkEntriesOptions, ForkPosition, create_session_id, create_timestamp};
 pub use tree::{BranchSummaryOptions, Session};
 pub use types::{
     CustomMessageEntryBlock, CustomMessageEntryContent, JsonlSessionMetadata, SessionContext, SessionError,

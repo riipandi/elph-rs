@@ -1,7 +1,13 @@
 //! Shell output capture helpers — ported from pi-agent `harness/utils/shell-output.ts`.
 
-use crate::harness::types::{ExecutionError, ExecutionErrorCode, Result};
-use crate::harness::utils::truncate::{TruncationOptions, truncate_tail};
+use std::sync::{Arc, Mutex};
+
+use tokio_util::sync::CancellationToken;
+
+use crate::harness::types::{
+    CreateTempFileOptions, ExecutionEnv, ExecutionError, ExecutionErrorCode, Result, ShellExecOptions, err, ok,
+};
+use crate::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_tail};
 
 /// Result of capturing shell command output.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +42,7 @@ pub fn sanitize_binary_output(value: &str) -> String {
 /// Sanitize and truncate captured shell output from the tail.
 pub fn finalize_shell_capture(output: &str, options: Option<TruncationOptions>) -> ShellCaptureResult {
     let sanitized = sanitize_binary_output(output).replace('\r', "");
-    let truncation = truncate_tail(&sanitized, options.unwrap_or_default());
+    let truncation = truncate_tail(&sanitized, options.unwrap_or(TruncationOptions::default()));
     ShellCaptureResult {
         output: truncation.content,
         exit_code: None,
@@ -52,4 +58,125 @@ pub fn to_execution_error(error: impl std::fmt::Display) -> ExecutionError {
 
 pub fn ok_shell_capture(result: ShellCaptureResult) -> Result<ShellCaptureResult, ExecutionError> {
     crate::harness::types::ok(result)
+}
+
+/// Options for shell capture — mirrors pi-agent `ShellCaptureOptions`.
+#[derive(Debug, Clone, Default)]
+pub struct ShellCaptureOptions {
+    pub cwd: Option<String>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub timeout: Option<u64>,
+    pub abort_token: Option<CancellationToken>,
+}
+
+/// Execute a shell command and capture output with truncation and optional spill-to-disk.
+pub async fn execute_shell_with_capture<E: ExecutionEnv>(
+    env: &E,
+    command: &str,
+    options: Option<ShellCaptureOptions>,
+) -> Result<ShellCaptureResult, ExecutionError> {
+    let options = options.unwrap_or_default();
+    let max_output_bytes = DEFAULT_MAX_BYTES * 2;
+    let output_chunks: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let output_bytes: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let total_bytes: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let capture_error: Arc<Mutex<Option<ExecutionError>>> = Arc::new(Mutex::new(None));
+
+    let on_chunk = {
+        let output_chunks = output_chunks.clone();
+        let output_bytes = output_bytes.clone();
+        let total_bytes = total_bytes.clone();
+        let capture_error = capture_error.clone();
+        Arc::new(move |chunk: &str| {
+            if capture_error.lock().expect("lock").is_some() {
+                return;
+            }
+            let text = sanitize_binary_output(chunk).replace('\r', "");
+            *total_bytes.lock().expect("lock") += text.len();
+            let mut chunks = output_chunks.lock().expect("lock");
+            chunks.push(text.clone());
+            let mut bytes = output_bytes.lock().expect("lock");
+            *bytes += text.len();
+            while *bytes > max_output_bytes && chunks.len() > 1 {
+                let removed = chunks.remove(0);
+                *bytes -= removed.len();
+            }
+        })
+    };
+
+    let exec_result = env
+        .exec(
+            command,
+            Some(ShellExecOptions {
+                cwd: options.cwd,
+                env: options.env,
+                timeout: options.timeout,
+                abort_token: options.abort_token.clone(),
+                on_stdout: Some(on_chunk.clone()),
+                on_stderr: Some(on_chunk),
+            }),
+        )
+        .await;
+
+    if let Some(error) = capture_error.lock().expect("lock").take() {
+        return err(error);
+    }
+
+    let tail_output = output_chunks.lock().expect("lock").join("");
+    let truncation = truncate_tail(&tail_output, TruncationOptions::default());
+    let total = *total_bytes.lock().expect("lock");
+    let mut full_output_path = None;
+
+    if truncation.truncated || total > DEFAULT_MAX_BYTES {
+        let temp_file = match env
+            .create_temp_file(Some(CreateTempFileOptions {
+                prefix: "bash-".to_string(),
+                suffix: ".log".to_string(),
+                abort_token: options.abort_token.clone(),
+            }))
+            .await
+        {
+            Result::Ok(path) => path,
+            Result::Err(error) => return err(to_execution_error(error)),
+        };
+        match env
+            .append_file(&temp_file, tail_output.as_bytes(), options.abort_token.as_ref())
+            .await
+        {
+            Result::Ok(()) => full_output_path = Some(temp_file),
+            Result::Err(error) => return err(to_execution_error(error)),
+        }
+    }
+
+    let cancelled = options.abort_token.as_ref().is_some_and(|t| t.is_cancelled());
+
+    match exec_result {
+        Result::Ok(result) => ok(ShellCaptureResult {
+            output: if truncation.truncated {
+                truncation.content
+            } else {
+                tail_output
+            },
+            exit_code: if cancelled { None } else { Some(result.exit_code) },
+            cancelled,
+            truncated: truncation.truncated,
+            full_output_path,
+        }),
+        Result::Err(error) => {
+            if error.code == ExecutionErrorCode::Aborted || cancelled {
+                return ok(ShellCaptureResult {
+                    output: if truncation.truncated {
+                        truncation.content
+                    } else {
+                        tail_output
+                    },
+                    exit_code: None,
+                    cancelled: true,
+                    truncated: truncation.truncated,
+                    full_output_path,
+                });
+            }
+            err(error)
+        }
+    }
 }

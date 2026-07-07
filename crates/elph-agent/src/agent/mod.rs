@@ -25,6 +25,22 @@ pub use state::default_model;
 pub type AgentListener =
     Arc<dyn Fn(AgentEvent, CancellationToken) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
+/// Handle returned by [`Agent::subscribe`]. Call [`AgentSubscription::unsubscribe`] to remove the listener.
+pub struct AgentSubscription {
+    listeners: Arc<Mutex<Vec<AgentListener>>>,
+    listener: AgentListener,
+    active: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl AgentSubscription {
+    pub async fn unsubscribe(self) {
+        if self.active.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            let mut listeners = self.listeners.lock().await;
+            listeners.retain(|entry| !Arc::ptr_eq(entry, &self.listener));
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct PartialAgentState {
     pub system_prompt: Option<String>,
@@ -44,6 +60,7 @@ pub struct AgentOptions {
     pub before_tool_call: Option<crate::types::BeforeToolCallFn>,
     pub after_tool_call: Option<crate::types::AfterToolCallFn>,
     pub prepare_next_turn: Option<crate::types::PrepareNextTurnFn>,
+    pub prepare_next_turn_legacy: Option<crate::types::PrepareNextTurnLegacyFn>,
     pub steering_mode: QueueMode,
     pub follow_up_mode: QueueMode,
     pub session_id: Option<String>,
@@ -71,7 +88,9 @@ pub struct Agent {
     before_tool_call: Option<crate::types::BeforeToolCallFn>,
     after_tool_call: Option<crate::types::AfterToolCallFn>,
     prepare_next_turn: Option<crate::types::PrepareNextTurnFn>,
-    session_id: Option<String>,
+    prepare_next_turn_legacy: Option<crate::types::PrepareNextTurnLegacyFn>,
+    current_abort_token: Arc<Mutex<Option<CancellationToken>>>,
+    session_id: Arc<std::sync::Mutex<Option<String>>>,
     thinking_budgets: Option<ThinkingBudgets>,
     transport: Transport,
     max_retry_delay_ms: Option<u64>,
@@ -99,7 +118,9 @@ impl Agent {
             before_tool_call: options.before_tool_call,
             after_tool_call: options.after_tool_call,
             prepare_next_turn: options.prepare_next_turn,
-            session_id: options.session_id,
+            prepare_next_turn_legacy: options.prepare_next_turn_legacy,
+            current_abort_token: Arc::new(Mutex::new(None)),
+            session_id: Arc::new(std::sync::Mutex::new(options.session_id)),
             thinking_budgets: options.thinking_budgets,
             transport: options.transport.unwrap_or(Transport::Auto),
             max_retry_delay_ms: options.max_retry_delay_ms,
@@ -109,8 +130,54 @@ impl Agent {
         }
     }
 
-    pub async fn subscribe(&self, listener: AgentListener) {
-        self.listeners.lock().await.push(listener);
+    pub async fn subscribe(&self, listener: AgentListener) -> AgentSubscription {
+        let listener = listener;
+        self.listeners.lock().await.push(listener.clone());
+        AgentSubscription {
+            listeners: self.listeners.clone(),
+            listener,
+            active: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        }
+    }
+
+    pub fn session_id(&self) -> Option<String> {
+        self.session_id.lock().expect("session id lock").clone()
+    }
+
+    pub fn set_session_id(&self, session_id: Option<String>) {
+        *self.session_id.lock().expect("session id lock") = session_id;
+    }
+
+    pub async fn signal(&self) -> Option<CancellationToken> {
+        self.active_run.lock().await.as_ref().map(|run| run.abort_token.clone())
+    }
+
+    pub async fn set_system_prompt(&self, prompt: impl Into<String>) {
+        self.state.lock().await.set_system_prompt(prompt.into());
+    }
+
+    pub async fn set_model(&self, model: elph_ai::Model) {
+        self.state.lock().await.set_model(model);
+    }
+
+    pub async fn set_thinking_level(&self, level: AgentThinkingLevel) {
+        self.state.lock().await.set_thinking_level(level);
+    }
+
+    pub async fn set_tools(&self, tools: Vec<crate::types::AgentTool>) {
+        self.state.lock().await.set_tools(tools);
+    }
+
+    pub async fn set_messages(&self, messages: Vec<AgentMessage>) {
+        self.state.lock().await.set_messages(messages);
+    }
+
+    pub async fn append_message(&self, message: AgentMessage) {
+        self.state.lock().await.append_message(message);
+    }
+
+    pub async fn clear_messages(&self) {
+        self.state.lock().await.clear_messages();
     }
 
     pub async fn state(&self) -> AgentState {
@@ -316,7 +383,7 @@ impl Agent {
             reasoning: thinking_level.to_stream_reasoning(),
             thinking_budgets: self.thinking_budgets.clone(),
         };
-        stream_options.base.session_id = self.session_id.clone();
+        stream_options.base.session_id = self.session_id.lock().expect("session id lock").clone();
         stream_options.base.transport = Some(self.transport);
         stream_options.base.max_retry_delay_ms = self.max_retry_delay_ms;
 
@@ -327,7 +394,30 @@ impl Agent {
             transform_context: self.transform_context.clone(),
             get_api_key: self.get_api_key.clone(),
             should_stop_after_turn: None,
-            prepare_next_turn: self.prepare_next_turn.clone(),
+            prepare_next_turn: {
+                let with_context = self.prepare_next_turn.clone();
+                let legacy = self.prepare_next_turn_legacy.clone();
+                let token_holder = self.current_abort_token.clone();
+                if with_context.is_none() && legacy.is_none() {
+                    None
+                } else {
+                    Some(Arc::new(move |ctx| {
+                        let with_context = with_context.clone();
+                        let legacy = legacy.clone();
+                        let token_holder = token_holder.clone();
+                        Box::pin(async move {
+                            if let Some(callback) = with_context {
+                                callback(ctx).await
+                            } else if let Some(callback) = legacy {
+                                let signal = token_holder.lock().await.clone();
+                                callback(signal).await
+                            } else {
+                                None
+                            }
+                        })
+                    }))
+                }
+            },
             get_steering_messages: Some(get_steering),
             get_follow_up_messages: Some(get_follow_up),
             tool_execution: self.tool_execution,
@@ -362,6 +452,7 @@ impl Agent {
             state.set_streaming(true);
             state.clear_error();
         }
+        *self.current_abort_token.lock().await = Some(abort_token.clone());
         *self.active_run.lock().await = Some(ActiveRun {
             idle_tx,
             idle_rx: Mutex::new(Some(idle_rx)),
@@ -377,6 +468,7 @@ impl Agent {
             state.set_streaming_message(None);
             state.set_pending_tool_calls(HashSet::new());
         }
+        *self.current_abort_token.lock().await = None;
         if let Some(run) = self.active_run.lock().await.take() {
             let _ = run.idle_tx.send(());
         }

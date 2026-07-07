@@ -206,6 +206,8 @@ pub struct AgentContext {
 pub struct BeforeToolCallResult {
     pub block: bool,
     pub reason: Option<String>,
+    /// Override validated args without re-running schema validation (pi `beforeToolCall` mutation semantics).
+    pub args: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -270,6 +272,13 @@ pub type ShouldStopAfterTurnFn =
 
 pub type PrepareNextTurnFn = Arc<
     dyn Fn(PrepareNextTurnContext) -> Pin<Box<dyn Future<Output = Option<AgentLoopTurnUpdate>> + Send>> + Send + Sync,
+>;
+
+/// Legacy pi-agent callback: `prepareNextTurn(signal)` without context.
+pub type PrepareNextTurnLegacyFn = Arc<
+    dyn Fn(Option<CancellationToken>) -> Pin<Box<dyn Future<Output = Option<AgentLoopTurnUpdate>> + Send>>
+        + Send
+        + Sync,
 >;
 
 pub type GetQueuedMessagesFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Vec<AgentMessage>> + Send>> + Send + Sync>;

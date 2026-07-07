@@ -125,6 +125,34 @@ impl MutableAgentState {
         self.error_message = None;
     }
 
+    pub fn set_system_prompt(&mut self, prompt: String) {
+        self.system_prompt = prompt;
+    }
+
+    pub fn set_model(&mut self, model: Model) {
+        self.model = model;
+    }
+
+    pub fn set_thinking_level(&mut self, level: AgentThinkingLevel) {
+        self.thinking_level = level;
+    }
+
+    pub fn set_tools(&mut self, tools: Vec<AgentTool>) {
+        self.tools = tools;
+    }
+
+    pub fn set_messages(&mut self, messages: Vec<AgentMessage>) {
+        self.messages = messages;
+    }
+
+    pub fn append_message(&mut self, message: AgentMessage) {
+        self.messages.push(message);
+    }
+
+    pub fn clear_messages(&mut self) {
+        self.messages.clear();
+    }
+
     pub fn reset(&mut self) {
         self.messages.clear();
         self.is_streaming = false;

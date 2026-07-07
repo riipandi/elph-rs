@@ -1,6 +1,9 @@
 //! In-memory session storage backend.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
+use tokio::sync::Mutex;
 
 use crate::session::id::{generate_entry_id, generate_session_id};
 use crate::session::storage_utils::{append_to_index, build_index, create_leaf_entry, find_entries, get_path_to_root};
@@ -11,7 +14,7 @@ use crate::session::types::{
 #[derive(Clone)]
 pub struct InMemorySessionStorage {
     metadata: SessionMetadata,
-    index: SessionIndex,
+    index: Arc<Mutex<SessionIndex>>,
 }
 
 impl InMemorySessionStorage {
@@ -22,7 +25,10 @@ impl InMemorySessionStorage {
             id: generate_session_id(),
             created_at: crate::messages::now_iso_timestamp(),
         });
-        Ok(Self { metadata, index })
+        Ok(Self {
+            metadata,
+            index: Arc::new(Mutex::new(index)),
+        })
     }
 }
 
@@ -42,57 +48,66 @@ impl SessionStorage for InMemorySessionStorage {
     }
 
     async fn get_leaf_id(&self) -> Result<Option<String>, SessionError> {
-        if let Some(leaf_id) = &self.index.leaf_id
-            && !self.index.by_id.contains_key(leaf_id)
+        let index = self.index.lock().await;
+        if let Some(leaf_id) = &index.leaf_id
+            && !index.by_id.contains_key(leaf_id)
         {
             return Err(SessionError::new(
                 SessionErrorCode::InvalidSession,
                 format!("Entry {leaf_id} not found"),
             ));
         }
-        Ok(self.index.leaf_id.clone())
+        Ok(index.leaf_id.clone())
     }
 
     async fn set_leaf_id(&mut self, leaf_id: Option<String>) -> Result<(), SessionError> {
+        let mut index = self.index.lock().await;
         if let Some(leaf_id) = &leaf_id
-            && !self.index.by_id.contains_key(leaf_id)
+            && !index.by_id.contains_key(leaf_id)
         {
             return Err(SessionError::new(
                 SessionErrorCode::NotFound,
                 format!("Entry {leaf_id} not found"),
             ));
         }
-        let entry = create_leaf_entry(self.index.leaf_id.clone(), leaf_id.clone(), &self.index.by_id);
-        append_to_index(&mut self.index, entry);
+        let entry = create_leaf_entry(index.leaf_id.clone(), leaf_id.clone(), &index.by_id);
+        append_to_index(&mut index, entry);
         Ok(())
     }
 
     async fn create_entry_id(&self) -> String {
-        generate_entry_id(&self.index.by_id)
+        let index = self.index.lock().await;
+        generate_entry_id(&index.by_id)
     }
 
     async fn append_entry(&mut self, entry: SessionTreeEntry) -> Result<(), SessionError> {
-        append_to_index(&mut self.index, entry);
+        let mut index = self.index.lock().await;
+        append_to_index(&mut index, entry);
         Ok(())
     }
 
     async fn get_entry(&self, id: &str) -> Option<SessionTreeEntry> {
-        self.index.by_id.get(id).cloned()
+        let index = self.index.lock().await;
+        index.by_id.get(id).cloned()
     }
 
     async fn find_entries(&self, entry_type: &str) -> Vec<SessionTreeEntry> {
-        find_entries(&self.index.entries, entry_type)
+        let index = self.index.lock().await;
+        find_entries(&index.entries, entry_type)
     }
 
     async fn get_label(&self, id: &str) -> Option<String> {
-        self.index.labels_by_id.get(id).cloned()
+        let index = self.index.lock().await;
+        index.labels_by_id.get(id).cloned()
     }
 
     async fn get_path_to_root(&self, leaf_id: Option<&str>) -> Result<Vec<SessionTreeEntry>, SessionError> {
-        get_path_to_root(&self.index.by_id, leaf_id)
+        let index = self.index.lock().await;
+        get_path_to_root(&index.by_id, leaf_id)
     }
 
     async fn get_entries(&self) -> Vec<SessionTreeEntry> {
-        self.index.entries.clone()
+        let index = self.index.lock().await;
+        index.entries.clone()
     }
 }

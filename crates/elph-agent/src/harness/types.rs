@@ -311,12 +311,99 @@ pub struct AgentHarnessStreamOptions {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AgentHarnessStreamOptionsPatch {
     pub transport: Option<Transport>,
-    pub timeout_ms: Option<u64>,
-    pub max_retries: Option<u32>,
-    pub max_retry_delay_ms: Option<u64>,
-    pub headers: Option<std::collections::HashMap<String, Option<String>>>,
-    pub metadata: Option<std::collections::HashMap<String, Option<Value>>>,
+    /// `None` = leave unchanged, `Some(None)` = clear, `Some(Some(v))` = set.
+    pub timeout_ms: Option<Option<u64>>,
+    /// `None` = leave unchanged, `Some(None)` = clear, `Some(Some(v))` = set.
+    pub max_retries: Option<Option<u32>>,
+    /// `None` = leave unchanged, `Some(None)` = clear, `Some(Some(v))` = set.
+    pub max_retry_delay_ms: Option<Option<u64>>,
+    /// `None` = leave unchanged, `Some(None)` = clear all headers, `Some(Some(map))` = merge/delete keys.
+    pub headers: Option<Option<std::collections::HashMap<String, Option<String>>>>,
+    /// `None` = leave unchanged, `Some(None)` = clear all metadata, `Some(Some(map))` = merge/delete keys.
+    pub metadata: Option<Option<std::collections::HashMap<String, Option<Value>>>>,
     pub cache_retention: Option<String>,
+}
+
+pub fn clone_stream_options(stream_options: &AgentHarnessStreamOptions) -> AgentHarnessStreamOptions {
+    AgentHarnessStreamOptions {
+        transport: stream_options.transport,
+        timeout_ms: stream_options.timeout_ms,
+        max_retries: stream_options.max_retries,
+        max_retry_delay_ms: stream_options.max_retry_delay_ms,
+        headers: stream_options.headers.clone(),
+        metadata: stream_options.metadata.clone(),
+        cache_retention: stream_options.cache_retention.clone(),
+    }
+}
+
+pub fn apply_stream_options_patch(
+    base: AgentHarnessStreamOptions,
+    patch: &AgentHarnessStreamOptionsPatch,
+) -> AgentHarnessStreamOptions {
+    let mut result = clone_stream_options(&base);
+    if patch.transport.is_some() {
+        result.transport = patch.transport;
+    }
+    if let Some(timeout_ms) = patch.timeout_ms {
+        result.timeout_ms = timeout_ms;
+    }
+    if let Some(max_retries) = patch.max_retries {
+        result.max_retries = max_retries;
+    }
+    if let Some(max_retry_delay_ms) = patch.max_retry_delay_ms {
+        result.max_retry_delay_ms = max_retry_delay_ms;
+    }
+    if patch.cache_retention.is_some() {
+        result.cache_retention = patch.cache_retention.clone();
+    }
+    if let Some(headers_patch) = &patch.headers {
+        result.headers = match headers_patch {
+            None => None,
+            Some(map) => {
+                let mut headers = result.headers.take().unwrap_or_default();
+                for (key, value) in map {
+                    match value {
+                        Some(value) => {
+                            headers.insert(key.clone(), value.clone());
+                        }
+                        None => {
+                            headers.remove(key);
+                        }
+                    }
+                }
+                if headers.is_empty() { None } else { Some(headers) }
+            }
+        };
+    }
+    if let Some(metadata_patch) = &patch.metadata {
+        result.metadata = match metadata_patch {
+            None => None,
+            Some(map) => {
+                let mut metadata = result
+                    .metadata
+                    .as_ref()
+                    .and_then(|value| value.as_object())
+                    .cloned()
+                    .unwrap_or_default();
+                for (key, value) in map {
+                    match value {
+                        Some(value) => {
+                            metadata.insert(key.clone(), value.clone());
+                        }
+                        None => {
+                            metadata.remove(key);
+                        }
+                    }
+                }
+                if metadata.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::Value::Object(metadata))
+                }
+            }
+        };
+    }
+    result
 }
 
 #[derive(Debug, Clone)]

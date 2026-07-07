@@ -2,10 +2,15 @@
 
 use elph_agent::env::LocalExecutionEnv;
 use elph_agent::harness::types::{
-    CreateDirOptions, FileErrorCode, FileKind, FileSystem, Result, Shell, ShellExecOptions, get_or_throw,
+    CreateDirOptions, ExecutionErrorCode, FileErrorCode, FileKind, FileSystem, ReadTextLinesOptions, RemoveOptions,
+    Result, Shell, ShellExecOptions, get_or_throw,
 };
+use elph_agent::harness::utils::execute_shell_with_capture;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
+
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 
 fn env_in_temp() -> (TempDir, LocalExecutionEnv) {
     let temp = TempDir::new().expect("temp dir");
@@ -126,7 +131,7 @@ async fn creates_temporary_directories_and_files() {
 }
 
 #[tokio::test]
-async fn honors_create_dir_recursive_false() {
+async fn honors_create_dir_recursive_false_and_remove_options() {
     let (_temp, env) = env_in_temp();
     let create_result = FileSystem::create_dir(
         &env,
@@ -141,6 +146,128 @@ async fn honors_create_dir_recursive_false() {
     if let Result::Err(error) = create_result {
         assert_eq!(error.code, FileErrorCode::NotFound);
     }
+
+    get_or_throw(env.write_file("dir/child/file.txt", "hello").await);
+    let remove_directory = env
+        .remove(
+            "dir",
+            Some(RemoveOptions {
+                recursive: false,
+                force: false,
+                abort_token: None,
+            }),
+        )
+        .await;
+    assert!(remove_directory.is_err());
+    get_or_throw(
+        env.remove(
+            "dir",
+            Some(RemoveOptions {
+                recursive: true,
+                force: false,
+                abort_token: None,
+            }),
+        )
+        .await,
+    );
+    assert!(!get_or_throw(env.exists("dir", None).await));
+
+    let remove_missing = env
+        .remove(
+            "missing",
+            Some(RemoveOptions {
+                recursive: false,
+                force: false,
+                abort_token: None,
+            }),
+        )
+        .await;
+    assert!(remove_missing.is_err());
+    get_or_throw(
+        env.remove(
+            "missing",
+            Some(RemoveOptions {
+                recursive: false,
+                force: true,
+                abort_token: None,
+            }),
+        )
+        .await,
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn returns_file_info_for_files_directories_and_symlinks_without_following_symlinks() {
+    let (_temp, env) = env_in_temp();
+    let root = env.cwd().to_string();
+
+    get_or_throw(env.create_dir("dir", true).await);
+    get_or_throw(env.write_file("dir/file.txt", "hello").await);
+    symlink(format!("{root}/dir/file.txt"), format!("{root}/file-link")).expect("file symlink");
+    symlink(format!("{root}/dir"), format!("{root}/dir-link")).expect("dir symlink");
+
+    let dir_info = get_or_throw(env.file_info("dir", None).await);
+    assert_eq!(dir_info.name, "dir");
+    assert_eq!(dir_info.path, format!("{root}/dir"));
+    assert_eq!(dir_info.kind, FileKind::Directory);
+
+    let file_info = get_or_throw(env.file_info("dir/file.txt", None).await);
+    assert_eq!(file_info.name, "file.txt");
+    assert_eq!(file_info.path, format!("{root}/dir/file.txt"));
+    assert_eq!(file_info.kind, FileKind::File);
+    assert_eq!(file_info.size, 5);
+
+    let file_link_info = get_or_throw(env.file_info("file-link", None).await);
+    assert_eq!(file_link_info.name, "file-link");
+    assert_eq!(file_link_info.path, format!("{root}/file-link"));
+    assert_eq!(file_link_info.kind, FileKind::Symlink);
+
+    let dir_link_info = get_or_throw(env.file_info("dir-link", None).await);
+    assert_eq!(dir_link_info.name, "dir-link");
+    assert_eq!(dir_link_info.path, format!("{root}/dir-link"));
+    assert_eq!(dir_link_info.kind, FileKind::Symlink);
+
+    let canonical = get_or_throw(env.canonical_path("file-link", None).await);
+    let expected = std::fs::canonicalize(format!("{root}/dir/file.txt")).expect("canonical target");
+    assert_eq!(canonical, expected.to_string_lossy().replace('\\', "/"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn lists_symlinks_as_symlinks() {
+    let (_temp, env) = env_in_temp();
+    let root = env.cwd().to_string();
+
+    get_or_throw(env.write_file("target.txt", "hello").await);
+    symlink(format!("{root}/target.txt"), format!("{root}/link.txt")).expect("symlink");
+
+    let mut entries = get_or_throw(env.list_dir(".", None).await);
+    entries.sort_by(|left, right| left.name.cmp(&right.name));
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].name, "link.txt");
+    assert_eq!(entries[0].kind, FileKind::Symlink);
+    assert_eq!(entries[1].name, "target.txt");
+    assert_eq!(entries[1].kind, FileKind::File);
+}
+
+#[tokio::test]
+async fn stops_reading_text_lines_at_requested_limit() {
+    let (_temp, env) = env_in_temp();
+    get_or_throw(env.write_file("file.txt", "one\ntwo\nthree").await);
+    assert_eq!(
+        get_or_throw(
+            env.read_text_lines(
+                "file.txt",
+                Some(ReadTextLinesOptions {
+                    max_lines: Some(1),
+                    abort_token: None,
+                }),
+            )
+            .await
+        ),
+        vec!["one".to_string()]
+    );
 }
 
 #[tokio::test]
@@ -236,4 +363,118 @@ async fn streams_stdout_and_stderr_chunks() {
     assert!(result.stderr.contains("err"));
     assert!(stdout.lock().expect("lock").contains("out"));
     assert!(stderr.lock().expect("lock").contains("err"));
+}
+
+#[tokio::test]
+async fn returns_non_zero_command_exit_codes_as_successful_execution_results() {
+    let (_temp, env) = env_in_temp();
+    let result = get_or_throw(env.exec("exit 7", None).await);
+    assert_eq!(result.stdout, "");
+    assert_eq!(result.stderr, "");
+    assert_eq!(result.exit_code, 7);
+}
+
+#[tokio::test]
+async fn returns_timeout_errors_for_commands_exceeding_timeout() {
+    let (_temp, env) = env_in_temp();
+    let result = env
+        .exec(
+            "sleep 5",
+            Some(ShellExecOptions {
+                cwd: None,
+                env: None,
+                timeout: Some(1),
+                abort_token: None,
+                on_stdout: None,
+                on_stderr: None,
+            }),
+        )
+        .await;
+    assert!(result.is_err());
+    if let Result::Err(error) = result {
+        assert_eq!(error.code, ExecutionErrorCode::Timeout);
+    }
+}
+
+#[tokio::test]
+async fn returns_callback_errors_from_exec_stream_handlers() {
+    let (_temp, env) = env_in_temp();
+    let result = env
+        .exec(
+            "printf out",
+            Some(ShellExecOptions {
+                cwd: None,
+                env: None,
+                timeout: None,
+                abort_token: None,
+                on_stdout: Some(std::sync::Arc::new(|_| {
+                    panic!("callback failed");
+                })),
+                on_stderr: None,
+            }),
+        )
+        .await;
+    assert!(result.is_err());
+    if let Result::Err(error) = result {
+        assert_eq!(error.code, ExecutionErrorCode::CallbackError);
+        assert_eq!(error.message, "callback failed");
+    }
+}
+
+#[tokio::test]
+async fn returns_shell_unavailable_and_spawn_errors() {
+    let (temp, env) = env_in_temp();
+    let root = temp.path().to_string_lossy().to_string();
+
+    let missing_shell_env = LocalExecutionEnv::new(temp.path()).with_shell_path(format!("{root}/missing-shell"));
+    let missing_shell = missing_shell_env.exec("printf ok", None).await;
+    assert!(missing_shell.is_err());
+    if let Result::Err(error) = missing_shell {
+        assert_eq!(error.code, ExecutionErrorCode::ShellUnavailable);
+    }
+
+    let shell_path = format!("{root}/not-executable-shell");
+    get_or_throw(env.write_file("not-executable-shell", "not executable").await);
+    let spawn_error_env = LocalExecutionEnv::new(temp.path()).with_shell_path(shell_path);
+    let spawn_error = spawn_error_env.exec("printf ok", None).await;
+    assert!(spawn_error.is_err());
+    if let Result::Err(error) = spawn_error {
+        assert_eq!(error.code, ExecutionErrorCode::SpawnError);
+    }
+}
+
+#[tokio::test]
+async fn returns_aborted_result_for_aborted_commands() {
+    let (_temp, env) = env_in_temp();
+    let token = CancellationToken::new();
+    let exec_future = env.exec(
+        "sleep 5",
+        Some(ShellExecOptions {
+            cwd: None,
+            env: None,
+            timeout: None,
+            abort_token: Some(token.clone()),
+            on_stdout: None,
+            on_stderr: None,
+        }),
+    );
+    token.cancel();
+    let result = exec_future.await;
+    assert!(result.is_err());
+    if let Result::Err(error) = result {
+        assert_eq!(error.code, ExecutionErrorCode::Aborted);
+    }
+}
+
+#[tokio::test]
+async fn captures_large_shell_output_to_full_output_file() {
+    let (_temp, env) = env_in_temp();
+    let result = get_or_throw(execute_shell_with_capture(&env, "yes line | head -n 15000", None).await);
+    assert!(result.truncated);
+    let full_output_path = result
+        .full_output_path
+        .expect("full output path should be set for truncated capture");
+    let full_output = get_or_throw(env.read_text_file(&full_output_path, None).await);
+    assert!(full_output.split('\n').count() > 10_000);
+    assert!(result.output.len() < full_output.len());
 }

@@ -38,7 +38,16 @@ tracing.workspace = true
 turso.workspace = true
 uuid = { version = "1", features = ["v7"] }
 
+[[example]]
+name = "basic_agent"
+path = "examples/basic_agent.rs"
+
+[[example]]
+name = "opencode_big_pickle"
+path = "examples/opencode_big_pickle.rs"
+
 [dev-dependencies]
 elph-ai = { workspace = true }
 tempfile = "3.27.0"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+uuid = { version = "1", features = ["v7"] }

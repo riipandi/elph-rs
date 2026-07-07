@@ -19,12 +19,14 @@ use crate::harness::hooks::{AgentHarnessEvent, HookRegistry};
 use crate::harness::types::{
     AbortResult, AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOptions, AgentHarnessOwnEvent,
     AgentHarnessPhase, AgentHarnessPromptOptions, AgentHarnessResources, AgentHarnessStreamOptions,
-    AgentHarnessStreamOptionsPatch, BeforeAgentStartEvent, CompactResult, CompactionError, ContextEvent, ExecutionEnv,
-    ModelUpdateSource, NavigateTreeResult, PendingSessionWrite, QueueUpdateEvent, SessionBeforeCompactEvent,
-    SessionBeforeTreeEvent, SystemPrompt, ToolCallEvent, ToolResultEvent,
+    BeforeAgentStartEvent, BeforeProviderPayloadEvent, BeforeProviderRequestEvent, CompactResult, CompactionError,
+    ContextEvent, ExecutionEnv, ModelUpdateSource, NavigateTreeResult, PendingSessionWrite, QueueUpdateEvent,
+    SessionBeforeCompactEvent, SessionBeforeTreeEvent, SystemPrompt, ToolCallEvent, ToolResultEvent,
+    apply_stream_options_patch, clone_stream_options,
 };
 use crate::messages::default_convert_to_llm_fn;
 use crate::prompt_templates::format_prompt_template_invocation;
+use crate::runtime::try_block_on;
 use crate::session::tree::{BranchSummaryOptions, Session};
 use crate::session::types::{CustomMessageEntryContent, HasSessionId, SessionError, SessionStorage, SessionTreeEntry};
 use crate::skills::format_skill_invocation;
@@ -420,6 +422,32 @@ where
             Box::pin(fut) as Pin<Box<dyn Future<Output = Option<crate::harness::types::ToolResultPatch>> + Send>>
         });
         self.shared.hooks.register_tool_result(handler).await
+    }
+
+    pub async fn on_before_provider_request<F, Fut>(&self, handler: F) -> usize
+    where
+        F: Fn(&BeforeProviderRequestEvent) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Option<crate::harness::types::BeforeProviderRequestResult>> + Send + 'static,
+    {
+        let handler = Arc::new(move |event: &BeforeProviderRequestEvent| {
+            let fut = handler(event);
+            Box::pin(fut)
+                as Pin<Box<dyn Future<Output = Option<crate::harness::types::BeforeProviderRequestResult>> + Send>>
+        });
+        self.shared.hooks.register_before_provider_request(handler).await
+    }
+
+    pub async fn on_before_provider_payload<F, Fut>(&self, handler: F) -> usize
+    where
+        F: Fn(&BeforeProviderPayloadEvent) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Option<crate::harness::types::BeforeProviderPayloadResult>> + Send + 'static,
+    {
+        let handler = Arc::new(move |event: &BeforeProviderPayloadEvent| {
+            let fut = handler(event);
+            Box::pin(fut)
+                as Pin<Box<dyn Future<Output = Option<crate::harness::types::BeforeProviderPayloadResult>> + Send>>
+        });
+        self.shared.hooks.register_before_provider_payload(handler).await
     }
 
     pub async fn prompt(
@@ -1163,6 +1191,7 @@ where
                     Some(BeforeToolCallResult {
                         block: result.block,
                         reason: result.reason,
+                        args: None,
                     })
                 })
             }));
@@ -1231,12 +1260,52 @@ where
 
     fn create_stream_fn(&self, turn_state: Arc<StdMutex<AgentHarnessTurnState>>) -> StreamFn {
         let models = self.shared.models.clone();
+        let hooks = self.shared.hooks.clone();
         Arc::new(move |model, context, options| {
-            let turn_state = turn_state.lock().expect("turn state lock");
-            let _snapshot = clone_stream_options(&turn_state.stream_options);
-            let _session_id = turn_state.session_id.clone();
-            drop(turn_state);
-            models.stream_simple(model, context, options)
+            let (mut snapshot, session_id) = {
+                let turn_state = turn_state.lock().expect("turn state lock");
+                (
+                    clone_stream_options(&turn_state.stream_options),
+                    turn_state.session_id.clone(),
+                )
+            };
+
+            if let Ok(Ok(merged)) = try_block_on(hooks.emit_before_provider_request(&BeforeProviderRequestEvent {
+                model: model.clone(),
+                session_id: session_id.clone(),
+                stream_options: clone_stream_options(&snapshot),
+            })) {
+                snapshot = merged;
+            }
+
+            let hooks_for_payload = hooks.clone();
+            let mut simple = merge_harness_into_simple(options, &snapshot, &session_id);
+            let existing_on_payload = simple.base.on_payload.take();
+            simple.base.on_payload = Some(Arc::new(move |payload, model_ref| {
+                let hooks = hooks_for_payload.clone();
+                let existing = existing_on_payload.clone();
+                Box::pin(async move {
+                    let mut current = payload;
+                    if let Ok(transformed) = hooks
+                        .emit_before_provider_payload(&BeforeProviderPayloadEvent {
+                            model: model_ref.clone(),
+                            payload: current.clone(),
+                        })
+                        .await
+                    {
+                        current = transformed;
+                    }
+                    if let Some(previous) = existing {
+                        let input = current.clone();
+                        if let Some(transformed) = previous(input, model_ref).await {
+                            current = transformed;
+                        }
+                    }
+                    Some(current)
+                })
+            }));
+
+            models.stream_simple(model, context, Some(simple))
         })
     }
 
@@ -1504,40 +1573,38 @@ fn create_user_message(text: String, images: Option<Vec<ImageContent>>) -> Agent
     })
 }
 
-fn clone_stream_options(stream_options: &AgentHarnessStreamOptions) -> AgentHarnessStreamOptions {
-    AgentHarnessStreamOptions {
-        transport: stream_options.transport,
-        timeout_ms: stream_options.timeout_ms,
-        max_retries: stream_options.max_retries,
-        max_retry_delay_ms: stream_options.max_retry_delay_ms,
-        headers: stream_options.headers.clone(),
-        metadata: stream_options.metadata.clone(),
-        cache_retention: stream_options.cache_retention.clone(),
+fn merge_harness_into_simple(
+    options: Option<SimpleStreamOptions>,
+    harness: &AgentHarnessStreamOptions,
+    session_id: &str,
+) -> SimpleStreamOptions {
+    let mut simple = options.unwrap_or(SimpleStreamOptions {
+        base: Default::default(),
+        reasoning: None,
+        thinking_budgets: None,
+    });
+    if let Some(transport) = harness.transport {
+        simple.base.transport = Some(transport);
     }
-}
-
-#[allow(dead_code)]
-fn apply_stream_options_patch(
-    base: AgentHarnessStreamOptions,
-    patch: &AgentHarnessStreamOptionsPatch,
-) -> AgentHarnessStreamOptions {
-    let mut result = clone_stream_options(&base);
-    if let Some(transport) = patch.transport {
-        result.transport = Some(transport);
+    if let Some(timeout_ms) = harness.timeout_ms {
+        simple.base.timeout_ms = Some(timeout_ms);
     }
-    if let Some(timeout_ms) = patch.timeout_ms {
-        result.timeout_ms = Some(timeout_ms);
+    if let Some(max_retries) = harness.max_retries {
+        simple.base.max_retries = Some(max_retries);
     }
-    if let Some(max_retries) = patch.max_retries {
-        result.max_retries = Some(max_retries);
+    if let Some(max_retry_delay_ms) = harness.max_retry_delay_ms {
+        simple.base.max_retry_delay_ms = Some(max_retry_delay_ms);
     }
-    if let Some(max_retry_delay_ms) = patch.max_retry_delay_ms {
-        result.max_retry_delay_ms = Some(max_retry_delay_ms);
+    if let Some(headers) = &harness.headers {
+        simple.base.headers = Some(headers.iter().map(|(k, v)| (k.clone(), Some(v.clone()))).collect());
     }
-    if let Some(cache_retention) = patch.cache_retention.clone() {
-        result.cache_retention = Some(cache_retention);
+    if let Some(metadata) = &harness.metadata
+        && let serde_json::Value::Object(map) = metadata
+    {
+        simple.base.metadata = Some(map.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
     }
-    result
+    simple.base.session_id = Some(session_id.to_string());
+    simple
 }
 
 fn find_duplicate_names(names: &[String]) -> Vec<String> {

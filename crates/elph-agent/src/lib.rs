@@ -24,7 +24,7 @@ pub mod subagent;
 pub mod tools;
 pub mod types;
 
-pub use agent::{Agent, AgentListener, AgentOptions, PartialAgentState, default_model};
+pub use agent::{Agent, AgentListener, AgentOptions, AgentSubscription, PartialAgentState, default_model};
 pub use agent_loop::{agent_loop, agent_loop_continue, run_agent_loop, run_agent_loop_continue};
 pub use builder::{AgentBuilder, AgentInit};
 pub use compaction::{
@@ -55,11 +55,12 @@ pub use harness::{
     ModelUpdateEvent, ModelUpdateSource, NavigateTreeOptions, NavigateTreeResult, PendingSessionWrite, PromptTemplate,
     QueueUpdateEvent, ReadTextLinesOptions, RemoveOptions, ResourcesUpdateEvent, Result as HarnessTypedResult,
     SavePointEvent, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeTreeEvent,
-    SessionBeforeTreeResult, SessionCompactEvent, SessionTreeEvent, SettledEvent, Shell, ShellExecOptions,
-    ShellExecResult, Skill, SystemPrompt, SystemPromptContext, SystemPromptFn, ThinkingLevelUpdateEvent, ToolCallEvent,
-    ToolCallHookResult, ToolResultEvent, ToolResultPatch, ToolsUpdateEvent, TreePreparation, TruncatedBy,
-    TruncationOptions, err, finalize_shell_capture, format_size, format_skills_for_system_prompt, get_or_throw,
-    get_or_undefined, ok, sanitize_binary_output, to_error, truncate_head, truncate_line, truncate_tail,
+    SessionBeforeTreeResult, SessionCompactEvent, SessionTreeEvent, SettledEvent, Shell, ShellCaptureOptions,
+    ShellExecOptions, ShellExecResult, Skill, SystemPrompt, SystemPromptContext, SystemPromptFn,
+    ThinkingLevelUpdateEvent, ToolCallEvent, ToolCallHookResult, ToolResultEvent, ToolResultPatch, ToolsUpdateEvent,
+    TreePreparation, TruncatedBy, TruncationOptions, err, execute_shell_with_capture, finalize_shell_capture,
+    format_size, format_skills_for_system_prompt, get_or_throw, get_or_undefined, ok, sanitize_binary_output, to_error,
+    truncate_head, truncate_line, truncate_tail,
 };
 pub use init::InitProgress;
 pub use messages::{
@@ -76,11 +77,12 @@ pub use prompt_templates::{
 pub use proxy::{ProxyStreamOptions, stream_proxy};
 pub use runtime::{block_on, try_block_on};
 pub use session::{
-    BranchSummaryOptions, CustomMessageEntryBlock, CustomMessageEntryContent, InMemorySessionOptions,
-    InMemorySessionStorage, JsonlSessionCreateOptions, JsonlSessionMetadata, JsonlSessionStorage,
-    SESSION_TREE_MIGRATIONS, Session, SessionContext, SessionError, SessionErrorCode, SessionMetadata, SessionModelRef,
-    SessionStorage, SessionTreeEntry, TursoSessionMetadata, TursoSessionStorage, build_session_context,
-    load_jsonl_session_metadata,
+    BranchSummaryOptions, CustomMessageEntryBlock, CustomMessageEntryContent, ForkEntriesOptions, ForkPosition,
+    InMemorySessionCreateOptions, InMemorySessionOptions, InMemorySessionRepo, InMemorySessionStorage,
+    JsonlSessionCreateOptions, JsonlSessionListOptions, JsonlSessionMetadata, JsonlSessionRepo,
+    JsonlSessionRepoCreateOptions, JsonlSessionStorage, SESSION_TREE_MIGRATIONS, Session, SessionContext, SessionError,
+    SessionErrorCode, SessionMetadata, SessionModelRef, SessionStorage, SessionTreeEntry, TursoSessionMetadata,
+    TursoSessionStorage, build_session_context, create_session_id, create_timestamp, load_jsonl_session_metadata,
 };
 pub use skills::{
     LoadSkillsResult, LoadSourcedSkillsResult, SkillDiagnostic, SkillDiagnosticCode, SourcedSkill,

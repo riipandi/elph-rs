@@ -9,10 +9,11 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::harness::types::{
-    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, BeforeAgentStartEvent, BeforeAgentStartResult,
-    BeforeProviderPayloadEvent, BeforeProviderPayloadResult, BeforeProviderRequestEvent, BeforeProviderRequestResult,
-    ContextEvent, ContextResult, SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeTreeEvent,
-    SessionBeforeTreeResult, ToolCallEvent, ToolCallHookResult, ToolResultEvent, ToolResultPatch,
+    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, AgentHarnessStreamOptions, BeforeAgentStartEvent,
+    BeforeAgentStartResult, BeforeProviderPayloadEvent, BeforeProviderPayloadResult, BeforeProviderRequestEvent,
+    BeforeProviderRequestResult, ContextEvent, ContextResult, SessionBeforeCompactEvent, SessionBeforeCompactResult,
+    SessionBeforeTreeEvent, SessionBeforeTreeResult, ToolCallEvent, ToolCallHookResult, ToolResultEvent,
+    ToolResultPatch, apply_stream_options_patch, clone_stream_options,
 };
 use crate::types::AgentEvent;
 
@@ -130,6 +131,18 @@ impl HookRegistry {
         typed.context.len() - 1
     }
 
+    pub async fn register_before_provider_request(&self, handler: BeforeProviderRequestHandler) -> usize {
+        let mut typed = self.typed.lock().await;
+        typed.before_provider_request.push(handler);
+        typed.before_provider_request.len() - 1
+    }
+
+    pub async fn register_before_provider_payload(&self, handler: BeforeProviderPayloadHandler) -> usize {
+        let mut typed = self.typed.lock().await;
+        typed.before_provider_payload.push(handler);
+        typed.before_provider_payload.len() - 1
+    }
+
     pub async fn register_tool_call(&self, handler: ToolCallHandler) -> usize {
         let mut typed = self.typed.lock().await;
         typed.tool_call.push(handler);
@@ -185,29 +198,40 @@ impl HookRegistry {
     pub async fn emit_before_provider_request(
         &self,
         event: &BeforeProviderRequestEvent,
-    ) -> std::result::Result<Option<BeforeProviderRequestResult>, AgentHarnessError> {
+    ) -> std::result::Result<AgentHarnessStreamOptions, AgentHarnessError> {
         let typed = self.typed.lock().await;
-        let mut last = None;
+        let mut current = clone_stream_options(&event.stream_options);
         for handler in &typed.before_provider_request {
-            if let Some(result) = handler(event).await {
-                last = Some(result);
+            let hook_event = BeforeProviderRequestEvent {
+                model: event.model.clone(),
+                session_id: event.session_id.clone(),
+                stream_options: clone_stream_options(&current),
+            };
+            if let Some(result) = handler(&hook_event).await
+                && let Some(patch) = result.stream_options
+            {
+                current = apply_stream_options_patch(current, &patch);
             }
         }
-        Ok(last)
+        Ok(current)
     }
 
     pub async fn emit_before_provider_payload(
         &self,
         event: &BeforeProviderPayloadEvent,
-    ) -> std::result::Result<Option<BeforeProviderPayloadResult>, AgentHarnessError> {
+    ) -> std::result::Result<serde_json::Value, AgentHarnessError> {
         let typed = self.typed.lock().await;
-        let mut last = None;
+        let mut current = event.payload.clone();
         for handler in &typed.before_provider_payload {
-            if let Some(result) = handler(event).await {
-                last = Some(result);
+            let hook_event = BeforeProviderPayloadEvent {
+                model: event.model.clone(),
+                payload: current.clone(),
+            };
+            if let Some(result) = handler(&hook_event).await {
+                current = result.payload;
             }
         }
-        Ok(last)
+        Ok(current)
     }
 
     pub async fn emit_tool_call(

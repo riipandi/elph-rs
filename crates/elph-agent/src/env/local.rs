@@ -188,6 +188,29 @@ impl LocalExecutionEnv {
         }
     }
 
+    fn invoke_output_callback(
+        callback: &std::sync::Arc<dyn Fn(&str) + Send + Sync>,
+        chunk: &str,
+    ) -> Option<ExecutionError> {
+        let chunk = chunk.to_string();
+        let callback = std::sync::Arc::clone(callback);
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            callback(&chunk);
+        })) {
+            Ok(()) => None,
+            Err(payload) => {
+                let message = if let Some(message) = payload.downcast_ref::<&str>() {
+                    (*message).to_string()
+                } else if let Some(message) = payload.downcast_ref::<String>() {
+                    message.clone()
+                } else {
+                    "callback failed".to_string()
+                };
+                Some(ExecutionError::new(ExecutionErrorCode::CallbackError, message))
+            }
+        }
+    }
+
     async fn get_shell_config(&self) -> Result<(PathBuf, Vec<String>), ExecutionError> {
         if let Some(shell_path) = &self.shell_path {
             if Self::path_exists(shell_path).await {
@@ -616,13 +639,15 @@ impl Shell for LocalExecutionEnv {
 
         if let Some(on_stdout) = &options.on_stdout
             && !stdout.is_empty()
+            && let Some(error) = Self::invoke_output_callback(on_stdout, &stdout)
         {
-            on_stdout(&stdout);
+            return err(error);
         }
         if let Some(on_stderr) = &options.on_stderr
             && !stderr.is_empty()
+            && let Some(error) = Self::invoke_output_callback(on_stderr, &stderr)
         {
-            on_stderr(&stderr);
+            return err(error);
         }
 
         ok(ShellExecResult {
