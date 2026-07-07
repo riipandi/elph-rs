@@ -86,6 +86,7 @@ mod tests {
         assert_eq!(paths.memory_db_path(), project.join(".elph/memory.db"));
         assert_eq!(paths.project_gitignore_path(), project.join(".elph/.gitignore"));
         assert_eq!(paths.bundled_manifest_path(), config.join("bundled/manifest.json"));
-        assert_eq!(paths.required_dirs().len(), 16);
+        assert_eq!(paths.models_dir(), data.join("models"));
+        assert_eq!(paths.required_dirs().len(), 17);
     }
 }

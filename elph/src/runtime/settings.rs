@@ -25,6 +25,8 @@ pub struct Settings {
     pub session: SessionSettings,
     #[serde(default)]
     pub database: DatabaseSettings,
+    #[serde(default)]
+    pub memory: MemorySettings,
     #[serde(default = "default_true")]
     pub auto_compact_context: bool,
     #[serde(default = "default_compact_limit")]
@@ -51,6 +53,26 @@ pub struct DatabaseSettings {
     pub token: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySettings {
+    /// fastembed model name or Hugging Face alias (see `elph_core::memz::resolve_embedding_model`).
+    #[serde(default = "default_embed_model")]
+    pub embed_model: String,
+    /// Prefer quantized ONNX weights when a `*Q` variant exists (default: true).
+    #[serde(default = "default_embed_quantized")]
+    pub embed_quantized: bool,
+}
+
+impl Default for MemorySettings {
+    fn default() -> Self {
+        Self {
+            embed_model: default_embed_model(),
+            embed_quantized: default_embed_quantized(),
+        }
+    }
+}
+
 impl Settings {
     pub fn defaults() -> Self {
         Self {
@@ -66,6 +88,7 @@ impl Settings {
                 thinking_level: default_thinking_level(),
             },
             database: DatabaseSettings::default(),
+            memory: MemorySettings::default(),
             auto_compact_context: true,
             auto_compact_limit: default_compact_limit(),
             footer_token_display: default_footer_token_display(),
@@ -81,6 +104,21 @@ impl Settings {
         write_json_file(&path, &Self::defaults())?;
         Ok(())
     }
+
+    /// Load settings from disk, falling back to defaults for missing fields.
+    pub fn load(paths: &Paths) -> Result<Self> {
+        Self::ensure(paths)?;
+        let raw = std::fs::read_to_string(paths.settings_path())?;
+        Ok(serde_json::from_str(&raw)?)
+    }
+}
+
+fn default_embed_model() -> String {
+    elph_core::memz::DEFAULT_EMBED_MODEL.to_string()
+}
+
+fn default_embed_quantized() -> bool {
+    true
 }
 
 fn default_sync_interval() -> String {
@@ -129,6 +167,21 @@ mod tests {
         let json = serde_json::to_string_pretty(&settings).expect("serialize");
         let decoded: Settings = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(settings, decoded);
+        assert_eq!(decoded.memory.embed_model, "AllMiniLML6V2");
+        assert!(decoded.memory.embed_quantized);
+    }
+
+    #[test]
+    fn load_merges_missing_memory_section() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let paths = Paths::from_dirs(
+            tmp.path().to_path_buf(),
+            tmp.path().join("data"),
+            tmp.path().join("repo"),
+        );
+        Settings::ensure(&paths).expect("ensure");
+        let loaded = Settings::load(&paths).expect("load");
+        assert_eq!(loaded.memory.embed_model, "AllMiniLML6V2");
     }
 
     #[test]

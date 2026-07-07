@@ -1,4 +1,16 @@
+use anyhow::Result;
+use turso::Rows;
+
 use super::types::{EmbeddingStatus, MemoryCategory};
+
+/// Drain remaining rows so Turso releases statement resources.
+///
+/// Partial reads without draining can leak statement handles and block subsequent
+/// DDL/DML on the same connection (see `migrations::run`).
+pub async fn drain_rows(rows: &mut Rows) -> Result<()> {
+    while rows.next().await?.is_some() {}
+    Ok(())
+}
 
 /// Dimensions for the default all-MiniLM-L6-v2 model.
 pub const DEFAULT_EMBEDDING_DIMS: u32 = 384;
@@ -29,14 +41,7 @@ pub fn category_from_str(s: &str) -> MemoryCategory {
 
 /// f32 vec -> raw LE bytes. Mirrors TS vecBuf: preserve float32 binary layout for the driver.
 pub fn vec_buf(v: &[f32]) -> Vec<u8> {
-    let byte_len = v.len() * std::mem::size_of::<f32>();
-    let mut buf = Vec::with_capacity(byte_len);
-    // SAFETY: f32 is plain-old-data; layout matches LE byte sequence the Turso driver expects.
-    unsafe {
-        buf.set_len(byte_len);
-        std::ptr::copy_nonoverlapping(v.as_ptr().cast(), buf.as_mut_ptr(), byte_len);
-    }
-    buf
+    v.iter().flat_map(|f| f.to_le_bytes()).collect()
 }
 
 pub fn embedding_status(byte_len: Option<i64>) -> EmbeddingStatus {

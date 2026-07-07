@@ -16,10 +16,13 @@ use super::types::{
     DecayResult, Memory, MemoryCategory, MemoryStats, MemzConfig, ReportCorrectionInput, ReportUserInput,
     StartTaskResult, TaskBaseline, TaskEndInput, TopMemory, VectorType,
 };
-use super::util::{category_from_str, category_str, retrieval_sql, vec_buf};
+use super::util::{category_from_str, category_str, drain_rows, retrieval_sql, vec_buf};
 
 pub type EmbedFuture = Pin<Box<dyn Future<Output = Result<Vec<f32>>> + Send>>;
 pub type EmbedFn = Arc<dyn Fn(&str) -> EmbedFuture + Send + Sync>;
+
+type WeightUpdate = (String, f64);
+type SelfReportRow = (String, u8, f64);
 
 pub(crate) fn now_secs() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64
@@ -52,6 +55,7 @@ async fn fetch_weights(conn: &Connection, ids: &[String]) -> Result<HashMap<Stri
     while let Some(row) = rows.next().await? {
         out.insert(row.get::<String>(0)?, row.get::<f64>(1)?);
     }
+    drain_rows(&mut rows).await?;
     Ok(out)
 }
 
@@ -181,18 +185,20 @@ impl MemoryStore {
 
             // Load baseline
             let mut rows = conn.query("SELECT value FROM meta WHERE key = 'baseline'", ()).await?;
-            if let Some(row) = rows.next().await? {
-                let raw: String = row.get(0)?;
-                return Ok(Some(raw));
-            }
-            Ok(None)
+            let baseline = if let Some(row) = rows.next().await? {
+                Some(row.get::<String>(0)?)
+            } else {
+                None
+            };
+            drain_rows(&mut rows).await?;
+            Ok(baseline)
         })
         .await
         .map(|maybe_raw: Option<String>| {
-            if let Some(raw) = maybe_raw {
-                if let Ok(b) = serde_json::from_str::<TaskBaseline>(&raw) {
-                    *self.baseline.lock().unwrap() = b;
-                }
+            if let Some(raw) = maybe_raw
+                && let Ok(b) = serde_json::from_str::<TaskBaseline>(&raw)
+            {
+                *self.baseline.lock().unwrap() = b;
             }
         })?;
 
@@ -221,52 +227,50 @@ impl MemoryStore {
         let description = description.to_string();
 
         let memories = self
-            .with_db(move |conn| {
-                let emb_buf = emb_buf.clone();
-                async move {
-                    conn.execute(
-                        "INSERT INTO tasks (id, description, embedding, started_at) VALUES (?, ?, ?, ?)",
-                        params![task_id_clone.clone(), description, emb_buf.clone(), now],
+            .with_db(move |conn| async move {
+                conn.execute(
+                    "INSERT INTO tasks (id, description, embedding, started_at) VALUES (?, ?, ?, ?)",
+                    params![task_id_clone.as_str(), description.as_str(), emb_buf.as_slice(), now],
+                )
+                .await?;
+
+                let mut rows = conn
+                    .query(
+                        &retrieval_sql,
+                        params![emb_buf.as_slice(), emb_buf.as_slice(), decay_rate, now, top_k],
                     )
                     .await?;
 
-                    let mut rows = conn
-                        .query(
-                            &retrieval_sql,
-                            params![emb_buf.clone(), emb_buf, decay_rate, now, top_k],
-                        )
-                        .await?;
-
-                    let mut mems = Vec::new();
-                    while let Some(row) = rows.next().await? {
-                        let distance: f64 = row.get(6)?;
-                        mems.push(Memory {
-                            id: row.get(0)?,
-                            content: row.get(1)?,
-                            category: category_from_str(&row.get::<String>(2)?),
-                            weight: row.get(3)?,
-                            score: 1.0 - distance,
-                            created_at: row.get(4)?,
-                            retrieval_count: row.get(5)?,
-                        });
-                    }
-
-                    for mem in &mems {
-                        conn.execute(
-                            "INSERT OR IGNORE INTO memory_retrievals (memory_id, task_id, similarity) VALUES (?, ?, ?)",
-                            params![mem.id.clone(), task_id_clone.clone(), mem.score],
-                        )
-                        .await?;
-
-                        conn.execute(
-                            "UPDATE memories SET last_retrieved = ?, retrieval_count = retrieval_count + 1 WHERE id = ?",
-                            params![now, mem.id.clone()],
-                        )
-                        .await?;
-                    }
-
-                    Ok(mems)
+                let mut mems = Vec::new();
+                while let Some(row) = rows.next().await? {
+                    let distance: f64 = row.get(6)?;
+                    mems.push(Memory {
+                        id: row.get(0)?,
+                        content: row.get(1)?,
+                        category: category_from_str(&row.get::<String>(2)?),
+                        weight: row.get(3)?,
+                        score: 1.0 - distance,
+                        created_at: row.get(4)?,
+                        retrieval_count: row.get(5)?,
+                    });
                 }
+                drain_rows(&mut rows).await?;
+
+                for mem in &mems {
+                    conn.execute(
+                        "INSERT OR IGNORE INTO memory_retrievals (memory_id, task_id, similarity) VALUES (?, ?, ?)",
+                        params![mem.id.clone(), task_id_clone.clone(), mem.score],
+                    )
+                    .await?;
+
+                    conn.execute(
+                        "UPDATE memories SET last_retrieved = ?, retrieval_count = retrieval_count + 1 WHERE id = ?",
+                        params![now, mem.id.clone()],
+                    )
+                    .await?;
+                }
+
+                Ok(mems)
             })
             .await?;
 
@@ -299,10 +303,12 @@ impl MemoryStore {
                         (),
                     )
                     .await?;
-                Ok(match rows.next().await? {
+                let avg = match rows.next().await? {
                     Some(row) => row.get::<Option<f64>>(0)?.unwrap_or(10_000.0),
                     None => 10_000.0,
-                })
+                };
+                drain_rows(&mut rows).await?;
+                Ok(avg)
             })
             .await?;
 
@@ -352,7 +358,7 @@ impl MemoryStore {
         self.init().await?;
         let now = now_secs();
 
-        let baseline_snapshot = self.baseline.lock().unwrap().clone();
+        let baseline_snapshot = *self.baseline.lock().unwrap();
         let task_score = compute_task_score(
             &baseline_snapshot,
             input.tokens_used as f64,
@@ -366,7 +372,7 @@ impl MemoryStore {
             input.errors as f64,
             input.user_corrections as f64,
         );
-        *self.baseline.lock().unwrap() = new_baseline.clone();
+        *self.baseline.lock().unwrap() = new_baseline;
 
         let learning_rate = self.learning_rate;
         let task_id_owned = task_id.to_string();
@@ -375,7 +381,7 @@ impl MemoryStore {
 
         // Pre-fetch weights in a separate connection — read+write in one Turso session
         // can prevent weight UPDATEs from persisting (same issue as report_correction).
-        let (weight_updates, self_report_entries): (Vec<(String, f64)>, Vec<(String, u8, f64)>) =
+        let (weight_updates, self_report_entries): (Vec<WeightUpdate>, Vec<SelfReportRow>) =
             if let Some(ref self_report) = input.self_report {
                 if self_report.is_empty() {
                     (Vec::new(), Vec::new())
@@ -493,22 +499,24 @@ impl MemoryStore {
     pub async fn get_stats(&self) -> Result<MemoryStats> {
         self.init().await?;
         self.with_db(|conn| async move {
-            let mem_count: i64 = {
-                let mut rows = conn.query("SELECT COUNT(*) FROM memories", ()).await?;
-                rows.next().await?.context("no row")?.get(0)?
-            };
-            let task_count: i64 = {
-                let mut rows = conn.query("SELECT COUNT(*) FROM tasks", ()).await?;
-                rows.next().await?.context("no row")?.get(0)?
-            };
-            let avg_score: f64 = {
+            let (mem_count, task_count, avg_score) = {
                 let mut rows = conn
-                    .query("SELECT AVG(task_score) FROM tasks WHERE task_score IS NOT NULL", ())
+                    .query(
+                        "SELECT
+                            (SELECT COUNT(*) FROM memories),
+                            (SELECT COUNT(*) FROM tasks),
+                            (SELECT AVG(task_score) FROM tasks WHERE task_score IS NOT NULL)",
+                        (),
+                    )
                     .await?;
-                match rows.next().await? {
-                    Some(row) => row.get::<Option<f64>>(0)?.unwrap_or(0.0),
-                    None => 0.0,
-                }
+                let counts = rows.next().await?.context("no stats row")?;
+                let stats = (
+                    counts.get::<i64>(0)?,
+                    counts.get::<i64>(1)?,
+                    counts.get::<Option<f64>>(2)?.unwrap_or(0.0),
+                );
+                drain_rows(&mut rows).await?;
+                stats
             };
 
             let mut rows = conn
@@ -525,6 +533,7 @@ impl MemoryStore {
                     retrieval_count: row.get(2)?,
                 });
             }
+            drain_rows(&mut rows).await?;
 
             Ok(MemoryStats {
                 total_memories: mem_count as u32,
@@ -563,6 +572,7 @@ impl MemoryStore {
                     retrieval_count: row.get(5)?,
                 });
             }
+            drain_rows(&mut rows).await?;
             Ok(out)
         })
         .await
@@ -599,6 +609,7 @@ impl MemoryStore {
                 while let Some(row) = r.next().await? {
                     out.push((row.get::<String>(0)?, row.get::<String>(1)?));
                 }
+                drain_rows(&mut r).await?;
                 Ok(out)
             })
             .await?;

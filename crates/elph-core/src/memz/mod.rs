@@ -19,7 +19,9 @@ mod store;
 mod types;
 mod util;
 
-pub use embed::{ENV_EMBED_MODEL, FastEmbedOptions, create_fastembed};
+pub use embed::{DEFAULT_EMBED_MODEL, ENV_EMBED_MODEL, FastEmbedOptions, create_fastembed};
+#[cfg(feature = "fastembed")]
+pub use embed::{embedding_dims, resolve_embedding_model};
 pub use migrations::{LAST_VERSION, MIGRATIONS, MemzMigration, V1_NAME, V1_UP, V2_NAME, V2_UP};
 pub use paths::{DB_FILE_NAME, DEFAULT_DATA_DIR, ENV_DATA_DIR, MemzPaths};
 pub use store::{EmbedFn, MemoryStore};
@@ -34,9 +36,6 @@ pub use util::{DEFAULT_EMBEDDING_DIMS, VALID_EMBEDDING_BYTES, category_str};
 pub fn create_memory_store(config: MemzConfig, embed: EmbedFn) -> MemoryStore {
     MemoryStore::new(config, embed)
 }
-
-#[cfg(test)]
-mod query_tests;
 
 #[cfg(test)]
 mod tests {

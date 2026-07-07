@@ -15,7 +15,8 @@ licensed under the MIT License. Copyright (c) 2026 Glauber Costa.
 | Concern    | Approach                                                    |
 | ---------- | ----------------------------------------------------------- |
 | Storage    | Turso embedded SQLite (`memory.db`)                         |
-| Retrieval  | Vector similarity (`vector32`, 384-dim embeddings)          |
+| Retrieval  | Vector similarity (`vector32`; dims match the embed model)  |
+| Embeddings | Local ONNX via `fastembed` (configurable model + cache)     |
 | Scoring    | Welford baseline + z-score task scoring, EMA weight updates |
 | IDs        | UUID v7                                                     |
 | Migrations | Versioned SQL via shared `app_migrations` ledger            |
@@ -69,6 +70,19 @@ For non-Elph consumers, `MemzPaths` resolves:
 
 Default path: `./.memz/memory.db`.
 
+### Model cache (Elph)
+
+ONNX weights and tokenizers downloaded by `fastembed` are cached under the Elph data
+directory (not inside the project):
+
+```
+~/.local/share/elph/          # or $ELPH_DATA_DIR / $XDG_DATA_HOME/elph
+└── models/                   # Paths::models_dir()
+```
+
+The directory is created on first use (e.g. `elph memory search`). Downloads happen
+automatically from Hugging Face when the chosen model is not yet cached.
+
 ---
 
 ## Schema
@@ -93,14 +107,15 @@ Default path: `./.memz/memory.db`.
 
 ### Default configuration
 
-| Setting              | Default                  |
-| -------------------- | ------------------------ |
-| Embedding dimensions | 384 (`all-MiniLM-L6-v2`) |
-| Vector type          | `vector32`               |
-| Top-k retrieval      | 5                        |
-| Learning rate (EMA)  | 0.1                      |
-| Decay rate           | 0.995                    |
-| Weight clamp         | [0.1, 5.0]               |
+| Setting              | Default                                        |
+| -------------------- | ---------------------------------------------- |
+| Embed model          | `AllMiniLML6V2` (quantized → `AllMiniLML6V2Q`) |
+| Embedding dimensions | Model-dependent (384 for `AllMiniLML6V2`)      |
+| Vector type          | `vector32`                                     |
+| Top-k retrieval      | 5                                              |
+| Learning rate (EMA)  | 0.1                                            |
+| Decay rate           | 0.995                                          |
+| Weight clamp         | [0.1, 5.0]                                     |
 
 ---
 
@@ -174,12 +189,17 @@ use std::sync::Arc;
 use elph_core::memz::{
     MemzConfig, MemoryStore, create_memory_store,
     create_fastembed, FastEmbedOptions, EmbedFn,
+    resolve_embedding_model, embedding_dims,
 };
 
 // With local embeddings (feature fastembed)
-let embed = create_fastembed(FastEmbedOptions::default())?;
+let model = resolve_embedding_model("AllMiniLML6V2", true)?;
+let dims = embedding_dims(&model);
+let embed = create_fastembed(
+    FastEmbedOptions::default().model("AllMiniLML6V2").quantized(true),
+)?;
 
-// Or a custom embedder
+// Or a custom embedder — set MemzConfig::dimensions to match your vectors
 let embed: EmbedFn = Arc::new(|text| {
     Box::pin(async move {
         Ok(my_embed(text).await?)
@@ -187,7 +207,7 @@ let embed: EmbedFn = Arc::new(|text| {
 });
 
 let store = create_memory_store(
-    MemzConfig::new("/path/to/memory.db", "session-id"),
+    MemzConfig::new("/path/to/memory.db", "session-id").dimensions(dims),
     embed,
 );
 store.init().await?;
@@ -264,11 +284,87 @@ store.report(MemoryReportInput {
 
 ## Embeddings
 
-Default model: **all-MiniLM-L6-v2** (384 dimensions) via `fastembed`.
+Local embeddings use [fastembed](https://github.com/Anush008/fastembed-rs) (ONNX). The
+default model is **AllMiniLML6V2** — with `embedQuantized: true` (the default), the
+quantized variant **AllMiniLML6V2Q** is selected automatically.
 
-| Env var            | Purpose                                                                         |
-| ------------------ | ------------------------------------------------------------------------------- |
-| `MEMZ_EMBED_MODEL` | Override model name (`AllMiniLML6V2`, `sentence-transformers/all-MiniLM-L6-v2`) |
+### Elph settings
+
+Configure the embedder in `~/.elph/settings.json` (or `$ELPH_HOME/settings.json`):
+
+```json
+{
+    "memory": {
+        "embedModel": "AllMiniLML6V2",
+        "embedQuantized": true
+    }
+}
+```
+
+| Field            | Default         | Description                                            |
+| ---------------- | --------------- | ------------------------------------------------------ |
+| `embedModel`     | `AllMiniLML6V2` | fastembed model name or Hugging Face alias (see below) |
+| `embedQuantized` | `true`          | Prefer the `*Q` ONNX variant when one exists           |
+
+`elph memory` loads these values via `Settings::load()` and passes them to
+`create_fastembed` with `cache_dir` set to `Paths::models_dir()`. `MemzConfig::dimensions`
+is set from the resolved model so vector queries match the embedder output.
+
+### Model names and aliases
+
+`resolve_embedding_model(name, quantized)` accepts any name understood by fastembed's
+[`EmbeddingModel`](https://docs.rs/fastembed/latest/fastembed/enum.EmbeddingModel.html)
+(via `FromStr`), plus common Hugging Face aliases:
+
+| Alias                                     | Resolves to         |
+| ----------------------------------------- | ------------------- |
+| `sentence-transformers/all-MiniLM-L6-v2`  | `AllMiniLML6V2`     |
+| `all-minilm-l6-v2`                        | `AllMiniLML6V2`     |
+| `sentence-transformers/all-MiniLM-L12-v2` | `AllMiniLML12V2`    |
+| `sentence-transformers/all-mpnet-base-v2` | `AllMpnetBaseV2`    |
+| `BAAI/bge-small-en-v1.5`                  | `BGESmallENV15`     |
+| `BAAI/bge-base-en-v1.5`                   | `BGEBaseENV15`      |
+| `BAAI/bge-large-en-v1.5`                  | `BGELargeENV15`     |
+| `nomic-ai/nomic-embed-text-v1`            | `NomicEmbedTextV1`  |
+| `nomic-ai/nomic-embed-text-v1.5`          | `NomicEmbedTextV15` |
+
+When `embedQuantized` / `FastEmbedOptions::quantized` is `true`, memz appends `Q` to the
+canonical model name if a quantized variant exists (e.g. `AllMiniLML6V2` → `AllMiniLML6V2Q`).
+Names that already end in `Q` are left unchanged.
+
+Embedding dimensions are read from fastembed model metadata via `embedding_dims()` (384 for
+`AllMiniLML6V2`; other models vary).
+
+### Configuration precedence
+
+| Context         | Order (highest first)                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| Elph CLI        | `settings.json` → (`FastEmbedOptions` built from settings)                               |
+| Library / API   | `FastEmbedOptions::model` → `MEMZ_EMBED_MODEL` env → default                             |
+| Quantized flag  | `settings.json` / `FastEmbedOptions::quantized` (default: `true`)                        |
+| Cache directory | Elph: `Paths::models_dir()`; library: `FastEmbedOptions::cache_dir` or fastembed default |
+
+### First-run download
+
+Commands that need embeddings (`elph memory search`, and agent/runtime task APIs) download
+the model on first use. Progress is shown by default. Subsequent runs reuse the cache under
+`{data_dir}/models/`.
+
+Read-only CLI commands (`status`, `list`, `tasks`, `log`, `purge`) use a no-op embedder and
+do not touch the model cache.
+
+### Changing models on an existing store
+
+Embeddings are stored as fixed-size BLOBs for Turso `vector32` distance queries. If you
+change `embedModel` to a model with different output dimensions, existing memories will not
+match new queries until they are re-embedded — and dimension mismatches can cause retrieval
+errors. Treat a model change on a populated database as requiring a fresh store or a manual
+re-embed migration (not shipped today).
+
+Memories inserted without embeddings are backfilled by `embed_pending()` (also called
+automatically during `start_task`).
+
+### Library feature flag
 
 Enable in `elph-core`:
 
@@ -276,9 +372,21 @@ Enable in `elph-core`:
 elph-core = { version = "...", features = ["fastembed"] }
 ```
 
-Embeddings are stored as BLOBs for Turso `vector32` distance queries. Memories inserted
-without embeddings are backfilled by `embed_pending()` (also called automatically during
-`start_task`).
+Example with explicit options:
+
+```rust
+use elph_core::memz::{create_fastembed, FastEmbedOptions, resolve_embedding_model, embedding_dims};
+
+let model = resolve_embedding_model("AllMiniLML6V2", true)?;
+let dims = embedding_dims(&model);
+
+let embed = create_fastembed(
+    FastEmbedOptions::default()
+        .model("AllMiniLML6V2")
+        .quantized(true)
+        .cache_dir("/path/to/models"),
+)?;
+```
 
 ---
 
@@ -301,12 +409,14 @@ To extend the schema in Elph, append migrations with `version > LAST_VERSION` in
 
 ## Integration with Elph
 
-| Layer                      | Role                                    |
-| -------------------------- | --------------------------------------- |
-| `elph::runtime::paths`     | `memory_db_path()` → `.elph/memory.db`  |
-| `elph::runtime::datastore` | Runs metadata + memory migrations       |
-| `elph::runtime::project`   | Creates `.elph/` and gitignore          |
-| `elph memory`              | CLI over `elph_core::memz::MemoryStore` |
+| Layer                      | Role                                                                     |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `elph::runtime::paths`     | `memory_db_path()` → `.elph/memory.db`; `models_dir()` → `{data}/models` |
+| `elph::runtime::settings`  | `memory.embedModel` / `memory.embedQuantized` in `settings.json`         |
+| `elph::runtime::datastore` | Runs metadata + memory migrations                                        |
+| `elph::runtime::project`   | Creates `.elph/` and gitignore                                           |
+| `elph::memory::store`      | Opens `MemoryStore` with settings-driven embedder + dims                 |
+| `elph memory`              | CLI over `elph_core::memz::MemoryStore`                                  |
 
 The agent runtime can open the same store path and call the task lifecycle API during
 sessions. The CLI is for inspection and manual maintenance.
@@ -315,11 +425,14 @@ sessions. The CLI is for inspection and manual maintenance.
 
 ## Environment variables
 
-| Variable           | Scope           | Description                                 |
-| ------------------ | --------------- | ------------------------------------------- |
-| `ELPH_PROJECT_DIR` | Elph            | Project root (determines `.elph/memory.db`) |
-| `MEMZ_DIR`         | memz standalone | Data directory (default `.memz`)            |
-| `MEMZ_EMBED_MODEL` | Embeddings      | Override fastembed model                    |
+| Variable           | Scope           | Description                                                     |
+| ------------------ | --------------- | --------------------------------------------------------------- |
+| `ELPH_HOME`        | Elph            | Config directory (default `~/.elph`; holds `settings.json`)     |
+| `ELPH_DATA_DIR`    | Elph            | Data directory (default `~/.local/share/elph`; holds `models/`) |
+| `ELPH_PROJECT_DIR` | Elph            | Project root (determines `.elph/memory.db`)                     |
+| `XDG_DATA_HOME`    | Elph            | Base for data dir when `ELPH_DATA_DIR` is unset                 |
+| `MEMZ_DIR`         | memz standalone | Data directory (default `.memz`)                                |
+| `MEMZ_EMBED_MODEL` | Library         | Override model when `FastEmbedOptions::model` is unset          |
 
 ---
 

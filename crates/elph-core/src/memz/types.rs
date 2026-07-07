@@ -3,19 +3,14 @@ use serde::{Deserialize, Serialize};
 use super::util::DEFAULT_EMBEDDING_DIMS;
 
 /// Turso vector type for distance calculations. Easy to swap for experimentation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VectorType {
+    #[default]
     Vector32,
     Vector64,
     Vector8,
     Vector1,
-}
-
-impl Default for VectorType {
-    fn default() -> Self {
-        VectorType::Vector32
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

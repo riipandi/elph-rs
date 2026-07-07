@@ -135,6 +135,11 @@ pub trait AppPaths {
         self.data_dir().join("vendor")
     }
 
+    /// Local ONNX embedding model cache (fastembed / Hugging Face downloads).
+    fn models_dir(&self) -> PathBuf {
+        self.data_dir().join("models")
+    }
+
     fn metadata_db_path(&self) -> PathBuf {
         self.data_dir().join("metadata.db")
     }
@@ -165,6 +170,7 @@ pub trait AppPaths {
             self.downloads_dir(),
             self.logs_dir(),
             self.vendor_dir(),
+            self.models_dir(),
         ]);
         dirs
     }
@@ -238,6 +244,6 @@ mod tests {
             paths.bundled_manifest_path(),
             PathBuf::from("/cfg/bundled/manifest.json")
         );
-        assert_eq!(paths.standard_required_dirs().len(), 13);
+        assert_eq!(paths.standard_required_dirs().len(), 14);
     }
 }
