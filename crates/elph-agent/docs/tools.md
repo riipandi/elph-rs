@@ -1,34 +1,51 @@
 # Built-in tools
 
-`elph-agent` ships coding and exploration tools backed by `ExecutionEnv`. Register them via factory helpers or compose your own `AgentTool` values.
+`elph-agent` ships coding and exploration tools backed by `ExecutionEnv`, plus web tools that operate independently of the filesystem environment. Register them via factory helpers or compose your own `AgentTool` values.
 
 ## Tool groups
 
-| Helper                    | Tools                                      |
-| ------------------------- | ------------------------------------------ |
-| `create_coding_tools`     | `read`, `bash`, `edit`, `write`            |
-| `create_read_only_tools`  | `read`, `grep`, `find`, `ls`               |
-| `create_all_tools`        | all seven built-in tools above             |
-| `create_web_tools`        | `web_search`, `web_fetch`                  |
-| `create_all_tools_with_web` | all built-in tools + web tools           |
+| Helper                      | Tools                            |
+| --------------------------- | -------------------------------- |
+| `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
+| `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
+| `create_all_tools`          | all seven filesystem tools above |
+| `create_web_tools`          | `web_search`, `web_fetch`        |
+| `create_all_tools_with_web` | filesystem tools + web tools     |
 
 ```rust
-use elph_agent::{LocalExecutionEnv, create_all_tools};
+use elph_agent::{LocalExecutionEnv, create_all_tools, create_web_tools};
 use std::sync::Arc;
 
 let env = Arc::new(LocalExecutionEnv::new(cwd));
-let tools = create_all_tools(env);
+let coding = create_all_tools(env);
+let web = create_web_tools();
 ```
 
 `echo_tool()` is a minimal helper for harness tests and examples.
 
 ## Execution environment
 
-Most tools resolve paths through `ExecutionEnv::absolute_path` and perform I/O through `ExecutionEnv` file and shell APIs.
+Filesystem tools resolve paths through `ExecutionEnv::absolute_path` and perform I/O through `ExecutionEnv` file and shell APIs.
 
 `grep` and `find` resolve the search root via `ExecutionEnv`, then index and search the real filesystem under that path using [`fff-search`](https://crates.io/crates/fff-search). Indexing is synchronous and one-shot (`FilePicker::collect_files`), with `watch: false`. Work runs on a blocking thread pool so the async runtime stays responsive.
 
-`ls` still lists directories through `ExecutionEnv::list_dir`.
+`ls` lists directories through `ExecutionEnv::list_dir`.
+
+`web_search` and `web_fetch` do not use `ExecutionEnv`. They perform outbound HTTP requests and optionally delegate to an Obscura browser worker thread.
+
+## Cargo features
+
+| Feature   | Default | Description                                            |
+| --------- | ------- | ------------------------------------------------------ |
+| `obscura` | yes     | Enable Obscura headless-browser fallback for web tools |
+
+```bash
+# Faster builds — HTTP-only web tools
+cargo build -p elph-agent --no-default-features
+
+# Default — includes Obscura (first build compiles V8 from source)
+cargo build -p elph-agent
+```
 
 ## Tool reference
 
@@ -36,30 +53,30 @@ Most tools resolve paths through `ExecutionEnv::absolute_path` and perform I/O t
 
 Read a text or image file. Text output is truncated to 2000 lines or 50 KB (whichever limit is hit first).
 
-| Parameter | Type   | Required | Description                          |
-| --------- | ------ | -------- | ------------------------------------ |
-| `path`    | string | yes      | File path (relative or absolute)     |
-| `offset`  | number | no       | 1-indexed start line                 |
-| `limit`   | number | no       | Maximum lines to return              |
+| Parameter | Type   | Required | Description                      |
+| --------- | ------ | -------- | -------------------------------- |
+| `path`    | string | yes      | File path (relative or absolute) |
+| `offset`  | number | no       | 1-indexed start line             |
+| `limit`   | number | no       | Maximum lines to return          |
 
 ### `bash`
 
 Run a shell command in the environment working directory. Output is truncated to the last 2000 lines or 50 KB.
 
-| Parameter | Type   | Required | Description                |
-| --------- | ------ | -------- | ---------------------------- |
-| `command` | string | yes      | Command to execute           |
-| `timeout` | number | no       | Timeout in seconds           |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `command` | string | yes      | Command to execute |
+| `timeout` | number | no       | Timeout in seconds |
 
 ### `edit`
 
 Replace an exact substring in a file. `old_string` must occur exactly once.
 
-| Parameter    | Type   | Required | Description           |
-| ------------ | ------ | -------- | --------------------- |
-| `path`       | string | yes      | File to edit          |
-| `old_string` | string | yes      | Text to replace       |
-| `new_string` | string | yes      | Replacement text      |
+| Parameter    | Type   | Required | Description      |
+| ------------ | ------ | -------- | ---------------- |
+| `path`       | string | yes      | File to edit     |
+| `old_string` | string | yes      | Text to replace  |
+| `new_string` | string | yes      | Replacement text |
 
 ### `write`
 
@@ -74,13 +91,13 @@ Write file contents. Creates parent directories when needed.
 
 Search file contents under a directory or single file. Powered by `fff-search` in `FFFMode::Ai`.
 
-| Parameter    | Type    | Required | Default | Description                                      |
-| ------------ | ------- | -------- | ------- | ------------------------------------------------ |
-| `pattern`    | string  | yes      | —       | Regex or literal search pattern                  |
-| `path`       | string  | no       | `.`     | Directory or file to search                      |
-| `literal`    | boolean | no       | `false` | Treat `pattern` as plain text, not regex         |
-| `ignoreCase` | boolean | no       | `false` | Case-insensitive match                           |
-| `limit`      | number  | no       | `100`   | Maximum matches                                  |
+| Parameter    | Type    | Required | Default | Description                              |
+| ------------ | ------- | -------- | ------- | ---------------------------------------- |
+| `pattern`    | string  | yes      | —       | Regex or literal search pattern          |
+| `path`       | string  | no       | `.`     | Directory or file to search              |
+| `literal`    | boolean | no       | `false` | Treat `pattern` as plain text, not regex |
+| `ignoreCase` | boolean | no       | `false` | Case-insensitive match                   |
+| `limit`      | number  | no       | `100`   | Maximum matches                          |
 
 Output format: `absolute/path:line:content`, one match per line. Long lines are truncated to 500 characters. Overall output is capped at 50 KB.
 
@@ -92,11 +109,11 @@ When `path` points to a file, the search is scoped to that file via `AiGrepConfi
 
 Find files by glob pattern. Powered by `fff-search` `FilePicker::glob`.
 
-| Parameter | Type   | Required | Default | Description                               |
-| --------- | ------ | -------- | ------- | ----------------------------------------- |
-| `pattern` | string | yes      | —       | Glob pattern, e.g. `*.rs`                 |
-| `path`    | string | no       | `.`     | Directory to search                       |
-| `limit`   | number | no       | `1000`  | Maximum results                           |
+| Parameter | Type   | Required | Default | Description               |
+| --------- | ------ | -------- | ------- | ------------------------- |
+| `pattern` | string | yes      | —       | Glob pattern, e.g. `*.rs` |
+| `path`    | string | no       | `.`     | Directory to search       |
+| `limit`   | number | no       | `1000`  | Maximum results           |
 
 Patterns without `/` are searched recursively as `**/{pattern}`. Patterns containing `/` are matched relative to `path`. Results are relative paths, sorted alphabetically. Output is capped at 50 KB.
 
@@ -113,54 +130,66 @@ Directories are suffixed with `/`. Names are sorted case-insensitively.
 
 ### `web_search`
 
-Search the web using multiple search engines with automatic fallback. Supports DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, and SerpAPI.
+Search the web using multiple providers with automatic ranking and fallback. Ported from [`elph-go/pkg/tools/websearch`](https://github.com/riipandi/elph-go/tree/main/pkg/tools/websearch).
 
-| Parameter | Type   | Required | Default | Description                                          |
-| --------- | ------ | -------- | ------- | ---------------------------------------------------- |
-| `query`   | string | yes      | —       | Search query string                                  |
-| `engine`  | string | no       | `auto`  | Preferred engine (auto, duckduckgo, brave, exa, firecrawl, jina, perplexity, tavily, serpapi) |
-| `limit`   | number | no       | `5`     | Maximum number of results (max: 20)                  |
+| Parameter | Type   | Required | Default | Description                          |
+| --------- | ------ | -------- | ------- | ------------------------------------ |
+| `query`   | string | yes      | —       | Search query string                  |
+| `engine`  | string | no       | `auto`  | Preferred engine (see aliases below) |
+| `limit`   | number | no       | `5`     | Maximum results (max: 20)            |
 
-Engine selection is automatic based on available API keys in environment variables:
-- `BRAVE_SEARCH_API_KEY` - Brave Search
-- `EXA_API_KEY` - Exa
-- `FIRECRAWL_API_KEY` - Firecrawl (optional, can work without)
-- `JINA_API_KEY` - Jina AI
-- `PERPLEXITY_API_KEY` - Perplexity
-- `TAVILY_API_KEY` - Tavily
-- `SERPAPI_KEY` - SerpAPI
+**Engine aliases:** `auto`, `duckduckgo` / `ddg`, `brave` / `brave-search`, `exa`, `firecrawl`, `jina` / `jina-search`, `perplexity`, `tavily`, `serpapi` / `serapi`.
 
-DuckDuckGo is always available as a fallback (no API key required).
+#### Ranking and availability
 
-Output format:
+Auto mode picks the highest-ranked configured engine. DuckDuckGo is always tried last as a fallback. When all HTTP engines fail and the `obscura` feature is enabled, Obscura scrapes DuckDuckGo via a headless browser.
+
+| Rank | Engine     | Env var                | Key required |
+| ---- | ---------- | ---------------------- | ------------ |
+| 1    | DuckDuckGo | —                      | no           |
+| 2    | Jina       | `JINA_API_KEY`         | no           |
+| 3    | Brave      | `BRAVE_SEARCH_API_KEY` | yes          |
+| 4    | SerpAPI    | `SERPAPI_KEY`          | yes          |
+| 5    | Tavily     | `TAVILY_API_KEY`       | yes          |
+| 6    | FireCrawl  | `FIRECRAWL_API_KEY`    | no (keyless) |
+| 7    | Perplexity | `PERPLEXITY_API_KEY`   | yes          |
+| 8    | Exa        | `EXA_API_KEY`          | yes          |
+
+Each provider is implemented in its own module under `src/tools/web/engines/` (`duckduckgo.rs`, `brave.rs`, etc.) for maintainability.
+
+#### Output format
+
 ```
-engine: duckduckgo
-query: rust programming
-results: 5
+engine: tavily
+query: rust async runtime
+results: 3
 
-1. Rust Programming Language
-   url: https://www.rust-lang.org/
-   snippet: A language empowering everyone to build reliable and efficient software.
+1. Async programming in Rust
+   url: https://rust-lang.github.io/async-book/
+   snippet: Asynchronous programming in Rust using async/await.
+
+2. Tokio
+   url: https://tokio.rs/
+   snippet: A runtime for writing reliable network applications.
 ```
 
 ### `web_fetch`
 
-Fetch and extract content from a web page. Supports text extraction, HTML, and markdown formats. Falls back to headless browser for JavaScript-rendered pages when the `browser` feature is enabled.
+Fetch content from a public HTTP(S) URL. HTML responses are converted to plain text. Blocks private and loopback addresses (SSRF protection).
 
-| Parameter    | Type    | Required | Default | Description                                          |
-| ------------ | ------- | -------- | ------- | ---------------------------------------------------- |
-| `url`        | string  | yes      | —       | URL to fetch (must start with http:// or https://)   |
-| `format`     | string  | no       | `text`  | Output format: text, html, or markdown               |
-| `maxLength`  | number  | no       | `50000` | Maximum content length in characters                 |
-| `useBrowser` | boolean | no       | `false` | Force using headless browser instead of HTTP client  |
-| `waitMs`     | number  | no       | `2000`  | Wait time in milliseconds for browser to settle      |
+| Parameter | Type   | Required | Description                |
+| --------- | ------ | -------- | -------------------------- |
+| `url`     | string | yes      | HTTP or HTTPS URL to fetch |
 
-Output format:
+HTTP fetch is attempted first via `reqwest`. When that fails and the `obscura` feature is enabled, Obscura navigates to the page on a dedicated browser worker thread (`crossbeam-channel` + `tokio`), then extracts plain text from the rendered DOM.
+
+Response bodies are capped at 256 KB. HTML is stripped to text; other content types are returned as-is.
+
+#### Output format
+
 ```
 url: https://example.com
-title: Example Domain
-status: 200
-format: Text
+content_type: text/html
 
 Example Domain
 This domain is for use in illustrative examples in documents.
@@ -180,17 +209,22 @@ See the [README](../README.md#tools) for a minimal custom-tool example.
 
 ## Examples
 
-| Example                     | Command                                                       |
-| --------------------------- | ------------------------------------------------------------- |
-| Faux provider smoke test    | `cargo run -p elph-agent --example basic_agent`               |
-| OpenCode Zen via `Agent`    | `cargo run -p elph-agent --example opencode_big_pickle_agent` |
+| Example                  | Command                                                       |
+| ------------------------ | ------------------------------------------------------------- |
+| Faux provider smoke test | `cargo run -p elph-agent --example basic_agent`               |
+| OpenCode Zen via `Agent` | `cargo run -p elph-agent --example opencode_big_pickle_agent` |
 
 Provider-level OpenCode streaming lives in `elph-ai` as `opencode_big_pickle` (no name collision with the agent example).
 
 ## Tests
 
-Integration tests for `grep` and `find` live in `crates/elph-agent/tests/tools_fff.rs`.
+| Test file                              | Coverage                          |
+| -------------------------------------- | --------------------------------- |
+| `crates/elph-agent/tests/tools_fff.rs` | `grep`, `find`                    |
+| `crates/elph-agent/tests/web_tools.rs` | `web_search` ranking, `web_fetch` |
 
 ```bash
 cargo test -p elph-agent --test tools_fff
+cargo test -p elph-agent --test web_tools
+cargo test -p elph-agent --lib tools::web
 ```

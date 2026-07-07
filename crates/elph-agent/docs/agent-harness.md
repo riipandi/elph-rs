@@ -222,8 +222,9 @@ Built-in tool wiring:
 
 - `read`, `write`, `edit`, `bash`, `ls` — `ExecutionEnv` file and shell APIs
 - `grep`, `find` — resolve paths via `ExecutionEnv`, then search the real filesystem with [`fff-search`](https://crates.io/crates/fff-search) (`FilePicker::collect_files`, `watch: false`)
+- `web_search`, `web_fetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Register via `create_web_tools()` or `create_all_tools_with_web()`.
 
-See [tools.md](./tools.md) for tool groups, parameters, and output formats.
+See [tools.md](./tools.md) for tool groups, parameters, engine ranking, and output formats.
 
 ## Test organization
 
@@ -257,7 +258,8 @@ cargo test -p elph-agent --test harness
 - Typed hook handlers with result chaining
 - `ExecutionEnv` with typed `Result` returns
 - Built-in coding and exploration tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`)
-- `grep` / `find` backed by `fff-search`; other tools use `ExecutionEnv` directly
+- Web tools (`web_search`, `web_fetch`) with multi-engine ranking and Obscura fallback
+- `grep` / `find` backed by `fff-search`; filesystem tools use `ExecutionEnv` directly
 
 ### Planned
 

@@ -411,21 +411,51 @@ let read_file_tool = simple_tool(
 
 Built-in tools are grouped by capability:
 
-| Helper                   | Tools                           |
-| ------------------------ | ------------------------------- |
-| `create_coding_tools`    | `read`, `bash`, `edit`, `write` |
-| `create_read_only_tools` | `read`, `grep`, `find`, `ls`    |
-| `create_all_tools`       | all seven tools above           |
+| Helper                      | Tools                            |
+| --------------------------- | -------------------------------- |
+| `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
+| `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
+| `create_all_tools`          | all seven filesystem tools above |
+| `create_web_tools`          | `web_search`, `web_fetch`        |
+| `create_all_tools_with_web` | filesystem tools + web tools     |
 
 ```rust
-use elph_agent::{LocalExecutionEnv, create_all_tools};
+use elph_agent::{LocalExecutionEnv, create_all_tools, create_web_tools, create_all_tools_with_web};
 use std::sync::Arc;
 
 let env = Arc::new(LocalExecutionEnv::new(cwd));
-let tools = create_all_tools(env);
+let coding = create_all_tools(env.clone());
+let web = create_web_tools(); // no ExecutionEnv required
+let all = create_all_tools_with_web(env);
 ```
 
 `grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `read`, `write`, `edit`, `bash`, and `ls` use `ExecutionEnv` directly.
+
+`web_search` and `web_fetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
+
+```rust
+use elph_agent::create_web_tools;
+
+let tools = create_web_tools();
+// web_search: query the web (DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, SerpAPI)
+// web_fetch:    fetch a public URL as plain text
+```
+
+Set provider API keys via environment variables (`BRAVE_SEARCH_API_KEY`, `EXA_API_KEY`, `TAVILY_API_KEY`, etc.). DuckDuckGo, Jina, and FireCrawl work without keys. See [docs/tools.md](./docs/tools.md) for the full engine ranking table and parameters.
+
+### Cargo features
+
+| Feature   | Default | Description                                           |
+| --------- | ------- | ----------------------------------------------------- |
+| `obscura` | yes     | Embed Obscura for browser-based search/fetch fallback |
+
+Disable Obscura for faster builds when browser fallback is not needed:
+
+```bash
+cargo build -p elph-agent --no-default-features
+```
+
+The first build with `obscura` compiles V8 from source and can take a long time.
 
 See [docs/tools.md](./docs/tools.md) for parameters, output formats, truncation limits, and examples.
 
@@ -609,14 +639,14 @@ For provider-level OpenCode streaming (without the agent loop), see `elph-ai` ex
 
 ## Documentation
 
-| Document                                        | Description                                |
-| ----------------------------------------------- | ------------------------------------------ |
-| [tools.md](./docs/tools.md)                     | Built-in tools, `fff-search`, parameters   |
-| [agent-harness.md](./docs/agent-harness.md)     | Harness lifecycle, phases, save points     |
-| [hooks.md](./docs/hooks.md)                     | Hook design and mutation semantics         |
-| [models.md](./docs/models.md)                   | `elph_ai::Models` integration with harness |
-| [durable-harness.md](./docs/durable-harness.md) | Semi-durable harness design (planned)      |
-| [observability.md](./docs/observability.md)     | Observability design notes (planned)       |
+| Document                                        | Description                                    |
+| ----------------------------------------------- | ---------------------------------------------- |
+| [tools.md](./docs/tools.md)                     | Built-in tools, web search/fetch, `fff-search` |
+| [agent-harness.md](./docs/agent-harness.md)     | Harness lifecycle, phases, save points         |
+| [hooks.md](./docs/hooks.md)                     | Hook design and mutation semantics             |
+| [models.md](./docs/models.md)                   | `elph_ai::Models` integration with harness     |
+| [durable-harness.md](./docs/durable-harness.md) | Semi-durable harness design (planned)          |
+| [observability.md](./docs/observability.md)     | Observability design notes (planned)           |
 
 Full `elph-ai` provider architecture is documented in the [`elph-ai`](../elph-ai) crate.
 
