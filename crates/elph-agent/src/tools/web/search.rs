@@ -63,12 +63,11 @@ async fn execute_web_search(
         .and_then(|v| v.as_str())
         .and_then(Engine::from_str_opt);
 
-    if let Some(pref) = preferred {
-        if !pref.is_available() {
-            if let Some(env_var) = pref.key_env() {
-                return Err(anyhow::anyhow!("{} requires {}", pref.name(), env_var));
-            }
-        }
+    if let Some(pref) = preferred
+        && !pref.is_available()
+        && let Some(env_var) = pref.key_env()
+    {
+        return Err(anyhow::anyhow!("{} requires {}", pref.name(), env_var));
     }
 
     let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5).clamp(1, 20) as usize;

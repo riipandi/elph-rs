@@ -55,6 +55,7 @@ turso.workspace = true
 url = "2"
 urlencoding = "2"
 uuid = { version = "1", features = ["v7"] }
+walkdir = "2.5"
 
 [[example]]
 name = "basic_agent"

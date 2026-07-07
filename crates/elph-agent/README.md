@@ -429,7 +429,7 @@ let web = create_web_tools(); // no ExecutionEnv required
 let all = create_all_tools_with_web(env);
 ```
 
-`grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `read`, `write`, `edit`, `bash`, and `ls` use `ExecutionEnv` directly.
+`grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `ls` uses [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool. `read`, `write`, `edit`, and `bash` use `ExecutionEnv` directly.
 
 `web_search` and `web_fetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
 

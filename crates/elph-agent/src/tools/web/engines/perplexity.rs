@@ -35,12 +35,11 @@ pub async fn search(client: &Client, query: &str, api_key: &str) -> anyhow::Resu
     let content = val["choices"][0]["message"]["content"].as_str().unwrap_or("");
     static JSON_RE: OnceLock<Regex> = OnceLock::new();
     let json_re = JSON_RE.get_or_init(|| Regex::new(r"\[[\s\S]*\]").expect("json array regex"));
-    if let Some(m) = json_re.find(content) {
-        if let Ok(parsed) = serde_json::from_str::<Vec<SearchResult>>(m.as_str()) {
-            if !parsed.is_empty() {
-                return Ok(parsed);
-            }
-        }
+    if let Some(m) = json_re.find(content)
+        && let Ok(parsed) = serde_json::from_str::<Vec<SearchResult>>(m.as_str())
+        && !parsed.is_empty()
+    {
+        return Ok(parsed);
     }
 
     if let Some(cits) = val["choices"][0]["citations"].as_array() {

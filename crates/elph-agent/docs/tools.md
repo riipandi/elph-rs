@@ -29,7 +29,7 @@ Filesystem tools resolve paths through `ExecutionEnv::absolute_path` and perform
 
 `grep` and `find` resolve the search root via `ExecutionEnv`, then index and search the real filesystem under that path using [`fff-search`](https://crates.io/crates/fff-search). Indexing is synchronous and one-shot (`FilePicker::collect_files`), with `watch: false`. Work runs on a blocking thread pool so the async runtime stays responsive.
 
-`ls` lists directories through `ExecutionEnv::list_dir`.
+`ls` resolves the directory path via `ExecutionEnv`, then lists immediate children with [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool.
 
 `web_search` and `web_fetch` do not use `ExecutionEnv`. They perform outbound HTTP requests and optionally delegate to an Obscura browser worker thread.
 
@@ -197,7 +197,7 @@ This domain is for use in illustrative examples in documents.
 
 ## Cancellation
 
-Tool execution accepts an optional `CancellationToken`. `grep` and `find` bridge cancellation into `fff-search` via an abort signal polled during the blocking search.
+Tool execution accepts an optional `CancellationToken`. `grep` and `find` bridge cancellation into `fff-search` via an abort signal polled during the blocking search. `ls` bridges cancellation into `walkdir` the same way.
 
 ## Custom tools
 

@@ -143,7 +143,7 @@ async fn execute_tool_calls_parallel(
     emit: &AgentEventCallback,
 ) -> ExecutedToolBatch {
     enum Entry {
-        Immediate(FinalizedToolCall),
+        Immediate(Box<FinalizedToolCall>),
         Deferred(Pin<Box<dyn Future<Output = FinalizedToolCall> + Send>>),
     }
 
@@ -167,7 +167,7 @@ async fn execute_tool_calls_parallel(
                     is_error,
                 };
                 emit_tool_execution_end(&finalized, emit).await;
-                entries.push(Entry::Immediate(finalized));
+                entries.push(Entry::Immediate(Box::new(finalized)));
             }
             Preparation::Prepared(prepared) => {
                 let emit = emit.clone();
@@ -199,7 +199,7 @@ async fn execute_tool_calls_parallel(
         let emit = emit.clone();
         async move {
             match entry {
-                Entry::Immediate(f) => f,
+                Entry::Immediate(f) => *f,
                 Entry::Deferred(fut) => {
                     let f = fut.await;
                     emit_tool_execution_end(&f, &emit).await;

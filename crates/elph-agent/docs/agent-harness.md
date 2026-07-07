@@ -220,7 +220,8 @@ let env = Arc::new(LocalExecutionEnv::new(cwd));
 
 Built-in tool wiring:
 
-- `read`, `write`, `edit`, `bash`, `ls` — `ExecutionEnv` file and shell APIs
+- `read`, `write`, `edit`, `bash` — `ExecutionEnv` file and shell APIs
+- `ls` — path resolution via `ExecutionEnv`, listing via `walkdir` on a blocking thread
 - `grep`, `find` — resolve paths via `ExecutionEnv`, then search the real filesystem with [`fff-search`](https://crates.io/crates/fff-search) (`FilePicker::collect_files`, `watch: false`)
 - `web_search`, `web_fetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Register via `create_web_tools()` or `create_all_tools_with_web()`.
 
