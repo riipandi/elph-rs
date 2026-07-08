@@ -15,7 +15,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
+use elph_agent::{
+    Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_all_tools, create_read_only_tools,
+};
 use elph_ai::{AssistantMessageEvent, builtin_models, get_builtin_model};
 
 use crate::cli::print_tool_call;
@@ -44,7 +46,7 @@ pub async fn run_agent(
     system_prompt: &str,
     user_prompt: &str,
     config: &Config,
-    _cwd: &Path,
+    cwd: &Path,
     print_mode: bool,
     verbose: bool,
 ) -> Result<String> {
@@ -92,12 +94,32 @@ pub async fn run_agent(
         Arc::new(move |m, ctx, opts| models.stream_simple(m, ctx, opts))
     };
 
-    // Create the agent
-    // TODO: Add tools support (requires implementing ExecutionEnv trait)
+    // Create execution environment with the working directory
+    if verbose {
+        eprintln!("[debug] cwd={}", cwd.display());
+    }
+    let env = Arc::new(LocalExecutionEnv::new(cwd));
+
+    // Create tools based on the command type
+    // For init/update: use all tools (read, bash, edit, write, grep, find, ls)
+    // For chat: use read-only tools (read, grep, find, ls)
+    let agent_tools = if _command == "chat" {
+        create_read_only_tools(env)
+    } else {
+        create_all_tools(env)
+    };
+
+    if verbose {
+        let tool_names: Vec<&str> = agent_tools.iter().map(|t| t.name()).collect();
+        eprintln!("[tools] {}", tool_names.join(", "));
+    }
+
+    // Create the agent with tools
     let agent = Agent::new(AgentOptions {
         initial_state: Some(PartialAgentState {
             system_prompt: Some(system_prompt.to_string()),
             model: Some(model),
+            tools: Some(agent_tools),
             ..Default::default()
         }),
         stream_fn: Some(stream_fn),
@@ -108,11 +130,13 @@ pub async fn run_agent(
     let verbose_clone = verbose;
     let generating = progress_spinner("Thinking...");
     let saw_any_delta = Arc::new(AtomicBool::new(false));
+    let tool_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
     agent
         .subscribe(Arc::new(move |event, _token| {
             let generating = generating.clone();
             let saw_any_delta = saw_any_delta.clone();
+            let tool_calls = tool_calls.clone();
             let verbose = verbose_clone;
             Box::pin(async move {
                 match event {
@@ -147,11 +171,34 @@ pub async fn run_agent(
                         }
                     }
                     AgentEvent::ToolExecutionStart { tool_name, .. } => {
+                        if !saw_any_delta.load(Ordering::SeqCst) {
+                            generating.finish_and_clear();
+                        }
+                        tool_calls.fetch_add(1, Ordering::SeqCst);
                         print_tool_call(&tool_name, verbose);
+                    }
+                    AgentEvent::ToolExecutionEnd {
+                        tool_name, is_error, ..
+                    } => {
+                        if verbose {
+                            let icon = if is_error {
+                                "\x1b[31m✗\x1b[0m"
+                            } else {
+                                "\x1b[32m✓\x1b[0m"
+                            };
+                            eprintln!("  {icon} {tool_name}");
+                        }
                     }
                     AgentEvent::AgentEnd { .. } => {
                         if !saw_any_delta.load(Ordering::SeqCst) {
                             generating.finish_and_clear();
+                        }
+                        if verbose {
+                            let count = tool_calls.load(Ordering::SeqCst);
+                            if count > 0 {
+                                eprintln!();
+                                eprintln!("\x1b[90m[done] {count} tool calls\x1b[0m");
+                            }
                         }
                     }
                     _ => {}

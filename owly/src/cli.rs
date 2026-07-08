@@ -77,41 +77,70 @@ impl Cli {
     }
 }
 
+/// Display the help banner with ASCII art
+pub fn print_banner(provider: &str, model: &str, directory: &std::path::Path) {
+    // ASCII art logo
+    println!();
+    println!("  ╔═══╗  ╔═══╗");
+    println!("  ║   ║  ║   ║");
+    println!("  ║ O ║──║ W ║──╗");
+    println!("  ║   ║  ║   ║  ║");
+    println!("  ╚═══╝  ╚═══╝  ║");
+    println!("                 ║");
+    println!("  ┌──────────────╨─────────────────────────────────────┐");
+    println!(
+        "  │ >_ Owly v{} agent docs for codebases      │",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!("  │ provider: {:<41}│", provider);
+    println!("  │ model: {:<46}│", model);
+    println!("  │ directory: {:<42}│", truncate_path(directory, 40));
+    println!("  └────────────────────────────────────────────────────┘");
+    println!();
+}
+
 /// Display a compact header for command execution
 pub fn print_command_header(command: &str, provider: &str, model: &str) {
     println!();
-    println!("\x1b[1m\x1b[36m>_\x1b[0m \x1b[1mOwly {command}\x1b[0m");
-    println!("\x1b[90m  Model: {provider}/{model}\x1b[0m");
+    println!(">_ Owly {command}");
+    println!("provider: {provider}");
+    println!("model: {model}");
     println!();
 }
 
 /// Display agent status
 pub fn print_agent_status(message: &str) {
-    println!("\x1b[90m  {message}\x1b[0m");
+    println!("[status] {message}");
 }
 
 /// Display tool call
 pub fn print_tool_call(name: &str, verbose: bool) {
     if verbose {
-        println!("\x1b[36m  > {name}\x1b[0m");
+        println!("[tool] {name}");
     }
 }
 
 /// Display tool result
 pub fn print_tool_result(name: &str, success: bool, verbose: bool) {
     if verbose {
-        let icon = if success {
-            "\x1b[32m✓\x1b[0m"
-        } else {
-            "\x1b[31m✗\x1b[0m"
-        };
-        println!("  {icon} {name}");
+        let icon = if success { "[ok]" } else { "[err]" };
+        println!("{icon} {name}");
     }
 }
 
 /// Display completion status
 pub fn print_completion(message: &str) {
     println!();
-    println!("\x1b[32m✓\x1b[0m {message}");
+    println!("[done] {message}");
     println!();
+}
+
+/// Truncate a path for display
+fn truncate_path(path: &std::path::Path, max_len: usize) -> String {
+    let s = path.display().to_string();
+    if s.len() <= max_len {
+        s
+    } else {
+        format!("...{}", &s[s.len() - max_len + 3..])
+    }
 }
