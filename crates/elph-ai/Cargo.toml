@@ -58,8 +58,32 @@ name = "generate-models"
 path = "bin/generate_models/main.rs"
 
 [[example]]
-name = "opencode_big_pickle"
-path = "examples/opencode_big_pickle.rs"
+name = "basic"
+path = "examples/basic.rs"
+
+[[example]]
+name = "streaming"
+path = "examples/streaming.rs"
+
+[[example]]
+name = "browse_models"
+path = "examples/browse_models.rs"
+
+[[example]]
+name = "tool_loop"
+path = "examples/tool_loop.rs"
+
+[[example]]
+name = "images"
+path = "examples/images.rs"
+
+[[example]]
+name = "custom_provider"
+path = "examples/custom_provider.rs"
+
+[[example]]
+name = "auth_custom"
+path = "examples/auth_custom.rs"
 
 [dev-dependencies]
 async-trait = "0.1"

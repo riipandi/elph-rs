@@ -1,16 +1,14 @@
-//! Stream a chat completion from OpenCode Zen using the `big-pickle` model.
+//! Basic chat completion — pick a built-in model, authenticate, stream tokens.
 //!
 //! ```bash
-//! export OPENCODE_API_KEY="your-key"
-//!
-//! # Buffered response (default):
-//! cargo run -p elph-ai --example opencode_big_pickle
+//! # Requires a provider API key (see example header for which one)
+//! cargo run -p elph-ai --example basic
 //!
 //! # Stream tokens as they arrive:
-//! cargo run -p elph-ai --example opencode_big_pickle -- --stream
+//! cargo run -p elph-ai --example basic -- --stream
 //!
 //! # Stream and print reasoning tokens to stderr:
-//! cargo run -p elph-ai --example opencode_big_pickle -- --stream --show-thinking
+//! cargo run -p elph-ai --example basic -- --stream --show-thinking
 //! ```
 
 use std::io::{IsTerminal, Write, stderr};
@@ -20,6 +18,7 @@ use elph_ai::{AssistantContentBlock, AssistantMessageEvent, Message, StopReason,
 use elph_ai::{Context, builtin_models, get_builtin_model};
 use indicatif::{ProgressBar, ProgressStyle};
 
+// Override via env: ELPH_PROVIDER=opencode ELPH_MODEL=big-pickle
 const PROVIDER: &str = "opencode";
 const MODEL_ID: &str = "big-pickle";
 
@@ -32,21 +31,22 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
 
-    if std::env::var("OPENCODE_API_KEY")
+    let provider = std::env::var("ELPH_PROVIDER").unwrap_or_else(|_| PROVIDER.to_string());
+    let model_id = std::env::var("ELPH_MODEL").unwrap_or_else(|_| MODEL_ID.to_string());
+
+    let api_key_var = format!("{}_API_KEY", provider.to_uppercase().replace('-', "_"));
+    if std::env::var(&api_key_var)
         .ok()
         .filter(|k| !k.trim().is_empty())
         .is_none()
     {
-        anyhow::bail!(
-            "Set OPENCODE_API_KEY to your OpenCode Zen API key.\n\
-             Get one at https://opencode.ai"
-        );
+        anyhow::bail!("Set {api_key_var} to your {provider} API key");
     }
 
-    let model = get_builtin_model(PROVIDER, MODEL_ID)
-        .ok_or_else(|| anyhow::anyhow!("model not found: {PROVIDER}/{MODEL_ID}"))?;
+    let model = get_builtin_model(&provider, &model_id)
+        .ok_or_else(|| anyhow::anyhow!("model not found: {provider}/{model_id}"))?;
 
-    println!("Provider: OpenCode Zen");
+    println!("Provider: {provider}");
     println!("Model:    {} ({})", model.name, model.id);
     println!("API:      {}", model.api);
     println!("Mode:     {}", if args.stream { "streaming" } else { "buffered" });
@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
             auth.source.as_deref().unwrap_or("unknown")
         );
     } else {
-        anyhow::bail!("OpenCode Zen is not configured (missing OPENCODE_API_KEY?)");
+        anyhow::bail!("{provider} is not configured (missing {api_key_var})");
     }
     println!();
 
@@ -216,10 +216,10 @@ fn parse_args() -> anyhow::Result<Args> {
 
 fn print_help() {
     println!(
-        "OpenCode Zen big-pickle example\n\
+        "Basic example — uses a built-in provider model\n\
          \n\
          Environment:\n\
-           OPENCODE_API_KEY   Required API key (https://opencode.ai)\n\
+           <PROVIDER>_API_KEY   Required API key (see provider docs)\n\
          \n\
          Options:\n\
            --stream           Print assistant text as tokens arrive\n\
@@ -227,9 +227,9 @@ fn print_help() {
            -h, --help         Show this help\n\
          \n\
          Examples:\n\
-           cargo run -p elph-ai --example opencode_big_pickle\n\
-           cargo run -p elph-ai --example opencode_big_pickle -- --stream\n\
-           cargo run -p elph-ai --example opencode_big_pickle -- --stream --show-thinking"
+           cargo run -p elph-ai --example basic\n\
+           cargo run -p elph-ai --example basic -- --stream\n\
+           cargo run -p elph-ai --example basic -- --stream --show-thinking"
     );
 }
 
