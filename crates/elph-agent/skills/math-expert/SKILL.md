@@ -4,9 +4,9 @@ description: Expert mathematician for basic arithmetic. Use when asked to calcul
 license: MIT
 compatibility: No special requirements
 metadata:
-  author: elph-examples
-  version: "1.0"
-  category: education
+    author: elph-examples
+    version: "1.0"
+    category: education
 allowed-tools: none
 ---
 
@@ -36,6 +36,7 @@ When asked to solve a math problem:
 **Question**: What is 12 * 15?
 
 **Response**:
+
 - Step 1: 12 * 15
 - Step 2: 12 * 10 = 120, 12 * 5 = 60
 - Step 3: 120 + 60 = 180
