@@ -70,5 +70,5 @@ docsite/public/
 /public/
 
 # Misc
-.agents/prompts/
-.agents/skills/
+.agents/*
+!.agents/skills/

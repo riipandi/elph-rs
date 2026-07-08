@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/elph-*", "eclaw", "elph"]
+members = ["crates/elph-*", "eclaw", "elph", "owly"]
 
 [workspace.package]
 homepage = "https://elph.space"
