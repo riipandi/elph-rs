@@ -6,13 +6,19 @@ agents using [elph-agent](https://github.com/riipandi/elph/tree/main/crates/elph
 
 ## Install
 
-Build from source:
+Install from crates.io:
+
+```sh
+cargo install --locked owly
+```
+
+Or build from source:
 
 ```sh
 cargo install --path owly
 ```
 
-Or run directly:
+Or run directly without installing:
 
 ```sh
 cargo run -p owly -- [OPTIONS] [MESSAGE]

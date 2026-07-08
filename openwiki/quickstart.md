@@ -1,6 +1,6 @@
 ---
 title: "Quickstart Guide"
-last_updated: 2026-07-08T14:14:00Z
+last_updated: 2026-07-08T15:00:00Z
 category: quickstart
 tags:
     - getting-started
@@ -39,7 +39,10 @@ Owly is a CLI that inspects a codebase and produces structured documentation und
 ### Quick Start
 
 ```sh
-# Install from source
+# Install from crates.io
+cargo install --locked owly
+
+# Or build from source
 cargo install --path owly
 
 # Initialize documentation
