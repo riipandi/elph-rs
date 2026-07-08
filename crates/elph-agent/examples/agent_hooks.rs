@@ -139,7 +139,7 @@ fn create_read_file_tool() -> elph_agent::AgentTool {
             Box::pin(async move {
                 if path == "Cargo.toml" {
                     Ok(elph_agent::AgentToolResult::text(
-                        "[package]\nname = \"elph-rs\"\nversion = \"0.0.22\"",
+                        "[package]\nname = \"elph\"\nversion = \"0.0.22\"",
                     ))
                 } else {
                     Ok(elph_agent::AgentToolResult::text(format!(

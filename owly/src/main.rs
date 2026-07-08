@@ -21,11 +21,13 @@ use owly::cli::Cli;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+    // Initialize tracing - suppress noisy logs by default
     fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("owly=info,fff_search=warn,elph_agent=warn")),
+        )
         .init();
-
     let cli = Cli::parse();
 
     cli.execute().await

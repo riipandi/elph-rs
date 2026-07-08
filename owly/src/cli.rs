@@ -33,6 +33,10 @@ pub struct Cli {
     #[arg(long)]
     pub update: bool,
 
+    /// Show stream response from LLM (without thinking)
+    #[arg(short, long)]
+    pub stream: bool,
+
     /// Show stream response and thinking from LLM
     #[arg(short, long)]
     pub verbose: bool,
@@ -73,13 +77,20 @@ impl Cli {
         };
 
         // Run the command
-        run_command(command, &cwd, self.model.as_deref(), self.print, self.verbose).await
+        run_command(
+            command,
+            &cwd,
+            self.model.as_deref(),
+            self.print,
+            self.stream,
+            self.verbose,
+        )
+        .await
     }
 }
 
 /// Display the help banner with ASCII art
 pub fn print_banner(provider: &str, model: &str, directory: &std::path::Path) {
-    // ASCII art logo
     println!();
     println!("  ╔═══╗  ╔═══╗");
     println!("  ║   ║  ║   ║");
@@ -89,11 +100,19 @@ pub fn print_banner(provider: &str, model: &str, directory: &std::path::Path) {
     println!("                 ║");
     println!("  ┌──────────────╨─────────────────────────────────────┐");
     println!(
-        "  │ >_ Owly v{} agent docs for codebases      │",
+        "  │ \x1b[36;1m>_ Owly\x1b[0m \x1b[2mv{}\x1b[0m agent docs for codebases      │",
         env!("CARGO_PKG_VERSION")
     );
-    println!("  │ provider: {:<41}│", provider);
-    println!("  │ model: {:<46}│", model);
+    println!(
+        "  │ provider: \x1b[32m{provider}\x1b[0m{:<width$}│",
+        "",
+        width = 33 - provider.len()
+    );
+    println!(
+        "  │ model: \x1b[32m{model}\x1b[0m{:<width$}│",
+        "",
+        width = 38 - model.len()
+    );
     println!("  │ directory: {:<42}│", truncate_path(directory, 40));
     println!("  └────────────────────────────────────────────────────┘");
     println!();
@@ -102,36 +121,40 @@ pub fn print_banner(provider: &str, model: &str, directory: &std::path::Path) {
 /// Display a compact header for command execution
 pub fn print_command_header(command: &str, provider: &str, model: &str) {
     println!();
-    println!(">_ Owly {command}");
-    println!("provider: {provider}");
-    println!("model: {model}");
+    println!("\x1b[36;1m>_ Owly {command}\x1b[0m");
+    println!("provider: \x1b[32m{provider}\x1b[0m");
+    println!("model: \x1b[32m{model}\x1b[0m");
     println!();
 }
 
 /// Display agent status
 pub fn print_agent_status(message: &str) {
-    println!("[status] {message}");
+    println!("\x1b[2m[status]\x1b[0m {message}");
 }
 
 /// Display tool call
 pub fn print_tool_call(name: &str, verbose: bool) {
     if verbose {
-        println!("[tool] {name}");
+        eprintln!("  \x1b[36m> {name}\x1b[0m");
     }
 }
 
 /// Display tool result
 pub fn print_tool_result(name: &str, success: bool, verbose: bool) {
     if verbose {
-        let icon = if success { "[ok]" } else { "[err]" };
-        println!("{icon} {name}");
+        let icon = if success {
+            "\x1b[32m✓\x1b[0m"
+        } else {
+            "\x1b[31m✗\x1b[0m"
+        };
+        eprintln!("  {icon} {name}");
     }
 }
 
 /// Display completion status
 pub fn print_completion(message: &str) {
     println!();
-    println!("[done] {message}");
+    println!("\x1b[32;1m✓\x1b[0m {message}");
     println!();
 }
 

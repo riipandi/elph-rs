@@ -39,17 +39,31 @@ fn progress_spinner(message: &str) -> ProgressBar {
     pb.enable_steady_tick(Duration::from_millis(80));
     pb
 }
+/** Options for running the agent */
+pub struct RunAgentOptions<'a> {
+    pub command: &'a str,
+    pub system_prompt: &'a str,
+    pub user_prompt: &'a str,
+    pub config: &'a Config,
+    pub cwd: &'a Path,
+    pub print_mode: bool,
+    pub stream: bool,
+    pub verbose: bool,
+}
 
-/// Run the agent with the given command
-pub async fn run_agent(
-    _command: &str,
-    system_prompt: &str,
-    user_prompt: &str,
-    config: &Config,
-    cwd: &Path,
-    print_mode: bool,
-    verbose: bool,
-) -> Result<String> {
+/** Run the agent with the given command */
+pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<String> {
+    let RunAgentOptions {
+        command,
+        system_prompt,
+        user_prompt,
+        config,
+        cwd,
+        print_mode,
+        stream,
+        verbose,
+    } = opts;
+    let _ = command;
     let start_time = Instant::now();
 
     // Get the model - try direct lookup first, then provider/model format
@@ -95,29 +109,28 @@ pub async fn run_agent(
     };
 
     // Create execution environment with the working directory
-    if verbose {
-        eprintln!("[debug] cwd={}", cwd.display());
-    }
     let env = Arc::new(LocalExecutionEnv::new(cwd));
-
     // Create tools based on the command type
     // For init/update: use all tools (read, bash, edit, write, grep, find, ls)
     // For chat: use read-only tools (read, grep, find, ls)
-    let agent_tools = if _command == "chat" {
-        create_read_only_tools(env)
+    let (agent_tools, tool_names_str) = if command == "chat" {
+        (create_read_only_tools(env), "read, grep, find, ls (read-only mode)")
     } else {
-        create_all_tools(env)
+        (create_all_tools(env), "read, bash, edit, write, grep, find, ls")
     };
+
+    // Append available tools list to system prompt
+    let full_system_prompt = format!("{system_prompt}\n\nAvailable tools for this session: {tool_names_str}");
 
     if verbose {
         let tool_names: Vec<&str> = agent_tools.iter().map(|t| t.name()).collect();
-        eprintln!("[tools] {}", tool_names.join(", "));
+        eprintln!("Tools: {}", tool_names.join(", "));
     }
 
     // Create the agent with tools
     let agent = Agent::new(AgentOptions {
         initial_state: Some(PartialAgentState {
-            system_prompt: Some(system_prompt.to_string()),
+            system_prompt: Some(full_system_prompt),
             model: Some(model),
             tools: Some(agent_tools),
             ..Default::default()
@@ -128,6 +141,7 @@ pub async fn run_agent(
 
     // Subscribe to events for streaming display
     let verbose_clone = verbose;
+    let stream_clone = stream;
     let generating = progress_spinner("Thinking...");
     let saw_any_delta = Arc::new(AtomicBool::new(false));
     let tool_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -138,6 +152,7 @@ pub async fn run_agent(
             let saw_any_delta = saw_any_delta.clone();
             let tool_calls = tool_calls.clone();
             let verbose = verbose_clone;
+            let stream = stream_clone;
             Box::pin(async move {
                 match event {
                     AgentEvent::MessageUpdate {
@@ -150,8 +165,8 @@ pub async fn run_agent(
                                 if !saw_any_delta.swap(true, Ordering::SeqCst) {
                                     generating.finish_and_clear();
                                 }
-                                if verbose {
-                                    // In verbose mode, print streaming text
+                                // In stream or verbose mode, print streaming text
+                                if stream || verbose {
                                     print!("{delta}");
                                     let _ = std::io::stdout().flush();
                                 }
@@ -161,9 +176,9 @@ pub async fn run_agent(
                                 if !saw_any_delta.swap(true, Ordering::SeqCst) {
                                     generating.finish_and_clear();
                                 }
+                                // In verbose mode only, show thinking in dimmed gray
                                 if verbose {
-                                    // In verbose mode, show thinking in gray
-                                    eprint!("\x1b[90m{delta}\x1b[0m");
+                                    eprint!("\x1b[2m{delta}\x1b[0m");
                                     let _ = std::io::stderr().flush();
                                 }
                             }

@@ -206,22 +206,38 @@ pub fn resolve_configured_provider() -> &'static str {
 
     // Auto-detect based on available API keys
     // Check if env var is set AND non-empty
-    if std::env::var("OPENCODE_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {
+    if std::env::var("OPENCODE_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .is_some()
+    {
         return "opencode";
     }
-    if std::env::var("ANTHROPIC_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {
+    if std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .is_some()
+    {
         return "anthropic";
     }
     if std::env::var("OPENAI_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {
         return "openai";
     }
-    if std::env::var("OPENROUTER_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {
+    if std::env::var("OPENROUTER_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .is_some()
+    {
         return "openrouter";
     }
     if std::env::var("GOOGLE_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {
         return "google";
     }
-    if std::env::var("DEEPSEEK_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {
+    if std::env::var("DEEPSEEK_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .is_some()
+    {
         return "deepseek";
     }
     if std::env::var("GROQ_API_KEY").ok().filter(|v| !v.is_empty()).is_some() {

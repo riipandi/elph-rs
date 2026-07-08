@@ -1,8 +1,8 @@
 # Owly
 
 Owly is a CLI that writes and maintains documentation for your codebases, built specifically for
-agents using [elph-agent](https://github.com/riipandi/elph-rs/tree/main/crates/elph-agent) and
-[elph-ai](https://github.com/riipandi/elph-rs/tree/main/crates/elph-ai).
+agents using [elph-agent](https://github.com/riipandi/elph/tree/main/crates/elph-agent) and
+[elph-ai](https://github.com/riipandi/elph/tree/main/crates/elph-ai).
 
 ## Install
 
@@ -194,8 +194,8 @@ cargo clippy -p owly --all-targets -- -D warnings
 ## Credits
 
 - Original concept: [OpenWiki](https://github.com/langchain-ai/openwiki) by LangChain
-- Agent runtime: [elph-agent](https://github.com/riipandi/elph-rs/tree/main/crates/elph-agent)
-- LLM integration: [elph-ai](https://github.com/riipandi/elph-rs/tree/main/crates/elph-ai)
+- Agent runtime: [elph-agent](https://github.com/riipandi/elph/tree/main/crates/elph-agent)
+- LLM integration: [elph-ai](https://github.com/riipandi/elph/tree/main/crates/elph-ai)
 
 ## License
 
