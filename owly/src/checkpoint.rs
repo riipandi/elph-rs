@@ -92,15 +92,12 @@ pub struct CheckpointListOptions {
 
 // ── TursoCheckpointSaver ────────────────────────────────────────────────────
 
-/// Turso-backed checkpointer mirroring `SqliteSaver` from langgraphjs.
+/// Turso-backed checkpointer (langgraph-checkpoint contract).
 pub struct TursoCheckpointSaver {
     db: Database,
     db_path: PathBuf,
     is_setup: AtomicBool,
 }
-
-/// Backward-compatible alias — storage is Turso, not system SQLite.
-pub type SqliteSaver = TursoCheckpointSaver;
 
 impl TursoCheckpointSaver {
     /// Open (or create) the checkpoint DB at the given path (or default).
@@ -552,7 +549,7 @@ impl Default for Checkpoint {
     fn default() -> Self {
         Self {
             v: 4,
-            id: elph_agent::uuidv7(),
+            id: elph_agent::create_tsid(),
             ts: chrono::Utc::now().to_rfc3339(),
             channel_values: HashMap::new(),
             channel_versions: HashMap::new(),

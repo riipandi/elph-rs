@@ -18,7 +18,7 @@ licensed under the MIT License. Copyright (c) 2026 Glauber Costa.
 | Retrieval  | Vector similarity (`vector32`; dims match the embed model)  |
 | Embeddings | Local ONNX via `fastembed` (configurable model + cache)     |
 | Scoring    | Welford baseline + z-score task scoring, EMA weight updates |
-| IDs        | UUID v7                                                     |
+| IDs        | TSID (time-sortable, 13-char)                               |
 | Migrations | Versioned SQL via shared `app_migrations` ledger            |
 
 At a high level:

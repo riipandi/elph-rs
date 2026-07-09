@@ -22,7 +22,7 @@ clap = { workspace = true, features = ["env"] }
 elph-agent.workspace = true
 elph-ai.workspace = true
 elph-tui.workspace = true
-iocraft.workspace = true
+superlighttui.workspace = true
 indicatif.workspace = true
 memchr.workspace = true
 regex.workspace = true

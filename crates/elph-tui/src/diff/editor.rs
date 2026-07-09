@@ -1,14 +1,14 @@
 use std::time::Instant;
 
-use crate::prompt::prompt_buffer::{PromptBuffer, char_display_width, expand_for_display};
-use crate::prompt::prompt_edit::{
-    char_left, char_right, delete_char_backward, delete_char_forward, delete_to_line_end, delete_to_line_start,
-    delete_word_backward, delete_word_forward, line_end, line_start, word_left, word_right,
-};
-use crate::prompt::prompt_paste::{
+use super::paste::{
     CollapsedPaste, PASTE_COLLAPSE_MIN_CHARS, PASTE_COLLAPSE_MIN_LINES, adjust_pastes_for_delete, expand_paste_markers,
     line_count, normalize_paste_text, paste_block_range, reconcile_paste_offsets, remove_paste_block_and_adjust,
     shift_paste_offsets_for_insert, should_collapse_paste,
+};
+use super::text_buffer::{PromptBuffer, char_display_width, expand_for_display};
+use super::text_edit::{
+    char_left, char_right, delete_char_backward, delete_char_forward, delete_to_line_end, delete_to_line_start,
+    delete_word_backward, delete_word_forward, line_end, line_start, word_left, word_right,
 };
 use crate::utils::{pad_lines, truncate_to_width_no_ellipsis};
 

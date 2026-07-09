@@ -12,7 +12,7 @@ Elph re-implements these concepts in Rust with the following key differences:
 
 - **Language**: Rust (edition 2024) instead of TypeScript
 - **Async runtime**: Tokio instead of Node.js
-- **Rendering**: `iocraft` + `crossterm` instead
+- **Rendering**: `superlighttui` + `crossterm` instead
 - **Serialization**: Serde + JSONL instead of JSON
 - **Memory store**: Turso-backed vector embeddings for lifelong agent context
 - **Codegraph**: `elph codegraph` — AST-graph analysis for structural code review

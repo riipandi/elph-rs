@@ -11,16 +11,14 @@ pub mod transcript;
 pub mod utils;
 
 pub use agent::{
-    AssistantMessage, AssistantMessageProps, AuthStatus, LoginDialog, LoginDialogProps, ModelSelector,
-    ModelSelectorProps, OAuthSelector, OAuthSelectorProps, SessionSelector, SessionSelectorProps, ToolExecutionCard,
-    ToolExecutionCardProps, ToolExecutionList, ToolExecutionListProps, TranscriptView, TranscriptViewProps,
-    mock_oauth_providers, model_overlay_slot, session_overlay_slot,
+    AuthStatus, ModelSelectorAction, ModelSelectorState, OAuthSelectorAction, OAuthSelectorState,
+    SessionSelectorAction, SessionSelectorState, handle_model_selector_input, handle_oauth_selector_input,
+    handle_session_selector_input, mock_oauth_providers, model_overlay_slot, render_assistant_message,
+    render_login_dialog, render_model_selector, render_oauth_selector, render_session_selector,
+    render_tool_execution_card, render_tool_execution_list, render_transcript_view, session_overlay_slot,
 };
-pub use bridge::{
-    DiffOverlayPortal, DiffOverlayPortalProps, OverlaySlot, OverlayStack, OverlayStackHandle,
-    key_event_to_terminal_data,
-};
-pub use components::{Label, LabelProps, frame};
+pub use bridge::{OverlaySlot, OverlayStack, key_event_to_terminal_data, render_diff_overlay};
+pub use components::{frame, render_label, text_optional_color};
 pub use diff::{
     AutocompletePopup, AutocompleteProvider, CURSOR_MARKER, CancellableLoader, ChangeType,
     CombinedAutocompleteProvider, Container as DiffContainer, CrosstermTerminal, CursorPosition, DiffLine, DiffTui,
@@ -34,21 +32,18 @@ pub use diff::{
     open_tui_writer, png_dimensions, render_markdown_lines, resolve_layout,
 };
 pub use prompt::{
-    AgentMode, ChatStream, ChatStreamProps, CollapsedPaste, DEFAULT_LINE_SCROLL_STEP, EditAction, MacEditAction,
-    PAGE_SCROLL_VIEWPORT, PromptInput, PromptInputProps, PromptSegmentKind, PromptStyledSegment, PromptTranscript,
-    PromptTranscriptProps, edit_action, is_force_quit_key, is_interrupt_key, is_mode_cycle_key, is_newline_key,
-    is_prompt_newline_key, is_quit_command, is_submit_key, is_theme_toggle_key, mac_edit_action,
-    prompt_styled_segments, reconcile_paste_offsets,
+    AgentMode, ChatStreamState, DEFAULT_LINE_SCROLL_STEP, PAGE_SCROLL_VIEWPORT, PromptAction, PromptState,
+    handle_chat_scroll, handle_prompt_input, is_quit_command, render_chat_stream, render_prompt,
+    should_cycle_agent_mode, text_with_theme,
 };
-pub use terminal::{
-    SigintReceiver, disable_keyboard_enhancement, enable_keyboard_enhancement, key_combination, sigint_channel,
-};
+
+pub use terminal::{SigintReceiver, disable_keyboard_enhancement, enable_keyboard_enhancement, sigint_channel};
 pub use theme::{Theme, ThemeMode};
 pub use transcript::{
     DEFAULT_TRANSCRIPT_CAP, StreamingBuffer, ToolExecutionState, ToolExecutionStatus, TranscriptEntry, TranscriptRole,
     cap_entries, push_capped,
 };
 pub use utils::{
-    TAB_STOP, char_display_width, pad_lines, str_display_width, truncate_to_width, truncate_to_width_ellipsis,
-    wrap_ansi_line, wrap_ansi_text, wrap_text,
+    TAB_STOP, char_display_width, pad_lines, str_display_width, strip_ansi, truncate_to_width,
+    truncate_to_width_ellipsis, wrap_ansi_line, wrap_ansi_text, wrap_text,
 };

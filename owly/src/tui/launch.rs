@@ -1,6 +1,5 @@
-//! One-shot launch payload for the Owly iocraft root component.
+//! One-shot launch payload for the Owly interactive shell.
 
-use std::cell::RefCell;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 
@@ -8,10 +7,6 @@ use crate::config::Config;
 use crate::session::{SessionRecovery, SessionStore};
 
 use super::context::AppContext;
-
-thread_local! {
-    static LAUNCH: RefCell<Option<LaunchState>> = const { RefCell::new(None) };
-}
 
 /// Data required to boot the interactive Owly application.
 pub struct LaunchState {
@@ -23,18 +18,6 @@ pub struct LaunchState {
     pub initial: Option<String>,
     pub submit_tx: mpsc::UnboundedSender<String>,
     pub submit_rx: Option<mpsc::UnboundedReceiver<String>>,
-}
-
-impl LaunchState {
-    pub fn install(self) {
-        LAUNCH.with(|slot| {
-            *slot.borrow_mut() = Some(self);
-        });
-    }
-
-    pub fn take() -> Self {
-        LAUNCH.with(|slot| slot.borrow_mut().take().expect("Owly TUI launch state not installed"))
-    }
 }
 
 /// Inputs for constructing [`LaunchState`].

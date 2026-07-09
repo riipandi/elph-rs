@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
+use crate::session::id::create_tsid;
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 
 use crate::harness::types::{
     CreateDirOptions, CreateTempFileOptions, ExecutionEnv, ExecutionError, ExecutionErrorCode, FileError,
@@ -510,7 +510,7 @@ impl FileSystem for LocalExecutionEnv {
             return aborted;
         }
         let base = std::env::temp_dir();
-        let path = base.join(format!("{prefix}{}", Uuid::new_v4()));
+        let path = base.join(format!("{prefix}{}", create_tsid()));
         match fs::create_dir_all(&path).await {
             Ok(()) => ok(Self::normalize_path(&path)),
             Err(error) => err(Self::to_file_error(error, None)),
@@ -527,8 +527,7 @@ impl FileSystem for LocalExecutionEnv {
             Result::Err(error) => return err(error),
         };
         let dir_path = dir;
-        let file_path =
-            PathBuf::from(&dir_path).join(format!("{}{}{}", options.prefix, Uuid::new_v4(), options.suffix));
+        let file_path = PathBuf::from(&dir_path).join(format!("{}{}{}", options.prefix, create_tsid(), options.suffix));
         let normalized = Self::normalize_path(&file_path);
         match fs::write(&file_path, &[] as &[u8]).await {
             Ok(()) => ok(normalized),

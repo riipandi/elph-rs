@@ -50,7 +50,7 @@ pub struct PromptBufferRow {
     pub width: usize,
 }
 
-/// Wraps prompt text for display and cursor navigation (mirrors iocraft `TextBuffer` layout).
+/// Wraps editor text for display and cursor navigation across wrapped rows.
 #[derive(Debug, Clone)]
 pub struct PromptBuffer {
     text: String,
@@ -115,25 +115,6 @@ impl PromptBuffer {
         (self.rows.len() as u16, self.rows.last().map_or(0, |r| r.width as u16))
     }
 
-    pub fn left_of_offset(&self, offset: usize) -> usize {
-        if offset == 0 {
-            0
-        } else {
-            prev_char_index(&self.text, offset)
-        }
-    }
-
-    pub fn right_of_offset(&self, offset: usize) -> usize {
-        if offset >= self.text.len() {
-            self.text.len()
-        } else {
-            self.text[offset..]
-                .char_indices()
-                .nth(1)
-                .map_or(self.text.len(), |(i, _)| offset + i)
-        }
-    }
-
     pub fn above_offset(&self, offset: usize, col_preference: Option<u16>) -> usize {
         let (row, col) = self.row_column_for_offset(offset);
         if row == 0 {
@@ -148,17 +129,6 @@ impl PromptBuffer {
             return offset;
         }
         self.offset_for_closest_column_in_row(row + 1, col_preference.unwrap_or(col))
-    }
-
-    pub fn row_start_offset(&self, offset: usize) -> usize {
-        let (row, _) = self.row_column_for_offset(offset);
-        self.rows[row as usize].offset
-    }
-
-    pub fn row_end_offset(&self, offset: usize) -> usize {
-        let (row, _) = self.row_column_for_offset(offset);
-        let row = &self.rows[row as usize];
-        row.offset + row.len
     }
 
     pub fn offset_for_closest_column_in_row(&self, row: u16, col: u16) -> usize {
@@ -217,15 +187,6 @@ fn wrap_segment(segment: &str, start_offset: usize, wrap_width: usize) -> Vec<Pr
     rows
 }
 
-/// Returns the number of wrapped rows a single logical line occupies.
-pub fn wrapped_row_count(segment: &str, wrap_width: usize) -> u16 {
-    wrap_segment(segment, 0, wrap_width.max(1)).len() as u16
-}
-
-fn prev_char_index(text: &str, index: usize) -> usize {
-    text[..index].char_indices().last().map_or(0, |(i, _)| i)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,8 +194,6 @@ mod tests {
     #[test]
     fn cursor_moves_vertically_across_wrapped_rows() {
         let buffer = PromptBuffer::new("foo\nbar baz", 10);
-        assert_eq!(buffer.left_of_offset(2), 1);
-        assert_eq!(buffer.right_of_offset(2), 3);
         assert_eq!(buffer.above_offset(2, None), 2);
         assert_eq!(buffer.below_offset(2, None), 6);
         assert_eq!(buffer.below_offset(2, Some(5)), 9);

@@ -1,147 +1,109 @@
-use super::prompt_transcript::PromptTranscript;
-use crate::agent::TranscriptView;
+use crate::agent::render_transcript_view;
 use crate::theme::Theme;
 use crate::transcript::TranscriptEntry;
-use iocraft::prelude::*;
+use slt::{Context, KeyCode, ScrollState};
 
 /// Default lines scrolled per Up/Down key press.
 pub const DEFAULT_LINE_SCROLL_STEP: u16 = 3;
 
-/// Use viewport height for Page Up/Down when [`ChatStreamProps::page_scroll_step`] is zero.
+/// Use viewport height for Page Up/Down when zero.
 pub const PAGE_SCROLL_VIEWPORT: u16 = 0;
 
-#[derive(Props)]
-pub struct ChatStreamProps {
-    /// Live message list (preferred — parent avoids cloning on every render).
-    pub messages_state: Option<State<Vec<String>>>,
-    /// Static messages for tests and one-shot renders.
+/// Scrollable chat transcript backed by SLT [`ScrollState`].
+pub struct ChatStreamState {
+    pub scroll: ScrollState,
     pub messages: Vec<String>,
-    /// When false, keyboard scroll keys are ignored (e.g. while the prompt has focus).
+    pub entries: Vec<TranscriptEntry>,
     pub scroll_enabled: bool,
-    /// Pin to bottom while the user has not scrolled up.
     pub auto_scroll: bool,
-    /// Lines to scroll per Up/Down key press.
     pub line_scroll_step: u16,
-    /// Lines to scroll per Page Up/Down. [`PAGE_SCROLL_VIEWPORT`] uses the visible height.
     pub page_scroll_step: u16,
-    /// Active color palette.
-    pub theme: Theme,
-    /// Live rich transcript entries (preferred over [`Self::entries`]).
-    pub entries_state: Option<State<Vec<TranscriptEntry>>>,
-    /// Static rich transcript entries. When set, renders [`TranscriptView`] instead of plain messages.
-    pub entries: Option<Vec<TranscriptEntry>>,
-    /// Whether thinking blocks are shown in rich transcript mode.
     pub show_thinking: bool,
 }
 
-impl Default for ChatStreamProps {
-    fn default() -> Self {
+impl ChatStreamState {
+    pub fn new() -> Self {
         Self {
-            messages_state: None,
+            scroll: ScrollState::new(),
             messages: Vec::new(),
+            entries: Vec::new(),
             scroll_enabled: true,
             auto_scroll: true,
             line_scroll_step: DEFAULT_LINE_SCROLL_STEP,
             page_scroll_step: PAGE_SCROLL_VIEWPORT,
-            theme: Theme::default(),
-            entries_state: None,
-            entries: None,
             show_thinking: true,
         }
     }
+
+    pub fn with_messages(messages: Vec<String>) -> Self {
+        Self {
+            messages,
+            ..Self::new()
+        }
+    }
 }
 
-/// Scrollable chat transcript area with configurable keyboard scroll speed.
-#[component]
-pub fn ChatStream(mut hooks: Hooks, props: &mut ChatStreamProps) -> impl Into<AnyElement<'static>> {
-    let handle = hooks.use_ref_default::<ScrollViewHandle>();
-    let line_scroll_step = props.line_scroll_step.max(1) as i32;
-    let page_scroll_step = props.page_scroll_step;
-    let auto_scroll = props.auto_scroll;
-    let scroll_enabled = props.scroll_enabled;
-    let show_thinking = props.show_thinking;
-    let theme = props.theme;
-    let messages_state = props.messages_state;
-    let messages = props.messages.clone();
-    let entries_state = props.entries_state;
-    let entries = props.entries.clone();
+impl Default for ChatStreamState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-    hooks.use_terminal_events({
-        let mut handle = handle;
-        move |event| {
-            if !scroll_enabled {
-                return;
-            }
+/// Handle keyboard scrolling for the transcript area.
+pub fn handle_chat_scroll(ui: &mut Context, state: &mut ChatStreamState) {
+    if !state.scroll_enabled {
+        return;
+    }
 
-            let TerminalEvent::Key(KeyEvent { code, kind, .. }) = event else {
-                return;
-            };
+    let step = state.line_scroll_step.max(1);
+    if ui.key_code(KeyCode::Up) {
+        state.scroll.scroll_up(step as usize);
+    }
+    if ui.key_code(KeyCode::Down) {
+        state.scroll.scroll_down(step as usize);
+    }
+    if ui.key_code(KeyCode::PageUp) {
+        state.scroll.scroll_up(page_scroll_amount(state));
+    }
+    if ui.key_code(KeyCode::PageDown) {
+        state.scroll.scroll_down(page_scroll_amount(state));
+    }
+    if ui.key_code(KeyCode::Home) {
+        state.scroll.offset = 0;
+    }
+    if ui.key_code(KeyCode::End) && state.auto_scroll {
+        let max = state
+            .scroll
+            .content_height()
+            .saturating_sub(state.scroll.viewport_height()) as usize;
+        state.scroll.offset = max;
+    }
+}
 
-            if kind == KeyEventKind::Release {
-                return;
-            }
+fn page_scroll_amount(state: &ChatStreamState) -> usize {
+    if state.page_scroll_step == PAGE_SCROLL_VIEWPORT {
+        state.scroll.viewport_height().max(1) as usize
+    } else {
+        state.page_scroll_step as usize
+    }
+}
 
-            match code {
-                KeyCode::Up => handle.write().scroll_by(-line_scroll_step),
-                KeyCode::Down => handle.write().scroll_by(line_scroll_step),
-                KeyCode::PageUp => {
-                    let step = page_scroll_amount(&handle, page_scroll_step);
-                    handle.write().scroll_by(-step);
+/// Render scrollable chat content (plain messages or rich transcript entries).
+pub fn render_chat_stream(ui: &mut Context, state: &mut ChatStreamState, theme: Theme) {
+    handle_chat_scroll(ui, state);
+
+    let _ = ui.scroll_col(&mut state.scroll, |ui| {
+        if !state.entries.is_empty() {
+            render_transcript_view(ui, &state.entries, state.show_thinking, theme);
+        } else {
+            for message in &state.messages {
+                let color = theme.text_color();
+                if let Some(c) = color {
+                    ui.text(message).fg(c);
+                } else {
+                    ui.text(message);
                 }
-                KeyCode::PageDown => {
-                    let step = page_scroll_amount(&handle, page_scroll_step);
-                    handle.write().scroll_by(step);
-                }
-                KeyCode::Home => handle.write().scroll_to_top(),
-                KeyCode::End => {
-                    if auto_scroll {
-                        handle.write().scroll_to_bottom();
-                    } else {
-                        let max = handle
-                            .read()
-                            .content_height()
-                            .saturating_sub(handle.read().viewport_height());
-                        handle.write().scroll_to(max as i32);
-                    }
-                }
-                _ => {}
             }
         }
     });
-
-    element! {
-        View(width: 100pct, height: 100pct) {
-            ScrollView(
-                auto_scroll: auto_scroll,
-                keyboard_scroll: false,
-                scroll_step: Some(props.line_scroll_step.max(1)),
-                scrollbar_thumb_color: Some(theme.scrollbar_thumb),
-                scrollbar_track_color: Some(theme.scrollbar_track),
-                handle: Some(handle),
-            ) {
-                #(if entries_state.is_some() || entries.is_some() {
-                    element!(TranscriptView(
-                        entries_state: entries_state,
-                        entries: entries.unwrap_or_default(),
-                        theme: theme,
-                        show_thinking: show_thinking,
-                    )).into_any()
-                } else {
-                    element!(PromptTranscript(
-                        messages_state: messages_state,
-                        messages: messages,
-                        theme: theme,
-                    )).into_any()
-                })
-            }
-        }
-    }
-}
-
-fn page_scroll_amount(handle: &Ref<ScrollViewHandle>, page_scroll_step: u16) -> i32 {
-    if page_scroll_step == PAGE_SCROLL_VIEWPORT {
-        handle.read().viewport_height().max(1) as i32
-    } else {
-        page_scroll_step.max(1) as i32
-    }
 }

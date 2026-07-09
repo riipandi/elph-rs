@@ -3,7 +3,7 @@ name = "elph-tui"
 version = "0.0.26"
 license = "MIT"
 description = "Terminal UI components for Elph agent"
-keywords = ["tui", "terminal", "prompt", "iocraft", "elph"]
+keywords = ["tui", "terminal", "prompt", "superlighttui", "elph"]
 categories = ["command-line-utilities", "gui"]
 homepage.workspace = true
 repository.workspace = true
@@ -17,15 +17,14 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
+crossterm.workspace = true
 memchr.workspace = true
 parking_lot.workspace = true
-rayon.workspace = true
-base64.workspace = true
-crokey.workspace = true
-crossterm.workspace = true
-iocraft.workspace = true
 pulldown-cmark.workspace = true
+rayon.workspace = true
 similar.workspace = true
+superlighttui.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
 unicode-width.workspace = true
 

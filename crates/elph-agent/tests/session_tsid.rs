@@ -1,27 +1,26 @@
 //! Session ID generation tests.
 
-use elph_agent::session::id::generate_session_id;
-use elph_agent::{AgentMessage, convert_to_llm, default_convert_to_llm, uuidv7};
+use elph_agent::session::id::{create_tsid, generate_session_id, is_valid_tsid};
+use elph_agent::{AgentMessage, convert_to_llm, default_convert_to_llm};
 use elph_ai::{Message, UserContent};
-use uuid::{Uuid, Version};
+use tsid::TSID;
 
 #[test]
-fn generate_session_id_produces_valid_uuid_v7() {
+fn generate_session_id_produces_valid_tsid() {
     let id = generate_session_id();
-    let parsed = Uuid::parse_str(&id).expect("valid uuid string");
-    assert_eq!(parsed.get_version(), Some(Version::SortRand));
-    assert_eq!(parsed.as_bytes().len(), 16);
+    assert!(is_valid_tsid(&id));
 }
 
 #[test]
 fn generate_session_id_is_monotonically_ordered() {
-    let ids: Vec<String> = (0..20).map(|_| generate_session_id()).collect();
-    let uuids: Vec<Uuid> = ids.iter().map(|id| Uuid::parse_str(id).expect("valid uuid")).collect();
+    let ids: Vec<TSID> = (0..20)
+        .map(|_| TSID::try_from(generate_session_id().as_str()).expect("valid tsid"))
+        .collect();
 
-    for window in uuids.windows(2) {
+    for window in ids.windows(2) {
         assert!(
             window[0] <= window[1],
-            "expected monotonic ordering, got {} then {}",
+            "expected monotonic ordering, got {:?} then {:?}",
             window[0],
             window[1]
         );
@@ -35,11 +34,10 @@ fn generate_session_id_produces_unique_values() {
 }
 
 #[test]
-fn uuidv7_matches_generate_session_id_format() {
-    let id = uuidv7();
-    let parsed = Uuid::parse_str(&id).expect("valid uuid string");
-    assert_eq!(parsed.get_version(), Some(Version::SortRand));
-    assert_eq!(parsed.as_bytes().len(), 16);
+fn create_tsid_matches_generate_session_id_format() {
+    let id = create_tsid();
+    assert!(is_valid_tsid(&id));
+    assert!(is_valid_tsid(&generate_session_id()));
 }
 
 #[test]

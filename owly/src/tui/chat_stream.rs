@@ -1,267 +1,138 @@
 //! Owly-specific chat stream with structured transcript layout.
 
-use elph_tui::{AssistantMessage, DEFAULT_LINE_SCROLL_STEP, PAGE_SCROLL_VIEWPORT, Theme};
-use iocraft::prelude::*;
+use elph_tui::{Theme, ToolExecutionStatus, render_assistant_message};
+use slt::{Color, Context, KeyCode, ScrollState};
 
-use super::chrome::SECTION_PAD;
 use super::entries::{OwlyEntry, OwlyEntryKind};
 use super::tool_display::{tool_transcript_body, tool_transcript_header};
 
-#[derive(Props)]
-pub struct OwlyChatStreamProps {
-    pub entries_state: Option<State<Vec<OwlyEntry>>>,
+pub struct OwlyChatState {
+    pub scroll: ScrollState,
     pub scroll_enabled: bool,
-    pub auto_scroll: bool,
-    pub line_scroll_step: u16,
-    pub page_scroll_step: u16,
-    pub theme: Theme,
-    pub show_thinking: bool,
 }
 
-impl Default for OwlyChatStreamProps {
+impl Default for OwlyChatState {
     fn default() -> Self {
         Self {
-            entries_state: None,
+            scroll: ScrollState::new(),
             scroll_enabled: true,
-            auto_scroll: true,
-            line_scroll_step: DEFAULT_LINE_SCROLL_STEP,
-            page_scroll_step: PAGE_SCROLL_VIEWPORT,
-            theme: Theme::default(),
-            show_thinking: true,
         }
     }
 }
 
-/// Scrollable Owly transcript with keyboard navigation.
-#[component]
-pub fn OwlyChatStream(mut hooks: Hooks, props: &mut OwlyChatStreamProps) -> impl Into<AnyElement<'static>> {
-    let handle = hooks.use_ref_default::<ScrollViewHandle>();
-    let line_scroll_step = props.line_scroll_step.max(1) as i32;
-    let page_scroll_step = props.page_scroll_step;
-    let auto_scroll = props.auto_scroll;
-    let scroll_enabled = props.scroll_enabled;
-    let show_thinking = props.show_thinking;
-    let theme = props.theme;
-    let entries_state = props.entries_state;
+pub fn handle_owly_scroll(ui: &mut Context, state: &mut OwlyChatState) {
+    if !state.scroll_enabled {
+        return;
+    }
+    if ui.key_code(KeyCode::Up) {
+        state.scroll.scroll_up(3);
+    }
+    if ui.key_code(KeyCode::Down) {
+        state.scroll.scroll_down(3);
+    }
+    if ui.key_code(KeyCode::Home) {
+        state.scroll.offset = 0;
+    }
+    if ui.key_code(KeyCode::End) {
+        let max = state
+            .scroll
+            .content_height()
+            .saturating_sub(state.scroll.viewport_height()) as usize;
+        state.scroll.offset = max;
+    }
+}
 
-    hooks.use_terminal_events({
-        let mut handle = handle;
-        move |event| {
-            if !scroll_enabled {
-                return;
-            }
-
-            let TerminalEvent::Key(KeyEvent { code, kind, .. }) = event else {
-                return;
-            };
-
-            if kind == KeyEventKind::Release {
-                return;
-            }
-
-            match code {
-                KeyCode::Up => handle.write().scroll_by(-line_scroll_step),
-                KeyCode::Down => handle.write().scroll_by(line_scroll_step),
-                KeyCode::PageUp => {
-                    let step = page_scroll_amount(&handle, page_scroll_step);
-                    handle.write().scroll_by(-step);
-                }
-                KeyCode::PageDown => {
-                    let step = page_scroll_amount(&handle, page_scroll_step);
-                    handle.write().scroll_by(step);
-                }
-                KeyCode::Home => handle.write().scroll_to_top(),
-                KeyCode::End => {
-                    if auto_scroll {
-                        handle.write().scroll_to_bottom();
-                    } else {
-                        let max = handle
-                            .read()
-                            .content_height()
-                            .saturating_sub(handle.read().viewport_height());
-                        handle.write().scroll_to(max as i32);
-                    }
-                }
-                _ => {}
-            }
+pub fn render_owly_chat_stream(
+    ui: &mut Context,
+    state: &mut OwlyChatState,
+    entries: &[OwlyEntry],
+    theme: Theme,
+    show_thinking: bool,
+) {
+    handle_owly_scroll(ui, state);
+    let _ = ui.scroll_col(&mut state.scroll, |ui| {
+        let mut prev_kind = None;
+        for entry in entries {
+            render_entry(ui, entry, theme, show_thinking, &mut prev_kind);
         }
     });
-
-    element! {
-        View(width: 100pct, height: 100pct) {
-            ScrollView(
-                auto_scroll: auto_scroll,
-                keyboard_scroll: false,
-                scroll_step: Some(props.line_scroll_step.max(1)),
-                scrollbar_thumb_color: Some(theme.scrollbar_thumb),
-                scrollbar_track_color: Some(theme.scrollbar_track),
-                handle: Some(handle),
-            ) {
-                OwlyTranscriptView(
-                    entries_state: entries_state,
-                    theme: theme,
-                    show_thinking: show_thinking,
-                )
-            }
-        }
-    }
-}
-
-#[derive(Props)]
-pub struct OwlyTranscriptViewProps {
-    pub entries_state: Option<State<Vec<OwlyEntry>>>,
-    pub theme: Theme,
-    pub show_thinking: bool,
-}
-
-impl Default for OwlyTranscriptViewProps {
-    fn default() -> Self {
-        Self {
-            entries_state: None,
-            theme: Theme::default(),
-            show_thinking: true,
-        }
-    }
-}
-
-#[component]
-pub fn OwlyTranscriptView(props: &OwlyTranscriptViewProps) -> impl Into<AnyElement<'static>> {
-    let theme = props.theme;
-    let show_thinking = props.show_thinking;
-    let mut children = Vec::new();
-    let mut prev_kind: Option<OwlyEntryKind> = None;
-
-    if let Some(state) = &props.entries_state {
-        let entries = state.read();
-        for entry in entries.iter() {
-            if let Some(node) = render_entry(entry, theme, show_thinking, prev_kind) {
-                prev_kind = Some(entry.kind);
-                children.push(node);
-            }
-        }
-    }
-
-    element! {
-        View(
-            flex_direction: FlexDirection::Column,
-            width: 100pct,
-            gap: Gap::Length(0),
-            padding_top: SECTION_PAD,
-            padding_bottom: SECTION_PAD,
-        ) {
-            #(children)
-        }
-    }
 }
 
 fn render_entry(
+    ui: &mut Context,
     entry: &OwlyEntry,
     theme: Theme,
     show_thinking: bool,
-    prev_kind: Option<OwlyEntryKind>,
-) -> Option<AnyElement<'static>> {
-    let gap_before = section_gap(prev_kind, entry.kind);
+    prev_kind: &mut Option<OwlyEntryKind>,
+) {
+    let gap = section_gap(*prev_kind, entry.kind);
+    if gap > 0 {
+        for _ in 0..gap {
+            let _ = ui.text("");
+        }
+    }
+    *prev_kind = Some(entry.kind);
 
     match entry.kind {
         OwlyEntryKind::Hint => {
             let content = entry.inner.content.trim();
-            if content.is_empty() {
-                return None;
+            if !content.is_empty() {
+                let _ = ui.text(content).fg(theme.muted);
             }
-            Some(wrap_block(
-                gap_before,
-                element! {
-                    Text(color: Some(theme.muted), content: content.to_string())
-                }
-                .into_any(),
-            ))
         }
-        OwlyEntryKind::User => Some(wrap_block(
-            gap_before,
-            element! {
-                Text(color: theme.text_color(), content: format_user(&entry.inner.content))
+        OwlyEntryKind::User => {
+            if let Some(c) = theme.text_color() {
+                let _ = ui.text(format_user(&entry.inner.content)).fg(c);
+            } else {
+                let _ = ui.text(format_user(&entry.inner.content));
             }
-            .into_any(),
-        )),
-        OwlyEntryKind::Assistant => Some(wrap_block(
-            gap_before,
-            element!(AssistantMessage(
-                content: entry.inner.content.clone(),
-                is_streaming: entry.inner.is_streaming,
-                theme: theme,
-            ))
-            .into_any(),
-        )),
+        }
+        OwlyEntryKind::Assistant => {
+            render_assistant_message(ui, &entry.inner.content, entry.inner.is_streaming, theme);
+        }
         OwlyEntryKind::Thinking if show_thinking => {
             let label = if entry.inner.thinking_expanded {
                 format!("Thinking:\n{}", entry.inner.content)
             } else {
                 "Thinking…".to_string()
             };
-            Some(wrap_block(
-                gap_before,
-                element! {
-                    Text(color: Some(theme.muted), content: label)
-                }
-                .into_any(),
-            ))
+            let _ = ui.text(label).fg(theme.muted);
         }
-        OwlyEntryKind::Thinking => None,
+        OwlyEntryKind::Thinking => {}
         OwlyEntryKind::Status => {
             let content = entry.inner.content.trim();
-            if content.is_empty() {
-                return None;
+            if !content.is_empty() {
+                let _ = ui.text(format!("· {content}")).fg(theme.muted);
             }
-            Some(wrap_block(
-                gap_before,
-                element! {
-                    Text(color: Some(theme.muted), content: format!("· {content}"))
-                }
-                .into_any(),
-            ))
         }
-        OwlyEntryKind::CommandHeader => Some(wrap_block(
-            gap_before,
-            element! {
-                Text(color: Color::Cyan, content: format!("▸ {}", entry.inner.content))
+        OwlyEntryKind::CommandHeader => {
+            let _ = ui.text(format!("▸ {}", entry.inner.content)).fg(Color::Cyan);
+        }
+        OwlyEntryKind::CommandResult => {
+            let content = &entry.inner.content;
+            if let Some(c) = command_result_color(content) {
+                let _ = ui.text(content.clone()).fg(c);
+            } else {
+                let _ = ui.text(content.clone());
             }
-            .into_any(),
-        )),
-        OwlyEntryKind::CommandResult => Some(wrap_block(
-            gap_before,
-            element! {
-                Text(
-                    color: command_result_color(&entry.inner.content),
-                    content: entry.inner.content.clone(),
-                )
-            }
-            .into_any(),
-        )),
-        OwlyEntryKind::ToolSummary => entry.inner.tool.as_ref().map(|tool| {
-            let header = tool_transcript_header(tool);
-            let body = tool_transcript_body(tool);
-            wrap_block(
-                gap_before,
-                if let Some(body) = body {
-                    element! {
-                        View(flex_direction: FlexDirection::Column, width: 100pct, gap: Gap::Length(0)) {
-                            Text(color: tool_summary_color(tool.status), content: header)
-                            Text(color: Some(theme.muted), content: body)
-                        }
-                    }
-                    .into_any()
+        }
+        OwlyEntryKind::ToolSummary => {
+            if let Some(tool) = &entry.inner.tool {
+                let header = tool_transcript_header(tool);
+                if let Some(c) = tool_summary_color(tool.status) {
+                    let _ = ui.text(header).fg(c);
                 } else {
-                    element! {
-                        Text(color: tool_summary_color(tool.status), content: header)
-                    }
-                    .into_any()
-                },
-            )
-        }),
+                    let _ = ui.text(header);
+                }
+                if let Some(body) = tool_transcript_body(tool) {
+                    let _ = ui.text(body).fg(theme.muted);
+                }
+            }
+        }
     }
 }
 
-fn section_gap(prev: Option<OwlyEntryKind>, current: OwlyEntryKind) -> u16 {
+fn section_gap(prev: Option<OwlyEntryKind>, current: OwlyEntryKind) -> u32 {
     let Some(prev) = prev else {
         return 0;
     };
@@ -284,22 +155,6 @@ fn section_gap(prev: Option<OwlyEntryKind>, current: OwlyEntryKind) -> u16 {
         (OwlyEntryKind::Hint, OwlyEntryKind::User) => 2,
         _ => 1,
     }
-}
-
-fn wrap_block(gap_before: u16, child: AnyElement<'static>) -> AnyElement<'static> {
-    if gap_before == 0 {
-        return child;
-    }
-    element! {
-        View(
-            flex_direction: FlexDirection::Column,
-            width: 100pct,
-            padding_top: gap_before,
-        ) {
-            #(child)
-        }
-    }
-    .into_any()
 }
 
 fn format_user(message: &str) -> String {
@@ -327,21 +182,12 @@ fn command_result_color(content: &str) -> Option<Color> {
     }
 }
 
-fn tool_summary_color(status: elph_tui::ToolExecutionStatus) -> Option<Color> {
-    use elph_tui::ToolExecutionStatus;
+fn tool_summary_color(status: ToolExecutionStatus) -> Option<Color> {
     match status {
         ToolExecutionStatus::Success => Some(Color::Green),
         ToolExecutionStatus::Error => Some(Color::Red),
         ToolExecutionStatus::Running | ToolExecutionStatus::Pending => Some(Color::Cyan),
         ToolExecutionStatus::Cancelled => Some(Color::Yellow),
-    }
-}
-
-fn page_scroll_amount(handle: &Ref<ScrollViewHandle>, page_scroll_step: u16) -> i32 {
-    if page_scroll_step == PAGE_SCROLL_VIEWPORT {
-        handle.read().viewport_height().max(1) as i32
-    } else {
-        page_scroll_step.max(1) as i32
     }
 }
 

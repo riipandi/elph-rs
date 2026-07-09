@@ -32,7 +32,7 @@ tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 turso.workspace = true
-uuid.workspace = true
+tsid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

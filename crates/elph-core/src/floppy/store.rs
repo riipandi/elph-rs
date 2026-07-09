@@ -7,7 +7,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use turso::{Builder, Connection, Database, params};
-use uuid::Uuid;
 
 use super::migrations;
 use super::scoring::{
@@ -72,7 +71,7 @@ pub(crate) fn now_secs() -> i64 {
 }
 
 fn new_id() -> String {
-    Uuid::now_v7().to_string()
+    tsid::create_tsid().to_string()
 }
 
 /// Remove retrieval rows whose memory was deleted (prevents unbounded table growth).
@@ -834,9 +833,9 @@ mod tests {
         }
     }
 
-    fn assert_uuid_v7(id: &str) {
-        let uuid = Uuid::parse_str(id).expect("valid uuid");
-        assert_eq!(uuid.get_version(), Some(uuid::Version::SortRand));
+    fn assert_tsid(id: &str) {
+        assert_eq!(id.len(), 13);
+        assert!(tsid::TSID::try_from(id).is_ok());
     }
 
     #[tokio::test]
@@ -851,21 +850,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ids_use_uuid_v7() {
+    async fn ids_use_tsid() {
         let ctx = TestCtx::new();
         let store = ctx.store();
 
         let mem_id = store
             .report_user_input(ReportUserInput {
-                lesson: "v7 id check".to_string(),
+                lesson: "tsid id check".to_string(),
                 source: UserInputSource::UserInput,
             })
             .await
             .expect("report");
-        assert_uuid_v7(&mem_id);
+        assert_tsid(&mem_id);
 
-        let start = store.start_task("v7 task").await.expect("start");
-        assert_uuid_v7(&start.task_id);
+        let start = store.start_task("tsid task").await.expect("start");
+        assert_tsid(&start.task_id);
     }
 
     #[tokio::test]

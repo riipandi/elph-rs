@@ -1,97 +1,55 @@
 //! Compact live activity bar shown while the agent is running.
 
 use elph_tui::{Theme, ToolExecutionState, ToolExecutionStatus};
-use iocraft::prelude::*;
+use slt::{Color, Context, SpinnerState};
 
-use super::chrome::{H_INSET, SECTION_PAD};
-use super::spinner::LoadingSpinner;
 use super::tool_display::tool_chip_label;
 
-#[derive(Default, Props)]
-pub struct ActivityBarProps {
-    pub command: Option<String>,
-    pub live_tools: Option<State<Vec<ToolExecutionState>>>,
-    pub theme: Theme,
+pub struct ActivityBarState {
+    pub spinner: SpinnerState,
 }
 
-#[component]
-pub fn ActivityBar(props: &ActivityBarProps) -> impl Into<AnyElement<'static>> {
-    let palette = props.theme;
-    let command = props
-        .command
-        .as_deref()
+impl Default for ActivityBarState {
+    fn default() -> Self {
+        Self {
+            spinner: SpinnerState::dots(),
+        }
+    }
+}
+
+pub fn render_activity_bar(
+    ui: &mut Context,
+    state: &mut ActivityBarState,
+    command: Option<&str>,
+    live_tools: &[ToolExecutionState],
+    theme: Theme,
+) {
+    let label = command
         .map(|name| format!("owly {name}"))
         .unwrap_or_else(|| "owly".to_string());
 
-    let running_count = props
-        .live_tools
-        .as_ref()
-        .map(|state| {
-            state
-                .read()
-                .iter()
-                .filter(|tool| matches!(tool.status, ToolExecutionStatus::Running | ToolExecutionStatus::Pending))
-                .count()
-        })
-        .unwrap_or(0);
+    let running_count = live_tools
+        .iter()
+        .filter(|tool| matches!(tool.status, ToolExecutionStatus::Running | ToolExecutionStatus::Pending))
+        .count();
 
     let status_label = if running_count > 0 {
-        format!("{command} · {running_count} tool(s)")
+        format!("{label} · {running_count} tool(s)")
     } else {
-        format!("{command} · working")
+        format!("{label} · working")
     };
 
-    let chips: Vec<AnyElement<'static>> = props
-        .live_tools
-        .as_ref()
-        .map(|state| {
-            state
-                .read()
-                .iter()
-                .take(6)
-                .map(|tool| {
-                    let label = tool_chip_label(tool, 24, 28);
-                    element! {
-                        Text(color: Some(tool_chip_color(tool.status, palette)), content: label)
-                    }
-                    .into_any()
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    element! {
-        View(
-            flex_shrink: 0.0,
-            width: 100pct,
-            padding_left: H_INSET,
-            padding_right: H_INSET,
-            padding_top: SECTION_PAD,
-            padding_bottom: SECTION_PAD,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            gap: Gap::Length(2),
-        ) {
-            LoadingSpinner(theme: palette)
-            Text(content: status_label, color: Some(palette.muted))
-            #(if chips.is_empty() {
-                None
-            } else {
-                Some(element! {
-                    View(
-                        flex_direction: FlexDirection::Row,
-                        flex_grow: 1.0,
-                        gap: Gap::Length(3),
-                        align_items: AlignItems::Center,
-                        padding_left: 1,
-                    ) {
-                        Text(content: "·", color: Some(palette.prompt_prefix))
-                        #(chips)
-                    }
-                }.into_any())
-            })
+    let _ = ui.row(|ui| {
+        let _ = ui.spinner(&state.spinner);
+        let _ = ui.text(status_label).fg(theme.muted);
+        if !live_tools.is_empty() {
+            let _ = ui.text("·").fg(theme.prompt_prefix);
+            for tool in live_tools.iter().take(6) {
+                let chip = tool_chip_label(tool, 24, 28);
+                let _ = ui.text(chip).fg(tool_chip_color(tool.status, theme));
+            }
         }
-    }
+    });
 }
 
 fn tool_chip_color(status: ToolExecutionStatus, theme: Theme) -> Color {

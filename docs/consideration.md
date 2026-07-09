@@ -6,13 +6,13 @@ Dependency candidates for Elph, mapped to crates and planned workspace deps (`ff
 
 **Near-term stack**
 
-| Layer                | Crates                                                 |
-| -------------------- | ------------------------------------------------------ |
-| `elph-ai`            | `genai`, `schemars` (keep)                             |
-| `elph-agent`         | `fff-search` (done), `rmcp`, `jsonschema`              |
-| `elph-tui`           | `syntect`, `anstyle-syntect` (+ keep `pulldown-cmark`) |
-| `elph-core` / `elph` | `figment`, `jsonc-parser`                              |
-| Shared               | `tracing`, `tokio`, `chrono`, `memchr`                 |
+| Layer                | Crates                                                                  |
+| -------------------- | ----------------------------------------------------------------------- |
+| `elph-ai`            | `genai`, `schemars` (keep)                                              |
+| `elph-agent`         | `fff-search` (done), `rmcp`, `jsonschema`                               |
+| `elph-tui`           | `superlighttui`, `syntect`, `anstyle-syntect` (+ keep `pulldown-cmark`) |
+| `elph-core` / `elph` | `figment`, `jsonc-parser`                                               |
+| Shared               | `tracing`, `tokio`, `chrono`, `memchr`                                  |
 
 ---
 
@@ -50,20 +50,29 @@ Dependency candidates for Elph, mapped to crates and planned workspace deps (`ff
 
 ## TUI, markdown & prompts
 
-### Agent shell (`elph-tui` + iocraft)
+### Agent shell (`elph-tui` + SuperLightTUI)
 
-| Verdict   | Item                                                                                               | Rationale                                                             |
-| --------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark)                                 | `render_markdown_lines` in production.                                |
-| **Adopt** | [syntect](https://crates.io/crates/syntect)                                                        | Code-block highlighting (Pi parity).                                  |
-| **Adopt** | [anstyle-syntect](https://crates.io/crates/anstyle-syntect)                                        | Adapter `syntect` → `anstyle` tokens; adopt with `syntect`.           |
-| **Defer** | [anstyle-git](https://crates.io/crates/anstyle-git)                                                | Git-diff colors for `diff/content.rs`; custom `similar` layout today. |
-| **Defer** | [termimad](https://github.com/Canop/termimad)                                                      | Full markdown TUI (⭐1198); redundant with pulldown + syntect.        |
-| **Skip**  | [comrak](https://github.com/kivikakk/comrak), [markdown-rs](https://github.com/wooorm/markdown-rs) | Parser-only; still need custom layout.                                |
+Two rendering layers, composed at the app level (`elph`, `owly`):
+
+| Layer           | Crate / module                                                     | Role                                                                                             |
+| --------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Agent chrome    | [superlighttui](https://github.com/subinium/SuperLightTUI) (`slt`) | Immediate-mode shell: prompt (`TextareaState`), chat stream, banners, setup wizard, activity bar |
+| Rich components | `elph-tui::diff` + `bridge`                                        | Differential ANSI engine: `Editor`, `SelectList`, overlays; `bridge` embeds diff output into SLT |
+
+| Verdict   | Item                                                                                               | Rationale                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Keep**  | [superlighttui](https://github.com/subinium/SuperLightTUI)                                         | Agent shell for `elph` and `owly`; `async` feature for Owly dispatch bridge. |
+| **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark)                                 | `render_markdown_lines` in production.                                       |
+| **Adopt** | [syntect](https://crates.io/crates/syntect)                                                        | Code-block highlighting (Pi parity).                                         |
+| **Adopt** | [anstyle-syntect](https://crates.io/crates/anstyle-syntect)                                        | Adapter `syntect` → `anstyle` tokens; adopt with `syntect`.                  |
+| **Defer** | [anstyle-git](https://crates.io/crates/anstyle-git)                                                | Git-diff colors for `diff/content.rs`; custom `similar` layout today.        |
+| **Defer** | [termimad](https://github.com/Canop/termimad)                                                      | Full markdown TUI (⭐1198); redundant with pulldown + syntect.               |
+| **Skip**  | [comrak](https://github.com/kivikakk/comrak), [markdown-rs](https://github.com/wooorm/markdown-rs) | Parser-only; still need custom layout.                                       |
+| **Skip**  | [iocraft](https://github.com/cfeeley/iocraft)                                                      | Replaced by SuperLightTUI; do not reintroduce.                               |
 
 ### Terminal styling (anstyle ecosystem)
 
-`elph-tui` renders via **iocraft** + hand-built ANSI in `diff/ansi.rs`. `clap` (feature `color`) already pulls `anstream`, `anstyle`, and `anstyle-parse` transitively — do not add them as direct deps unless writing colored output outside clap.
+`elph-tui` agent chrome renders via **SuperLightTUI**; `diff/` uses hand-built ANSI in `diff/ansi.rs`. `clap` (feature `color`) already pulls `anstream`, `anstyle`, and `anstyle-parse` transitively — do not add them as direct deps unless writing colored output outside clap.
 
 | Verdict   | Item                                                                                                                                                | Rationale                                                                                      |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -74,17 +83,17 @@ Dependency candidates for Elph, mapped to crates and planned workspace deps (`ff
 | **Skip**  | [proc-exit](https://crates.io/crates/proc-exit)                                                                                                     | `cmd::run() → exit(code)` in `main` is sufficient.                                             |
 | **Defer** | [termtree](https://crates.io/crates/termtree)                                                                                                       | ASCII tree printer; niche unless adding `elph session tree` CLI viz.                           |
 
-### CLI prompts (`elph` / `eclaw` subcommands only)
+### CLI prompts (`elph` / `eclaw` / `owly` non-interactive paths)
 
-Blocking prompts for wizards and pickers — **not** inside the iocraft agent loop (raw-mode conflict).
+Blocking prompts for wizards and pickers — **not** inside the active SLT loop (raw-mode conflict).
 
-| Verdict   | Item                                              | Rationale                                                                                                      |
-| --------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Defer** | [inquire](https://github.com/mikaelmello/inquire) | Select/Confirm/Text wizards for CLI (`session` picker, `doctor`, bootstrap). Pin `0.9.x`, `crossterm` backend. |
-| **Skip**  | [dialoguer](https://crates.io/crates/dialoguer)   | Superseded by inquire for new code.                                                                            |
-| **Skip**  | inquire in `elph-tui`                             | `PromptInput`, `SelectList`, overlay selectors already cover agent UX.                                         |
+| Verdict   | Item                                              | Rationale                                                                                                     |
+| --------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Keep**  | [dialoguer](https://crates.io/crates/dialoguer)   | `owly` onboarding and `ask_user` tool paths today.                                                            |
+| **Defer** | [inquire](https://github.com/mikaelmello/inquire) | Alternative for future CLI wizards (`session` picker, `doctor`, bootstrap). Pin `0.9.x`, `crossterm` backend. |
+| **Skip**  | inquire in `elph-tui`                             | SLT `TextareaState` + `diff::SelectList` overlays already cover interactive agent UX.                         |
 
-**Overlap:** inquire `Text`/`Select` ≈ `PromptInput`/`SelectList`/`session_selector` — use iocraft components in `App`; use inquire only when subcommand runs and exits.
+**Overlap:** `dialoguer`/`inquire` for one-shot CLI flows; SLT + `diff` overlays inside `run_with` / `run` — never nest blocking CLI prompts in an active TUI session.
 
 ---
 
@@ -153,14 +162,14 @@ Schema: `schemas/elph-config-schema.json`. Types: `elph/src/runtime/settings.rs`
 
 ## Decisions to avoid
 
-| Rule                | Detail                                                                          |
-| ------------------- | ------------------------------------------------------------------------------- |
-| One provider layer  | Not `genai` + `adk-anthropic` + `async-openai`.                                 |
-| One agent framework | Custom loop (yoagent ref) _or_ `adk-rust` — not both + SDK refs.                |
-| One markdown stack  | `pulldown-cmark` + `syntect` + `anstyle-syntect`; no second parser.             |
-| One styling path    | Manual `ansi.rs` _or_ `anstyle` migration — not both without a planned cutover. |
-| One config stack    | `figment` + one JSONC helper; not `config-rs` + `confique`.                     |
-| One comment dialect | JSONC (VS Code) _or_ JSON5.                                                     |
-| Two prompt layers   | iocraft for agent shell; inquire for CLI only — never nested in active TUI.     |
-| No panic UX layer   | Release uses `panic = "abort"`; skip `human-panic` and unwind-based hooks.      |
-| One time library    | `chrono` for RFC 3339; no in-tree date math.                                    |
+| Rule                | Detail                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| One provider layer  | Not `genai` + `adk-anthropic` + `async-openai`.                                                |
+| One agent framework | Custom loop (yoagent ref) _or_ `adk-rust` — not both + SDK refs.                               |
+| One markdown stack  | `pulldown-cmark` + `syntect` + `anstyle-syntect`; no second parser.                            |
+| One styling path    | Manual `ansi.rs` _or_ `anstyle` migration — not both without a planned cutover.                |
+| One config stack    | `figment` + one JSONC helper; not `config-rs` + `confique`.                                    |
+| One comment dialect | JSONC (VS Code) _or_ JSON5.                                                                    |
+| Two prompt layers   | SLT + `diff` for agent shell; `dialoguer`/`inquire` for CLI only — never nested in active TUI. |
+| No panic UX layer   | Release uses `panic = "abort"`; skip `human-panic` and unwind-based hooks.                     |
+| One time library    | `chrono` for RFC 3339; no in-tree date math.                                                   |

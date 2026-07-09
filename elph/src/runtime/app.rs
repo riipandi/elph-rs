@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 
 use super::exit_message;
-use crate::app::App;
-use elph_agent::block_on;
+use crate::app;
 use elph_tui::disable_keyboard_enhancement;
-use iocraft::prelude::*;
 use std::sync::atomic::AtomicBool;
 
 #[cfg(unix)]
@@ -48,7 +46,7 @@ impl Drop for KeyboardEnhancementGuard {
 
 pub fn run() {
     let _guard = KeyboardEnhancementGuard;
-    let result = block_on(element!(App).fullscreen().disable_mouse_capture().ignore_ctrl_c());
+    let result = app::run_tui();
     exit_message::print_and_clear();
     if let Err(e) = result {
         tracing::error!(error = %e, "app error");
@@ -57,7 +55,6 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::block_on;
     use elph_tui::sigint_channel;
     use std::time::Duration;
 
@@ -70,8 +67,8 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn block_on_drives_sigint_channel_receiver() {
-        block_on(async {
+    fn sigint_channel_receives_signal() {
+        elph_agent::block_on(async {
             let mut sigint = sigint_channel();
             std::thread::spawn(|| {
                 std::thread::sleep(Duration::from_millis(100));

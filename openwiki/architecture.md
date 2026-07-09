@@ -1,6 +1,6 @@
 ---
 title: "Architecture"
-last_updated: 2026-07-10T20:00:00Z
+last_updated: 2026-07-11T22:10:00Z
 category: architecture
 tags:
     - architecture
@@ -131,7 +131,7 @@ The core integration with `elph-agent` and `elph-ai`. Key functions:
 - `docs_changed` — whether documentation content was modified
 - `skipped` — whether the run was a no-op
 
-**`RunAgentOptions` struct** replaces the earlier positional-parameter approach. Fields: `command`, `system_prompt`, `user_prompt`, `config`, `cwd`, `print_mode`, `stream`, `verbose`, `session`, `is_followup`, `docs_snapshot_before`.
+**`RunAgentOptions` struct** replaces the earlier positional-parameter approach. Fields: `command`, `system_prompt`, `user_prompt`, `config`, `cwd`, `print_mode`, `stream`, `verbose`, `session`, `is_followup`, `docs_snapshot_before`, `quiet` (suppresses spinners for interactive TUI mode), `ui_events` (optional live event sink for TUI transcript).
 
 **Tool selection:**
 
@@ -238,7 +238,6 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 | `tui/transcript.rs`   | `TranscriptApplier`: maps `AgentUiEvent` → `OwlyEntry` list updates                                                                                                                                                                                                                                                                                                                                          | [`owly/src/tui/transcript.rs`](../owly/src/tui/transcript.rs)     |
 | `tui/activity.rs`     | Activity bar with live tool chips                                                                                                                                                                                                                                                                                                                                                                            | [`owly/src/tui/activity.rs`](../owly/src/tui/activity.rs)         |
 | `tui/chrome.rs`       | Shared visual tokens (`subtle_border` for low-contrast frames)                                                                                                                                                                                                                                                                                                                                               | [`owly/src/tui/chrome.rs`](../owly/src/tui/chrome.rs)             |
-| `tui/spinner.rs`      | Animated braille loading indicator (`LoadingSpinner` component)                                                                                                                                                                                                                                                                                                                                              | [`owly/src/tui/spinner.rs`](../owly/src/tui/spinner.rs)           |
 | `tui/tool_display.rs` | Shared formatting for tool execution output (`tool_output_preview`, `tool_chip_label`, `tool_transcript_header`, `tool_transcript_body`, `truncate_chars`)                                                                                                                                                                                                                                                   | [`owly/src/tui/tool_display.rs`](../owly/src/tui/tool_display.rs) |
 | `utils.rs`            | HTML tag stripping utility                                                                                                                                                                                                                                                                                                                                                                                   | [`owly/src/utils.rs`](../owly/src/utils.rs)                       |
 

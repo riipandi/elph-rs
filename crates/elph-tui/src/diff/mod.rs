@@ -14,6 +14,7 @@ mod kill_ring;
 mod loader;
 mod markdown;
 mod overlay;
+mod paste;
 mod paste_burst;
 mod render;
 mod select_list;
@@ -22,6 +23,8 @@ mod stdin_buffer;
 mod terminal;
 mod terminal_image;
 mod text;
+mod text_buffer;
+mod text_edit;
 mod tui;
 mod undo_stack;
 

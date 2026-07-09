@@ -1,5 +1,5 @@
 use crate::prompt::AgentMode;
-use iocraft::prelude::Color;
+use slt::{Color, Context, Theme as SltTheme};
 
 /// Visual theme variant for the terminal UI.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -37,12 +37,12 @@ impl Theme {
             mode: ThemeMode::Dark,
             background: Color::Reset,
             foreground: Color::Reset,
-            muted: Color::Grey,
-            prompt_prefix: Color::DarkGrey,
-            scrollbar_thumb: Color::Grey,
-            scrollbar_track: Color::DarkGrey,
+            muted: Color::DarkGray,
+            prompt_prefix: Color::DarkGray,
+            scrollbar_thumb: Color::DarkGray,
+            scrollbar_track: Color::DarkGray,
             frame_border: Color::Blue,
-            mode_build: Color::DarkGrey,
+            mode_build: Color::DarkGray,
             mode_plan: Color::Green,
             mode_ask: Color::Blue,
             mode_brave: Color::Red,
@@ -55,15 +55,15 @@ impl Theme {
             mode: ThemeMode::Light,
             background: Color::Reset,
             foreground: Color::Reset,
-            muted: Color::DarkGrey,
-            prompt_prefix: Color::Grey,
-            scrollbar_thumb: Color::DarkGrey,
-            scrollbar_track: Color::Grey,
-            frame_border: Color::DarkBlue,
-            mode_build: Color::DarkGrey,
-            mode_plan: Color::DarkGreen,
-            mode_ask: Color::DarkBlue,
-            mode_brave: Color::DarkRed,
+            muted: Color::Black,
+            prompt_prefix: Color::Black,
+            scrollbar_thumb: Color::Black,
+            scrollbar_track: Color::DarkGray,
+            frame_border: Color::LightBlue,
+            mode_build: Color::DarkGray,
+            mode_plan: Color::LightGreen,
+            mode_ask: Color::LightBlue,
+            mode_brave: Color::LightRed,
         }
     }
 
@@ -100,6 +100,14 @@ impl Theme {
         })
     }
 
+    /// Sync the SuperLightTUI global theme with this palette.
+    pub fn apply_to(self, ui: &mut Context) {
+        ui.set_theme(match self.mode {
+            ThemeMode::Dark => SltTheme::dark(),
+            ThemeMode::Light => SltTheme::light(),
+        });
+    }
+
     pub fn mode_accent(self, mode: AgentMode) -> Color {
         match mode {
             AgentMode::Build => self.mode_build,
@@ -128,16 +136,16 @@ impl Theme {
     /// Block cursor color for the prompt field.
     pub fn input_cursor(self) -> Color {
         match self.mode {
-            ThemeMode::Dark => Color::Grey,
-            ThemeMode::Light => Color::DarkGrey,
+            ThemeMode::Dark => Color::DarkGray,
+            ThemeMode::Light => Color::DarkGray,
         }
     }
 
     /// Placeholder hint shown when the prompt is empty.
     pub fn input_placeholder(self) -> Color {
         match self.mode {
-            ThemeMode::Dark => Color::DarkGrey,
-            ThemeMode::Light => Color::Grey,
+            ThemeMode::Dark => Color::DarkGray,
+            ThemeMode::Light => Color::DarkGray,
         }
     }
 
@@ -187,7 +195,7 @@ mod tests {
     #[test]
     fn palettes_use_ansi_not_rgb() {
         let theme = Theme::dark();
-        assert!(!matches!(theme.muted, Color::Rgb { .. } | Color::AnsiValue(_)));
+        assert!(!matches!(theme.muted, Color::Rgb(_, _, _) | Color::Indexed(_)));
     }
 
     #[test]

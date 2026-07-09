@@ -6,7 +6,7 @@
 
 use anyhow::{Context, Result};
 use elph_agent::AgentMessage;
-use elph_agent::uuidv7;
+use elph_agent::create_tsid;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -197,7 +197,7 @@ impl SessionStore {
 
     pub async fn with_new_thread(cwd: &Path) -> Result<Self> {
         let saver = Arc::new(TursoCheckpointSaver::default().await?);
-        let thread_id = create_session_thread_id(cwd, Some(uuidv7().as_str()));
+        let thread_id = create_session_thread_id(cwd, Some(create_tsid().as_str()));
         let checkpoint_config = interactive_config(&thread_id);
         let mut store = Self {
             saver,
@@ -274,7 +274,7 @@ impl SessionStore {
     /// Start a fresh thread id and bootstrap a root checkpoint.
     pub async fn reset_thread(&mut self, cwd: &Path) -> Result<()> {
         let old_thread = self.thread_id.clone();
-        self.thread_id = create_session_thread_id(cwd, Some(uuidv7().as_str()));
+        self.thread_id = create_session_thread_id(cwd, Some(create_tsid().as_str()));
         self.checkpoint_config = interactive_config(&self.thread_id);
         self.step = 0;
         self.saver.delete_thread(&old_thread).await?;
@@ -383,11 +383,6 @@ pub fn create_session_thread_id(cwd: &Path, run_id: Option<&str>) -> String {
         Some(run) => format!("owly-{}-{run}", &hex[..32]),
         None => format!("owly-{}-interactive", &hex[..32]),
     }
-}
-
-/// Backward-compatible alias.
-pub fn create_interactive_thread_id(cwd: &Path) -> String {
-    create_session_thread_id(cwd, None)
 }
 
 pub fn interactive_config(thread_id: impl Into<String>) -> RunnableConfig {
@@ -558,7 +553,7 @@ pub async fn persist_channel_writes(
 async fn copy_checkpoint_for_save(config: &RunnableConfig, saver: &TursoCheckpointSaver) -> Result<Checkpoint> {
     if let Some(tuple) = saver.get_tuple(config).await? {
         let mut checkpoint = crate::checkpoint::copy_checkpoint(&tuple.checkpoint);
-        checkpoint.id = uuidv7();
+        checkpoint.id = create_tsid();
         checkpoint.ts = chrono::Utc::now().to_rfc3339();
         return Ok(checkpoint);
     }

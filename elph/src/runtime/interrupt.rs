@@ -1,9 +1,8 @@
 #[cfg(unix)]
 use super::app::SHOULD_KILL_PARENT;
 use super::app::WAS_INTERRUPTED;
-use iocraft::prelude::*;
+use slt::TextareaState;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Suppresses the duplicate SIGINT delivery that follows a clear-from-non-empty prompt.
 static LAST_INTERRUPT_CLEAR_MS: AtomicU64 = AtomicU64::new(0);
@@ -11,34 +10,29 @@ static LAST_INTERRUPT_CLEAR_MS: AtomicU64 = AtomicU64::new(0);
 const INTERRUPT_COALESCE_MS: u64 = 250;
 
 fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
 }
 
 /// First Ctrl+C / SIGINT clears the prompt; second exits (when prompt is empty).
-pub fn handle_prompt_interrupt(
-    prompt: &mut State<String>,
-    should_exit: &mut State<bool>,
-    prompt_reset: &mut State<u32>,
-) {
-    if !prompt.read().is_empty() {
-        prompt.set(String::new());
-        prompt_reset.set(prompt_reset.get().wrapping_add(1));
+pub fn handle_prompt_interrupt(prompt: &mut TextareaState) -> bool {
+    if !prompt.value().is_empty() {
+        prompt.set_value("");
         LAST_INTERRUPT_CLEAR_MS.store(now_ms(), Ordering::Relaxed);
-        return;
+        return false;
     }
 
     let cleared_at = LAST_INTERRUPT_CLEAR_MS.load(Ordering::Relaxed);
     if cleared_at != 0 && now_ms().saturating_sub(cleared_at) < INTERRUPT_COALESCE_MS {
-        return;
+        return false;
     }
 
-    should_exit.set(true);
     WAS_INTERRUPTED.store(true, Ordering::Relaxed);
     #[cfg(unix)]
     SHOULD_KILL_PARENT.store(true, Ordering::Relaxed);
+    true
 }
 
 #[cfg(test)]

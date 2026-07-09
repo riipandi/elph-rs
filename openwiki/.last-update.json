@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-07-09T16:15:33.610552Z",
+  "updated_at": "2026-07-09T19:11:49.866807Z",
   "command": "update",
-  "git_head": "489a39e0c46b2cc10ab0d526d8e3d3535d7c63ab",
+  "git_head": "8f8be9ae564836f050717cbfbfcd0355b2418235",
   "model": "opencode/big-pickle"
 }

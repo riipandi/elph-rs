@@ -77,7 +77,7 @@ pub use prompt_templates::{
 };
 pub use proxy::{ProxyAssistantMessageEvent, ProxyStreamOptions, stream_proxy};
 pub use runtime::{block_on, try_block_on};
-pub use session::id::uuidv7;
+pub use session::id::create_tsid;
 pub use session::{
     BranchSummaryOptions, CustomMessageEntryBlock, CustomMessageEntryContent, ForkEntriesOptions, ForkPosition,
     InMemorySessionCreateOptions, InMemorySessionOptions, InMemorySessionRepo, InMemorySessionStorage,
