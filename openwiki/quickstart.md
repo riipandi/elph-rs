@@ -1,6 +1,6 @@
 ---
 title: "Quickstart Guide"
-last_updated: 2026-07-08T15:00:00Z
+last_updated: 2026-07-08T20:00:00Z
 category: quickstart
 tags:
     - getting-started
@@ -51,7 +51,10 @@ owly --init
 # Update existing documentation
 owly --update
 
-# Ask a question in chat mode
+# Start interactive chat (multi-turn, with ask tools)
+owly
+
+# Ask a question in single-turn chat mode
 owly "What does this project do?"
 
 # Print response and exit
@@ -119,23 +122,25 @@ Every Markdown file includes [YAML frontmatter](frontmatter.md) with title, last
 
 ## Key Source Files (owly crate)
 
-| File                                                    | Purpose                                                           |
-| ------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`owly/src/main.rs`](../owly/src/main.rs)               | Entry point: initializes tracing, parses CLI, dispatches commands |
-| [`owly/src/cli.rs`](../owly/src/cli.rs)                 | CLI argument definitions and `execute()` dispatch                 |
-| [`owly/src/commands.rs`](../owly/src/commands.rs)       | Command implementations: `init`, `update`, `chat`                 |
-| [`owly/src/agent.rs`](../owly/src/agent.rs)             | Agent integration: tool setup, prompt preparation, run loop       |
-| [`owly/src/prompts.rs`](../owly/src/prompts.rs)         | System and user prompts for the agent                             |
-| [`owly/src/config.rs`](../owly/src/config.rs)           | Provider/model resolution, config file loading                    |
-| [`owly/src/constants.rs`](../owly/src/constants.rs)     | Provider definitions, default values, env var keys                |
-| [`owly/src/credentials.rs`](../owly/src/credentials.rs) | `~/.owly/.env` loading and API key management                     |
-| [`owly/src/env.rs`](../owly/src/env.rs)                 | Environment validation and debug info                             |
-| [`owly/src/docs.rs`](../owly/src/docs.rs)               | Documentation file read/write, snapshots, git summaries           |
-| [`owly/src/metadata.rs`](../owly/src/metadata.rs)       | Update metadata tracking, git HEAD detection, no-op checks        |
-| [`owly/src/frontmatter.rs`](../owly/src/frontmatter.rs) | YAML frontmatter parsing and generation                           |
-| [`owly/src/diagnostics.rs`](../owly/src/diagnostics.rs) | Error sanitization (secret redaction), provider error handling    |
-| [`owly/src/utils.rs`](../owly/src/utils.rs)             | HTML tag stripping utility                                        |
-| [`owly/src/lib.rs`](../owly/src/lib.rs)                 | Crate root — re-exports all public modules                        |
+| File                                                    | Purpose                                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [`owly/src/main.rs`](../owly/src/main.rs)               | Entry point: initializes tracing, parses CLI, dispatches commands             |
+| [`owly/src/cli.rs`](../owly/src/cli.rs)                 | CLI argument definitions and `execute()` dispatch                             |
+| [`owly/src/commands.rs`](../owly/src/commands.rs)       | Command implementations: `init`, `update`, `chat`                             |
+| [`owly/src/agent.rs`](../owly/src/agent.rs)             | Agent integration: tool setup, prompt preparation, run loop, interactive chat |
+| [`owly/src/ask_user.rs`](../owly/src/ask_user.rs)       | Interactive tools: `ask_text`, `ask_select`, `ask_confirm`                    |
+| [`owly/src/checkpoint.rs`](../owly/src/checkpoint.rs)   | Conversation checkpointing (Sqlite-based persistence)                         |
+| [`owly/src/prompts.rs`](../owly/src/prompts.rs)         | System and user prompts for the agent                                         |
+| [`owly/src/config.rs`](../owly/src/config.rs)           | Provider/model resolution, config file loading                                |
+| [`owly/src/constants.rs`](../owly/src/constants.rs)     | Provider definitions, default values, env var keys                            |
+| [`owly/src/credentials.rs`](../owly/src/credentials.rs) | `~/.owly/.env` loading and API key management                                 |
+| [`owly/src/env.rs`](../owly/src/env.rs)                 | Environment validation and debug info                                         |
+| [`owly/src/docs.rs`](../owly/src/docs.rs)               | Documentation file read/write, snapshots, git summaries                       |
+| [`owly/src/metadata.rs`](../owly/src/metadata.rs)       | Update metadata tracking, git HEAD detection, no-op checks                    |
+| [`owly/src/frontmatter.rs`](../owly/src/frontmatter.rs) | YAML frontmatter parsing and generation                                       |
+| [`owly/src/diagnostics.rs`](../owly/src/diagnostics.rs) | Error sanitization (secret redaction), provider error handling                |
+| [`owly/src/utils.rs`](../owly/src/utils.rs)             | HTML tag stripping utility                                                    |
+| [`owly/src/lib.rs`](../owly/src/lib.rs)                 | Crate root — re-exports all public modules                                    |
 
 ### Tests
 
@@ -180,7 +185,8 @@ cargo clippy -p owly --all-targets -- -D warnings
 
 - **Agent runtime**: Uses `elph-agent` (not LangChain/LangGraph). Agent loop and tool execution are delegated to `elph-agent`.
 - **LLM integration**: Uses `elph-ai` for provider abstraction. Model lookup goes through `builtin_models()`.
-- **Tools**: Init/update mode uses all tools (read, bash, edit, write, grep, find, ls). Chat mode uses read-only tools (read, grep, find, ls).
+- **Tools**: Init/update mode uses all tools (read, bash, edit, write, grep, find, ls). Chat mode uses read-only tools plus `ask_text`, `ask_select`, `ask_confirm` for interactive use.
+- **Interactive mode**: Running `owly` with no arguments starts a multi-turn interactive chat session with conversation persistence via `checkpoint.rs`.
 - **No-op detection**: The update command checks git HEAD and status to skip if nothing changed since the last documented update.
 - **Secrets**: API keys are never written into documentation. The diagnostics module redacts credentials from error output.
 

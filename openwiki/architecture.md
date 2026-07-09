@@ -1,6 +1,6 @@
 ---
 title: "Architecture"
-last_updated: 2026-07-08T14:14:00Z
+last_updated: 2026-07-08T20:00:00Z
 category: architecture
 tags:
     - architecture
@@ -18,23 +18,26 @@ Owly is a CLI agent that generates and maintains codebase documentation. It foll
 ```
 User Input
     │
-    ▼
-┌──────────┐    ┌───────────┐    ┌────────────────┐    ┌──────────┐
-│  cli.rs  │───▶│commands.rs│───▶│   agent.rs     │───▶│ elph-ai  │
-│ (parsing)│    │(dispatch) │    │ (prompt + run) │    │ (LLM)    │
-└──────────┘    └───────────┘    └────────────────┘    └──────────┘
-                                         │
-                                         ▼
-                                  ┌───────────────┐
-                                  │ elph-agent    │
-                                  │ (tools + run) │
-                                  └───────────────┘
-                                         │
-                                         ▼
-                                  ┌──────────────┐
-                                  │  Filesystem  │
-                                  │ (openwiki/)  │
-                                  └──────────────┘
+    ├── No arguments ───────────────────────────────────────────────┐
+    │                                                               │
+    ▼                                                               ▼
+┌──────────┐    ┌───────────┐    ┌────────────────┐    ┌──────────────────────┐
+│  cli.rs  │───▶│commands.rs│───▶│   agent.rs     │───▶│    elph-ai (LLM)     │
+│ (parsing)│    │(dispatch) │    │ (prompt + run) │    │                      │
+└──────────┘    └───────────┘    └────────────────┘    └──────────────────────┘
+                      │                  │                        │
+                      │        ┌─────────┴─────────┐              │
+                      │        ▼                   ▼              │
+                      │  ┌───────────────┐  ┌────────────────┐    │
+                      │  │ elph-agent    │  │  ask_user.rs   │    │
+                      │  │ (tools + run) │  │ (interactive)  │    │
+                      │  └───────────────┘  └────────────────┘    │
+                      │         │                                 │
+                      ▼         ▼                                 │
+                  ┌────────────────────┐                          │
+                  │    Filesystem      │◀─────────────────────────┘
+                  │  (openwiki/ docs)  │
+                  └────────────────────┘
 ```
 
 ---
@@ -55,9 +58,9 @@ Defines the `Cli` struct with clap derive macros. Supported flags:
 - `--directory` — working directory
 - Trailing argument — chat message
 
-The `execute()` method resolves the command enum and calls `run_command()`, forwarding the `stream` flag.
+The `execute()` method resolves the command enum and calls `run_command()`, forwarding the `stream` flag. When no arguments are provided, the CLI now dispatches to interactive chat (`Command::Chat { message: None }`) instead of exiting with an error — see [Interactive Mode](#interactive-mode) below.
 
-**Banner output** now uses ANSI color codes (cyan for logo, green for values, dimmed for labels).
+**Banner output** uses ANSI color codes (cyan for logo, green for values, dimmed for labels).
 
 **Source:** [`owly/src/cli.rs`](../owly/src/cli.rs) — ported from OpenWiki `src/cli.tsx`.
 
@@ -69,7 +72,7 @@ Three command variants:
 | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `Init`             | Checks if `openwiki/` exists. If yes, delegates to update path. If no, runs agent with init prompt.              |
 | `Update`           | Checks if `openwiki/` exists. If no, delegates to init path. Checks no-op status. Runs agent with update prompt. |
-| `Chat { message }` | Runs agent with chat prompt (read-only tools).                                                                   |
+| `Chat { message }` | With a message: single-turn chat (read-only tools). With `None`: multi-turn interactive chat (see below).        |
 
 Each command:
 
@@ -80,13 +83,28 @@ Each command:
 5. Runs the agent
 6. Saves update metadata on success (init/update only)
 
+#### Interactive Mode
+
+When `owly` is run with no arguments, it enters interactive multi-turn chat:
+
+1. The agent is created once with read-only tools + `ask_text`, `ask_select`, `ask_confirm` tools
+2. A prompt loop reads user input from stdin, sends it to the same agent instance (preserving conversation history)
+3. The agent can ask the user questions via the `ask_*` tools (text input, selection, confirmation)
+4. `/exit`, `/quit`, `exit`, or `quit` ends the session
+5. Conversation checkpointing via `SqliteSaver` is initialized (future use)
+
+**Source:** `run_interactive()` in [`owly/src/agent.rs`](../owly/src/agent.rs), interactive tools in [`owly/src/ask_user.rs`](../owly/src/ask_user.rs), checkpoint store in [`owly/src/checkpoint.rs`](../owly/src/checkpoint.rs).
+
 **Source:** [`owly/src/commands.rs`](../owly/src/commands.rs) — ported from OpenWiki `src/commands.ts`.
 
 ### 4. Agent Layer — [`agent.rs`](../owly/src/agent.rs)
 
 The core integration with `elph-agent` and `elph-ai`. Key functions:
 
-- **`run_agent()`** — Accepts a `RunAgentOptions` struct (command name, system/user prompts, config, cwd, print/stream/verbose flags). Sets up the agent with tools, subscribes to streaming events, sends prompts, waits for completion.
+- **`resolve_model_and_auth()`** — Extracted helper that resolves the model from config, obtains authentication, and returns the model handle, models arc, and stream function.
+- **`create_event_subscriber()`** — Extracted factory that returns an `AgentListener` closure for streaming display. Controls spinner, text deltas, thinking deltas, and tool call logging based on `stream` and `verbose` flags.
+- **`run_agent()`** — Accepts a `RunAgentOptions` struct (command name, system/user prompts, config, cwd, print/stream/verbose flags). Sets up the agent with tools, subscribes to streaming events via `create_event_subscriber()`, sends prompts, waits for completion.
+- **`run_interactive()`** — Manages a multi-turn interactive chat session. Creates a persistent agent with read-only + `ask_user` tools, enters a stdin read loop, and preserves conversation history across turns.
 - **`prepare_init_command()`** — Creates system prompt + init user prompt.
 - **`prepare_update_command()`** — Creates system prompt + update user prompt (includes git summary).
 - **`prepare_chat_command()`** — Creates system prompt + chat user prompt.
@@ -96,7 +114,8 @@ The core integration with `elph-agent` and `elph-ai`. Key functions:
 **Tool selection:**
 
 - Init/update mode: all tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`)
-- Chat mode: read-only tools (`read`, `grep`, `find`, `ls`)
+- Chat mode (single-turn): read-only tools (`read`, `grep`, `find`, `ls`)
+- Chat mode (interactive): read-only tools + `ask_text`, `ask_select`, `ask_confirm` (from [`ask_user.rs`](../owly/src/ask_user.rs))
 
 The tool names are appended to the system prompt after tool selection, forming a line like `Available tools for this session: read, bash, edit, write, grep, find, ls`.
 
@@ -105,13 +124,19 @@ The tool names are appended to the system prompt after tool selection, forming a
 - `TextDelta` — live text output (shown with `--stream` or `--verbose`)
 - `ThinkingDelta` — model reasoning (shown only with `--verbose`, in dimmed gray)
 - `ToolExecutionStart` / `ToolExecutionEnd` — tool call logging (in verbose mode)
-- `AgentEnd` — final stats
+- `AgentEnd` — final stats (tool call count)
 
 **Source:** [`owly/src/agent.rs`](../owly/src/agent.rs) — ported from OpenWiki `src/agent/index.ts`.
 
 ### 5. Prompt Generation — [`prompts.rs`](../owly/src/prompts.rs)
 
-Contains the full system prompt that defines Owly's behavior. The prompt includes:
+Contains the full system prompt that defines Owly's behavior. The prompt variants include:
+
+- **`create_system_prompt()`** — Base prompt used across all modes.
+- **`create_interactive_system_prompt()`** — Extends the base prompt with instructions for interactive chat sessions: mentions the `ask_text`/`ask_select`/`ask_confirm` tools, tells the agent not to create or update docs unless asked, and defines exit commands (`/exit`, `/quit`).
+- **Init/update/chat prompts** — Mode-specific user-facing text appended to the system prompt.
+
+The base prompt includes:
 
 - **Role definition**: Expert technical writer, software architect, product analyst
 - **Run discipline**: Filesystem tool usage rules
@@ -122,7 +147,7 @@ Contains the full system prompt that defines Owly's behavior. The prompt include
 - **Section quality rules**: Page structure guidelines
 - **Frontmatter requirements**: YAML frontmatter format
 
-This is the instruction set that guides the LLM's documentation behavior.
+This instruction set guides the LLM's documentation behavior.
 
 **Source:** [`owly/src/prompts.rs`](../owly/src/prompts.rs) — ported from OpenWiki `src/agent/prompt.ts`.
 
@@ -169,13 +194,15 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 
 ### 10. Supporting Modules
 
-| Module           | Responsibility                                           | Source                                                  |
-| ---------------- | -------------------------------------------------------- | ------------------------------------------------------- |
-| `credentials.rs` | Loads `~/.owly/.env`, applies to process environment     | [`owly/src/credentials.rs`](../owly/src/credentials.rs) |
-| `env.rs`         | Validates environment, provides debug info               | [`owly/src/env.rs`](../owly/src/env.rs)                 |
-| `frontmatter.rs` | Parses/generates YAML frontmatter                        | [`owly/src/frontmatter.rs`](../owly/src/frontmatter.rs) |
-| `diagnostics.rs` | Redacts secrets from error output, detects provider 500s | [`owly/src/diagnostics.rs`](../owly/src/diagnostics.rs) |
-| `utils.rs`       | HTML tag stripping utility                               | [`owly/src/utils.rs`](../owly/src/utils.rs)             |
+| Module           | Responsibility                                                                      | Source                                                  |
+| ---------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `ask_user.rs`    | Interactive tools: `ask_text`, `ask_select`, `ask_confirm` for multi-turn chat      | [`owly/src/ask_user.rs`](../owly/src/ask_user.rs)       |
+| `checkpoint.rs`  | Conversation checkpointing with `SqliteSaver` (port of langgraph-checkpoint-sqlite) | [`owly/src/checkpoint.rs`](../owly/src/checkpoint.rs)   |
+| `credentials.rs` | Loads `~/.owly/.env`, applies to process environment                                | [`owly/src/credentials.rs`](../owly/src/credentials.rs) |
+| `env.rs`         | Validates environment, provides debug info                                          | [`owly/src/env.rs`](../owly/src/env.rs)                 |
+| `frontmatter.rs` | Parses/generates YAML frontmatter                                                   | [`owly/src/frontmatter.rs`](../owly/src/frontmatter.rs) |
+| `diagnostics.rs` | Redacts secrets from error output, detects provider 500s                            | [`owly/src/diagnostics.rs`](../owly/src/diagnostics.rs) |
+| `utils.rs`       | HTML tag stripping utility                                                          | [`owly/src/utils.rs`](../owly/src/utils.rs)             |
 
 ---
 
@@ -214,10 +241,11 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 
 ### Modifying agent behavior
 
-- **Prompts** are in [`prompts.rs`](../owly/src/prompts.rs) — system prompt, init/update/chat templates
-- **Tool selection** by mode happens in [`agent.rs`](../owly/src/agent.rs) (`create_all_tools` vs `create_read_only_tools`); tool names are appended to the system prompt after selection
+- **Prompts** are in [`prompts.rs`](../owly/src/prompts.rs) — base system prompt, interactive prompt, init/update/chat templates
+- **Tool selection** by mode happens in [`agent.rs`](../owly/src/agent.rs) (`create_all_tools` vs `create_read_only_tools`); chat mode adds `ask_user` tools via `create_ask_text_tool()`, `create_ask_select_tool()`, `create_ask_confirm_tool()`; tool names are appended to the system prompt after selection
 - **Streaming vs verbose**: `--stream` shows `TextDelta` only; `--verbose` shows everything including `ThinkingDelta` and tool call logs; controlled by the `stream` and `verbose` fields in `RunAgentOptions`
-- **Event handling** for streaming display is in the `subscribe` closure in `run_agent()`
+- **Event handling** for streaming display is in the `create_event_subscriber()` factory function, extracted from the inline closure in `run_agent()`
+- **Interactive mode** is managed by `run_interactive()` in `agent.rs`, which creates a persistent agent and runs a stdin read loop across turns
 
 ### Adding a new command
 
@@ -225,6 +253,11 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 2. Add match arm in `run_command()`
 3. Add CLI flag in [`cli.rs`](../owly/src/cli.rs)
 4. Add prompt preparation function in [`agent.rs`](../owly/src/agent.rs)
+
+### Adding a new interactive tool
+
+1. Add a creation function in [`ask_user.rs`](../owly/src/ask_user.rs) using `simple_tool()`
+2. Import and push it in the tool setup sections of both `run_agent()` (chat path) and `run_interactive()` in [`agent.rs`](../owly/src/agent.rs)
 
 ### Relevant tests
 
