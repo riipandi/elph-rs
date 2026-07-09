@@ -16,6 +16,8 @@ pub const ERROR: &str = "__error__";
 pub const SCHEDULED: &str = "__scheduled__";
 pub const INTERRUPT: &str = "__interrupt__";
 pub const RESUME: &str = "__resume__";
+/// Streaming assistant draft (OR REPLACE) for mid-turn crash recovery.
+pub const ASSISTANT_DRAFT: &str = "__assistant_draft__";
 
 /// Special write channels map to fixed negative indices (langgraph-checkpoint contract).
 pub fn writes_idx(channel: &str) -> Option<i64> {
@@ -24,6 +26,7 @@ pub fn writes_idx(channel: &str) -> Option<i64> {
         SCHEDULED => Some(-2),
         INTERRUPT => Some(-3),
         RESUME => Some(-4),
+        ASSISTANT_DRAFT => Some(-5),
         _ => None,
     }
 }

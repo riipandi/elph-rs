@@ -5,6 +5,7 @@ use iocraft::prelude::*;
 
 use super::chrome::{H_INSET, SECTION_PAD};
 use super::spinner::LoadingSpinner;
+use super::tool_display::tool_chip_label;
 
 #[derive(Default, Props)]
 pub struct ActivityBarProps {
@@ -49,7 +50,7 @@ pub fn ActivityBar(props: &ActivityBarProps) -> impl Into<AnyElement<'static>> {
                 .iter()
                 .take(6)
                 .map(|tool| {
-                    let label = tool_chip_label(tool);
+                    let label = tool_chip_label(tool, 24, 28);
                     element! {
                         Text(color: Some(tool_chip_color(tool.status, palette)), content: label)
                     }
@@ -90,24 +91,6 @@ pub fn ActivityBar(props: &ActivityBarProps) -> impl Into<AnyElement<'static>> {
                 }.into_any())
             })
         }
-    }
-}
-
-fn tool_chip_label(tool: &ToolExecutionState) -> String {
-    let args = tool.args_summary.trim();
-    if args.is_empty() {
-        tool.name.clone()
-    } else {
-        format!("{} {}", tool.name, truncate_args(args))
-    }
-}
-
-fn truncate_args(args: &str) -> String {
-    const MAX: usize = 24;
-    if args.len() <= MAX {
-        args.to_string()
-    } else {
-        format!("{}…", &args[..MAX.saturating_sub(1)])
     }
 }
 

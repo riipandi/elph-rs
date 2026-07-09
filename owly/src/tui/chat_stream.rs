@@ -5,6 +5,7 @@ use iocraft::prelude::*;
 
 use super::chrome::SECTION_PAD;
 use super::entries::{OwlyEntry, OwlyEntryKind};
+use super::tool_display::{tool_output_preview, truncate_chars};
 
 #[derive(Props)]
 pub struct OwlyChatStreamProps {
@@ -237,15 +238,24 @@ fn render_entry(
             .into_any(),
         )),
         OwlyEntryKind::ToolSummary => entry.inner.tool.as_ref().map(|tool| {
+            let header = format_tool_summary(tool);
+            let preview = tool_output_preview(&tool.output, 72);
             wrap_block(
                 gap_before,
-                element! {
-                    Text(
-                        color: tool_summary_color(tool.status),
-                        content: format_tool_summary(tool),
-                    )
-                }
-                .into_any(),
+                if let Some(preview) = preview {
+                    element! {
+                        View(flex_direction: FlexDirection::Column, width: 100pct, gap: Gap::Length(0)) {
+                            Text(color: tool_summary_color(tool.status), content: header)
+                            Text(color: Some(theme.muted), content: format!("      {preview}"))
+                        }
+                    }
+                    .into_any()
+                } else {
+                    element! {
+                        Text(color: tool_summary_color(tool.status), content: header)
+                    }
+                    .into_any()
+                },
             )
         }),
     }
@@ -340,7 +350,7 @@ fn format_tool_summary(tool: &elph_tui::ToolExecutionState) -> String {
     if args.is_empty() {
         format!("  {icon} {}", tool.name)
     } else {
-        format!("  {icon} {}  {args}", tool.name)
+        format!("  {icon} {}  {}", tool.name, truncate_chars(args, 48))
     }
 }
 
@@ -363,6 +373,12 @@ mod tests {
             .with_args("ls -la")
             .with_status(ToolExecutionStatus::Success);
         assert_eq!(format_tool_summary(&tool), "  ✓ bash  ls -la");
+    }
+
+    #[test]
+    fn tool_output_preview_skips_blank_lines() {
+        let preview = tool_output_preview(" \n Wrote 10 bytes\n", 40).expect("preview");
+        assert_eq!(preview, "Wrote 10 bytes");
     }
 
     #[test]

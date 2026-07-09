@@ -65,8 +65,22 @@ pub async fn handle_user_input(
         });
     }
     if lower == "/clear" || lower == "clear" {
-        session.reset_thread(cwd);
+        session.reset_thread(cwd).await?;
         writer.line("Session cleared.");
+        return Ok(HandleInputResult {
+            should_exit: false,
+            lines,
+        });
+    }
+    if lower == "/history" || lower.starts_with("/history ") {
+        write_checkpoint_history(session, trimmed, &mut writer).await?;
+        return Ok(HandleInputResult {
+            should_exit: false,
+            lines,
+        });
+    }
+    if lower.starts_with("/restore ") {
+        write_checkpoint_restore(session, trimmed, &mut writer).await?;
         return Ok(HandleInputResult {
             should_exit: false,
             lines,
@@ -109,12 +123,65 @@ fn write_help(writer: &mut ShellWriter<'_>) {
     writer.line("Commands:");
     writer.line("  /init [message]    Initialize documentation");
     writer.line("  /update [message]  Update existing documentation");
+    writer.line("  /history [n]       List recent checkpoints (default 10)");
+    writer.line("  /restore <#|id>    Rewind session to a checkpoint");
     writer.line("  /clear             Start a fresh checkpoint thread");
     writer.line("  /help              Show this help");
     writer.line("  /exit              Quit");
     writer.blank();
     writer.line("Any other input is sent to the agent as a chat follow-up.");
     writer.blank();
+}
+
+fn history_limit(input: &str) -> usize {
+    input
+        .split_whitespace()
+        .nth(1)
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(10)
+        .clamp(1, 50)
+}
+
+async fn write_checkpoint_history(session: &SessionStore, input: &str, writer: &mut ShellWriter<'_>) -> Result<()> {
+    let limit = history_limit(input);
+    let summaries = session.list_checkpoint_history(limit).await?;
+    writer.blank();
+    if summaries.is_empty() {
+        writer.line("No checkpoints for this thread.");
+    } else {
+        writer.line(format!("Checkpoints (newest first, showing up to {limit}):"));
+        for (index, summary) in summaries.iter().enumerate() {
+            let short_id = summary.checkpoint_id.get(..8).unwrap_or(summary.checkpoint_id.as_str());
+            writer.line(format!(
+                "  #{} step={} source={} id={}… ({} message(s))",
+                index + 1,
+                summary.step,
+                summary.source,
+                short_id,
+                summary.message_count
+            ));
+        }
+        writer.line("Use /restore <#> or /restore <id-prefix> to rewind.");
+    }
+    writer.blank();
+    Ok(())
+}
+
+async fn write_checkpoint_restore(session: &mut SessionStore, input: &str, writer: &mut ShellWriter<'_>) -> Result<()> {
+    let arg = input
+        .split_whitespace()
+        .nth(1)
+        .ok_or_else(|| anyhow::anyhow!("usage: /restore <#|checkpoint_id>"))?;
+    let checkpoint_id = session.resolve_checkpoint_id(arg).await?;
+    let restored = session.restore_checkpoint(&checkpoint_id).await?;
+    writer.blank();
+    writer.line(format!(
+        "Restored {restored} message(s) from checkpoint {}…",
+        checkpoint_id.get(..8).unwrap_or(checkpoint_id.as_str())
+    ));
+    writer.line("Next turn will fork from this checkpoint.");
+    writer.blank();
+    Ok(())
 }
 
 fn write_command_header(writer: &mut ShellWriter<'_>, command: &str, provider: &str, model: &str) {
@@ -375,5 +442,13 @@ mod tests {
             }),
             "hello"
         );
+    }
+
+    #[test]
+    fn history_limit_parses_and_clamps() {
+        assert_eq!(history_limit("/history"), 10);
+        assert_eq!(history_limit("/history 25"), 25);
+        assert_eq!(history_limit("/history 999"), 50);
+        assert_eq!(history_limit("/history 0"), 1);
     }
 }

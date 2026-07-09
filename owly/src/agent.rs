@@ -2,13 +2,15 @@
 
 use anyhow::{Context, Result};
 use indicatif::{ProgressBar, ProgressStyle};
+use serde_json;
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use tokio::sync::mpsc;
+use tokio::sync::{Mutex, mpsc};
 
 use elph_agent::{
     Agent, AgentEvent, AgentOptions, AgentToolResult, LocalExecutionEnv, PartialAgentState, ToolResultContent,
@@ -24,7 +26,7 @@ use crate::docs::{self, DocumentationSnapshot};
 use crate::env;
 use crate::metadata::UpdateMetadata;
 use crate::prompts::{create_chat_prompt, create_init_prompt, create_update_prompt};
-use crate::session::SessionStore;
+use crate::session::{SessionStore, TurnWriteContext};
 use crate::ui_events::AgentUiEvent;
 
 fn progress_spinner(message: &str) -> ProgressBar {
@@ -204,19 +206,95 @@ fn summarize_tool_result(result: &AgentToolResult) -> String {
     const MAX: usize = 4_096;
     let mut out = String::new();
     for block in &result.content {
-        if let ToolResultContent::Text(text) = block {
-            if !out.is_empty() {
-                out.push('\n');
+        match block {
+            ToolResultContent::Text(text) => {
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                out.push_str(&text.text);
             }
-            out.push_str(&text.text);
-            if out.len() >= MAX {
-                out.truncate(MAX);
-                out.push_str("...");
-                return out;
+            ToolResultContent::Image(_) => {
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                out.push_str("[image output]");
             }
+        }
+        if out.len() >= MAX {
+            out.truncate(MAX);
+            out.push_str("...");
+            return out;
+        }
+    }
+    if out.is_empty() {
+        let details = serde_json::to_string(&result.details).unwrap_or_default();
+        if !details.is_empty() && details != "{}" && details != "null" {
+            if details.len() > MAX {
+                let mut truncated = details;
+                truncated.truncate(MAX);
+                truncated.push_str("...");
+                return truncated;
+            }
+            return details;
         }
     }
     out
+}
+
+fn create_checkpoint_write_subscriber(
+    write_ctx: TurnWriteContext,
+    ui_events: Option<mpsc::UnboundedSender<AgentUiEvent>>,
+) -> elph_agent::AgentListener {
+    let tool_args = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+    Arc::new(move |event, _token| {
+        let write_ctx = write_ctx.clone();
+        let tool_args = tool_args.clone();
+        let ui_events = ui_events.clone();
+        Box::pin(async move {
+            match event {
+                AgentEvent::MessageUpdate {
+                    assistant_message_event,
+                    ..
+                } => {
+                    if let AssistantMessageEvent::TextDelta { delta, .. } = &*assistant_message_event
+                        && let Err(err) = write_ctx.record_assistant_delta(delta).await
+                    {
+                        tracing::warn!(error = %err, "failed to persist assistant draft");
+                        emit_ui(
+                            &ui_events,
+                            AgentUiEvent::Status(format!("Warning: checkpoint draft write failed: {err:#}")),
+                        );
+                    }
+                }
+                AgentEvent::ToolExecutionStart { tool_call_id, args, .. } => {
+                    tool_args.lock().await.insert(tool_call_id, summarize_tool_args(&args));
+                }
+                AgentEvent::ToolExecutionEnd {
+                    tool_call_id,
+                    tool_name,
+                    is_error,
+                    result,
+                    ..
+                } => {
+                    let args_summary = tool_args.lock().await.remove(&tool_call_id).unwrap_or_default();
+                    let output = summarize_tool_result(&result);
+                    if let Err(err) = write_ctx
+                        .record_tool_result(&tool_call_id, &tool_name, &args_summary, is_error, &output)
+                        .await
+                    {
+                        tracing::warn!(error = %err, tool = %tool_name, "failed to persist tool write");
+                        emit_ui(
+                            &ui_events,
+                            AgentUiEvent::Status(format!(
+                                "Warning: checkpoint tool write failed ({tool_name}): {err:#}"
+                            )),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        })
+    })
 }
 
 fn create_tui_event_subscriber(
@@ -295,7 +373,7 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
         print_mode,
         stream,
         verbose,
-        session,
+        mut session,
         is_followup,
         docs_snapshot_before,
         quiet,
@@ -332,6 +410,13 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
     };
     let full_system_prompt = format!("{system_prompt}\n\nAvailable tools for this session: {tool_names_str}");
 
+    let turn_write_ctx = if let Some(session) = session.as_mut() {
+        session.ensure_bootstrap_checkpoint().await?;
+        Some(session.turn_write_context())
+    } else {
+        None
+    };
+
     let restored_messages = if let Some(session) = session.as_ref() {
         if is_followup || command == "chat" {
             session.load_messages().await?
@@ -367,6 +452,12 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
         Some(progress_spinner("Thinking..."))
     };
     let saw_any_delta = Arc::new(AtomicBool::new(false));
+
+    if let Some(write_ctx) = turn_write_ctx {
+        agent
+            .subscribe(create_checkpoint_write_subscriber(write_ctx, ui_events.clone()))
+            .await;
+    }
 
     if let Some(tx) = ui_events.clone() {
         agent

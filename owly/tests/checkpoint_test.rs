@@ -1,10 +1,10 @@
 //! Integration tests for Turso checkpoint saver (langgraph-checkpoint-sqlite parity).
 
 use owly::checkpoint::{
-    Checkpoint, CheckpointConfigurable, CheckpointListOptions, CheckpointMetadata, ERROR, INTERRUPT, PendingWrite,
-    RESUME, RunnableConfig, SCHEDULED, TASKS, TursoCheckpointSaver, writes_idx,
+    ASSISTANT_DRAFT, Checkpoint, CheckpointConfigurable, CheckpointListOptions, CheckpointMetadata, ERROR, INTERRUPT,
+    PendingWrite, RESUME, RunnableConfig, SCHEDULED, TASKS, TursoCheckpointSaver, writes_idx,
 };
-use owly::session::{create_interactive_thread_id, interactive_config, load_messages, save_messages};
+use owly::session::{MESSAGES_CHANNEL, create_interactive_thread_id, interactive_config, load_messages, save_messages};
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -31,6 +31,7 @@ fn writes_idx_matches_langgraph_contract() {
     assert_eq!(writes_idx(SCHEDULED), Some(-2));
     assert_eq!(writes_idx(INTERRUPT), Some(-3));
     assert_eq!(writes_idx(RESUME), Some(-4));
+    assert_eq!(writes_idx(ASSISTANT_DRAFT), Some(-5));
     assert_eq!(writes_idx("messages"), None);
 }
 
@@ -245,11 +246,34 @@ async fn session_helpers_persist_messages() {
         content: elph_ai::UserContent::Text("hello".to_string()),
         timestamp: 0,
     });
-    let saved = save_messages(&saver, &config, &[user], 1, "test").await.expect("save");
+    let saved = save_messages(&saver, &config, std::slice::from_ref(&user), 1, "test")
+        .await
+        .expect("save");
     let (_, restored) = load_messages(&saver, &thread_id).await.expect("reload");
     assert_eq!(restored.len(), 1);
     assert_eq!(restored[0].role(), "user");
     assert!(saved.configurable.checkpoint_id.is_some());
+
+    // First turn has no prior checkpoint_id, so no pending writes yet.
+    let first_tuple = saver.get_tuple(&saved).await.expect("get").expect("tuple");
+    assert!(first_tuple.pending_writes.is_empty());
+
+    let followup = elph_agent::llm_message_to_agent(elph_ai::Message::User {
+        content: elph_ai::UserContent::Text("again".to_string()),
+        timestamp: 0,
+    });
+    let saved2 = save_messages(&saver, &saved, &[user, followup], 2, "test")
+        .await
+        .expect("save2");
+
+    // LangGraph contract: writes attach to the checkpoint being executed (turn 1).
+    let parent_tuple = saver.get_tuple(&saved).await.expect("get").expect("parent");
+    assert_eq!(parent_tuple.pending_writes.len(), 1);
+    assert_eq!(parent_tuple.pending_writes[0].0, "test");
+    assert_eq!(parent_tuple.pending_writes[0].1, MESSAGES_CHANNEL);
+
+    let latest_tuple = saver.get_tuple(&saved2).await.expect("get").expect("latest");
+    assert!(latest_tuple.pending_writes.is_empty());
 }
 
 #[tokio::test]

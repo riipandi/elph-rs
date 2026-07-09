@@ -10,6 +10,7 @@ mod entries;
 mod launch;
 mod setup;
 mod spinner;
+mod tool_display;
 mod transcript;
 
 use anyhow::Result;

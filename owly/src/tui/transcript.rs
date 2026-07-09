@@ -193,7 +193,12 @@ pub fn command_label_for_input(input: &str) -> Option<&'static str> {
     } else if lower == "/update" || lower.starts_with("/update ") {
         Some("update")
     } else if matches!(lower.as_str(), "/exit" | "/quit" | "exit" | "quit" | ":q")
-        || matches!(lower.as_str(), "/help" | "help" | "/clear" | "clear")
+        || matches!(
+            lower.as_str(),
+            "/help" | "help" | "/clear" | "clear" | "/history" | "/restore"
+        )
+        || lower.starts_with("/history ")
+        || lower.starts_with("/restore ")
     {
         None
     } else {
