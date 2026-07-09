@@ -1,29 +1,30 @@
-//! Owly startup banner.
+//! Owly session chrome (fixed status line above the transcript).
 
 use std::path::Path;
 
 use elph_tui::Theme;
-use slt::{Border, Color, Context};
+use slt::Context;
 
 use crate::cli::truncate_path_for_display;
-
-use super::chrome::subtle_border;
 
 pub fn directory_display(cwd: &Path) -> String {
     truncate_path_for_display(cwd, 48)
 }
 
-pub fn render_banner(ui: &mut Context, provider: &str, model: &str, directory: &str, version: &str, theme: Theme) {
-    let title = format!(">_ Owly v{version} agent docs for codebases");
-    let _ = ui
-        .bordered(Border::Single)
-        .border_fg(subtle_border(theme))
-        .p(1)
-        .gap(1)
-        .col(|ui| {
-            let _ = ui.text(title).bold().fg(Color::Cyan);
-            let _ = ui.text(format!("provider: {provider}")).fg(Color::Green);
-            let _ = ui.text(format!("model: {model}")).fg(Color::Green);
-            let _ = ui.text(format!("directory: {directory}")).fg(theme.muted);
-        });
+/// Session metadata for the fixed status line.
+#[derive(Debug, Clone, Copy)]
+pub struct OwlyBannerInfo<'a> {
+    pub provider: &'a str,
+    pub model: &'a str,
+    pub directory: &'a str,
+    pub version: &'a str,
+}
+
+/// One-line session context pinned above the scrollable transcript.
+pub fn render_status_line(ui: &mut Context, banner: OwlyBannerInfo<'_>, theme: Theme) {
+    let line = format!(
+        "owly v{} · {} · {} · {}",
+        banner.version, banner.model, banner.provider, banner.directory
+    );
+    let _ = ui.text(line).fg(theme.muted);
 }

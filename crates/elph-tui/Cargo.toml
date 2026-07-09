@@ -26,6 +26,7 @@ rayon.workspace = true
 similar.workspace = true
 superlighttui.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
+unicode-segmentation.workspace = true
 unicode-width.workspace = true
 
 [dev-dependencies]

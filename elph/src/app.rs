@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use elph_tui::{
-    ChatStreamState, PromptAction, PromptState, Theme, handle_prompt_input, is_quit_command, push_capped,
-    render_chat_stream, render_prompt, sigint_channel,
+    ChatStreamState, PromptAction, PromptOpts, PromptState, Theme, disable_keyboard_enhancement,
+    enable_keyboard_enhancement, handle_prompt_input, is_quit_command, push_capped, render_chat_stream, render_prompt,
+    sigint_channel,
 };
 use slt::{Context, KeyModifiers, RunConfig};
 
@@ -64,10 +65,12 @@ impl ElphApp {
 pub fn render_app(ui: &mut Context, app: &mut ElphApp) {
     app.handle_global_keys(ui);
     app.theme.apply_to(ui);
-    let _ = ui.col(|ui| {
-        render_chat_stream(ui, &mut app.chat, app.theme);
+    let _ = ui.container().grow(1).col(|ui| {
+        let _ = ui.container().grow(1).col(|ui| {
+            render_chat_stream(ui, &mut app.chat, app.theme);
+        });
         app.handle_prompt(ui);
-        render_prompt(ui, &mut app.prompt, app.theme);
+        render_prompt(ui, &mut app.prompt, app.theme, PromptOpts::default());
     });
 }
 
@@ -83,6 +86,15 @@ pub async fn run_sigint_watcher(app: Arc<Mutex<ElphApp>>) {
 }
 
 pub fn run_tui() -> std::io::Result<()> {
+    let _ = enable_keyboard_enhancement();
+    struct KeyboardGuard;
+    impl Drop for KeyboardGuard {
+        fn drop(&mut self) {
+            let _ = disable_keyboard_enhancement();
+        }
+    }
+    let _guard = KeyboardGuard;
+
     let app = Arc::new(Mutex::new(ElphApp::new()));
     let watcher_app = Arc::clone(&app);
 

@@ -2146,6 +2146,7 @@ dependencies = [
  "similar-asserts",
  "superlighttui",
  "tokio",
+ "unicode-segmentation",
  "unicode-width 0.2.2",
 ]
 

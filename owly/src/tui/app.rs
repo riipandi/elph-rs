@@ -4,8 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use elph_agent::try_block_on;
 use elph_tui::{
-    DEFAULT_TRANSCRIPT_CAP, PromptAction, PromptState, Theme, ToolExecutionState, disable_keyboard_enhancement,
-    enable_keyboard_enhancement, handle_prompt_input, is_quit_command, push_capped, render_prompt,
+    DEFAULT_TRANSCRIPT_CAP, PromptAction, PromptOpts, PromptState, Theme, ToolExecutionState,
+    disable_keyboard_enhancement, enable_keyboard_enhancement, handle_prompt_input, is_quit_command, push_capped,
+    render_prompt,
 };
 use slt::{Context, KeyModifiers, RunConfig};
 use tokio::sync::mpsc;
@@ -14,14 +15,13 @@ use crate::env;
 use crate::onboarding::{self, SetupCredentials};
 use crate::ui_events::AgentUiEvent;
 
-use super::activity::{ActivityBarState, render_activity_bar};
-use super::banner::{directory_display, render_banner};
+use super::banner::{OwlyBannerInfo, directory_display, render_status_line};
 use super::chat_stream::{OwlyChatState, render_owly_chat_stream};
 use super::context::AppContext;
 use super::entries::OwlyEntry;
 use super::launch::LaunchState;
 use super::setup::{SetupWizardState, render_setup_wizard};
-use super::transcript::{TranscriptApplier, append_shell_lines, command_label_for_input, lines_to_entries};
+use super::transcript::{TranscriptApplier, append_shell_lines, lines_to_entries};
 
 #[derive(Debug)]
 enum AppMessage {
@@ -36,10 +36,8 @@ pub struct OwlyApp {
     pub live_tools: Vec<ToolExecutionState>,
     pub prompt: PromptState,
     pub chat: OwlyChatState,
-    pub activity: ActivityBarState,
     pub theme: Theme,
     pub running: bool,
-    pub active_command: Option<String>,
     pub setup_complete: bool,
     pub setup: SetupWizardState,
     pub setup_error: Option<String>,
@@ -62,10 +60,8 @@ impl OwlyApp {
             live_tools: Vec::new(),
             prompt: PromptState::new(launch.model.clone()),
             chat: OwlyChatState::default(),
-            activity: ActivityBarState::default(),
             theme: Theme::detect(),
             running: false,
-            active_command: None,
             setup_complete: !launch.pending_setup,
             setup,
             setup_error: None,
@@ -85,7 +81,6 @@ impl OwlyApp {
             }
             AppMessage::DispatchDone { lines, should_exit } => {
                 self.running = false;
-                self.active_command = None;
                 self.live_tools.clear();
                 append_shell_lines(&mut self.entries, &lines);
                 if should_exit {
@@ -94,7 +89,6 @@ impl OwlyApp {
             }
             AppMessage::DispatchError(err) => {
                 self.running = false;
-                self.active_command = None;
                 self.live_tools.clear();
                 push_capped(
                     &mut self.entries,
@@ -192,20 +186,27 @@ pub fn render_owly_app(ui: &mut Context, app: &mut OwlyApp) {
     let directory = directory_display(app.context.cwd());
     let version = env!("CARGO_PKG_VERSION");
 
-    let _ = ui.col(|ui| {
-        render_banner(ui, &app.provider, &app.model, &directory, version, app.theme);
-        render_owly_chat_stream(ui, &mut app.chat, &app.entries, app.theme, app.show_thinking);
-        if app.running {
-            render_activity_bar(
+    let _ = ui.container().grow(1).col(|ui| {
+        let banner = OwlyBannerInfo {
+            provider: &app.provider,
+            model: &app.model,
+            directory: &directory,
+            version,
+        };
+        render_status_line(ui, banner, app.theme);
+        let _ = ui.container().grow(1).col(|ui| {
+            render_owly_chat_stream(
                 ui,
-                &mut app.activity,
-                app.active_command.as_deref(),
+                &mut app.chat,
+                &app.entries,
                 &app.live_tools,
                 app.theme,
+                app.show_thinking,
+                app.running,
             );
-        }
+        });
         app.handle_prompt(ui);
-        render_prompt(ui, &mut app.prompt, app.theme);
+        render_prompt(ui, &mut app.prompt, app.theme, PromptOpts { running: app.running });
     });
 }
 
@@ -243,7 +244,7 @@ pub async fn run_shell(mut launch: LaunchState) -> anyhow::Result<()> {
                 && let Ok(mut guard) = app_dispatch.lock()
             {
                 push_capped(&mut guard.entries, OwlyEntry::user(trimmed), DEFAULT_TRANSCRIPT_CAP);
-                guard.active_command = command_label_for_input(trimmed).map(str::to_string);
+                guard.chat.pin_to_tail();
                 guard.live_tools.clear();
                 guard.running = true;
             }

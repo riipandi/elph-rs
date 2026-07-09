@@ -1,6 +1,6 @@
 ---
 title: "Quickstart Guide"
-last_updated: 2026-07-11T22:10:00Z
+last_updated: 2026-07-11T22:12:00Z
 category: quickstart
 tags:
     - getting-started
@@ -148,7 +148,7 @@ Every Markdown file includes [YAML frontmatter](frontmatter.md) with title, last
 | [`owly/src/ui_events.rs`](../owly/src/ui_events.rs)               | Agent→TUI event bridge (streaming text, tool status, command progress)                                                                   |
 | [`owly/src/tui/mod.rs`](../owly/src/tui/mod.rs)                   | SuperLightTUI interactive shell entrypoint (`run_interactive()`)                                                                         |
 | [`owly/src/tui/app.rs`](../owly/src/tui/app.rs)                   | Owly interactive shell application (`OwlyApp` with `run_shell()`)                                                                        |
-| [`owly/src/tui/chat_stream.rs`](../owly/src/tui/chat_stream.rs)   | Scrollable transcript with keyboard navigation and typed entry rendering                                                                 |
+| [`owly/src/tui/chat_stream.rs`](../owly/src/tui/chat_stream.rs)   | Scrollable transcript with Shift-based keyboard navigation, auto-scroll follow-tail, and typed entry rendering                           |
 | [`owly/src/tui/entries.rs`](../owly/src/tui/entries.rs)           | Typed transcript entries (`OwlyEntry`, `OwlyEntryKind`)                                                                                  |
 | [`owly/src/tui/transcript.rs`](../owly/src/tui/transcript.rs)     | `TranscriptApplier`: maps `AgentUiEvent` → `OwlyEntry` list updates                                                                      |
 | [`owly/src/tui/activity.rs`](../owly/src/tui/activity.rs)         | Activity bar with live tool chips during agent execution                                                                                 |
@@ -157,7 +157,7 @@ Every Markdown file includes [YAML frontmatter](frontmatter.md) with title, last
 | [`owly/src/tui/context.rs`](../owly/src/tui/context.rs)           | Thread-safe `AppContext` for TUI and async command dispatch                                                                              |
 | [`owly/src/tui/launch.rs`](../owly/src/tui/launch.rs)             | One-shot launch payload for the Owly interactive shell                                                                                   |
 | [`owly/src/tui/setup.rs`](../owly/src/tui/setup.rs)               | In-TUI first-run credential setup wizard                                                                                                 |
-| [`owly/src/tui/banner.rs`](../owly/src/tui/banner.rs)             | Startup banner rendered in SLT layout                                                                                                    |
+| [`owly/src/tui/banner.rs`](../owly/src/tui/banner.rs)             | Session banner rendered inline inside the scrollable transcript (`OwlyBannerInfo` struct)                                                |
 | [`owly/src/lib.rs`](../owly/src/lib.rs)                           | Crate root — re-exports all public modules                                                                                               |
 
 ### Tests
@@ -205,7 +205,7 @@ cargo clippy -p owly --all-targets -- -D warnings
 - **Agent runtime**: Uses `elph-agent` (not LangChain/LangGraph). Agent loop and tool execution are delegated to `elph-agent`.
 - **LLM integration**: Uses `elph-ai` for provider abstraction. Model lookup goes through `builtin_models()`.
 - **Tools**: Init/update mode uses all tools (read, bash, edit, write, grep, find, ls). Chat mode uses read-only tools plus `ask_text`, `ask_select`, `ask_confirm` for interactive use.
-- **Interactive mode**: Running `owly` with no arguments starts an interactive shell managed by [`shell.rs`](../owly/src/shell.rs) — a REPL that offers a first-run credential wizard (`onboarding.rs`), session persistence (`session.rs`), and supports follow-up commands after init/update/chat.
+- **Interactive mode**: Running `owly` with no arguments starts an interactive shell managed by [`shell.rs`](../owly/src/shell.rs) — a REPL that offers a first-run credential wizard (`onboarding.rs`), session persistence (`session.rs`), and supports follow-up commands after init/update/chat. The TUI prompt was redesigned with a compact help bar showing keybindings: `Enter` send, `Shift+Enter` newline, `Esc` clear, `Tab` cycle mode, `←/→` cursor, `Alt+←/→` word jump, `Alt+⌫` delete word, `Shift+↑/↓` scroll chat, `Shift+End` jump tail. Cursor navigation uses the custom [`editing.rs`](../crates/elph-tui/src/prompt/editing.rs) module for reliable arrow key handling. Scroll logic was extracted into the shared [`transcript_scroll.rs`](../crates/elph-tui/src/prompt/transcript_scroll.rs) module with `Shift+Up/Down`, `PageUp/Down`, and `Shift+End` keybindings plus auto-scroll follow-tail behavior.
 - **Interactive slash commands**: `/init`, `/update`, `/history [n]`, `/restore <#|id>`, `/clear`, `/help`, `/exit`. `/history` lists recent checkpoints; `/restore` rewinds the session to an earlier checkpoint (the next turn forks from that point).
 - **Session persistence**: Each owly run creates a `SessionStore` backed by Turso checkpointing. Conversation messages are persisted across turns and restorable on subsequent runs in the same directory. Mid-turn assistant drafts and pending `ask_*` interrupts are recovered from checkpoint `writes` on restart.
 - **Ecosystem sync**: After a successful init/update that changes documentation, [`ecosystem.rs`](../owly/src/ecosystem.rs) appends Owly context instructions to `AGENTS.md` and `CLAUDE.md` (if they exist).
@@ -219,4 +219,4 @@ cargo clippy -p owly --all-targets -- -D warnings
 
 - [Architecture](architecture.md) — Deep dive into module structure and agent execution flow
 - [Configuration](configuration.md) — Supported providers, model selection, environment setup
-- [Existing Elph docs](../docs/) — CLI usage, memory, TUI, and operational considerations
+- [Elph design docs](../docs/) — product specs (behavior, UX, architecture); implementation detail stays in openwiki

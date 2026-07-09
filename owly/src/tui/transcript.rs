@@ -57,8 +57,8 @@ impl<'a> TranscriptApplier<'a> {
         push_capped(self.entries, entry, DEFAULT_TRANSCRIPT_CAP);
     }
 
-    fn push_command_start(&mut self, command: &str, provider: &str, model: &str) {
-        self.push_capped(OwlyEntry::command_header(command, provider, model));
+    fn push_command_start(&mut self, command: &str, _provider: &str, _model: &str) {
+        let _ = command;
     }
 
     fn push_command_complete(&mut self, message: &str, success: bool) {
@@ -163,7 +163,7 @@ impl<'a> TranscriptApplier<'a> {
         }
         self.live_tools.clear();
         self.tool_indexes.clear();
-        self.push_status(&format!("done in {elapsed_secs:.1}s"));
+        let _ = elapsed_secs;
     }
 }
 
@@ -182,27 +182,6 @@ pub fn append_shell_lines(entries: &mut Vec<OwlyEntry>, lines: &[String]) {
     let mut applier = TranscriptApplier::new(entries, &mut live_tools, false);
     for line in lines {
         applier.apply(AgentUiEvent::Status(line.clone()));
-    }
-}
-
-/// Infer the active Owly command from user input for the activity bar.
-pub fn command_label_for_input(input: &str) -> Option<&'static str> {
-    let lower = input.trim().to_ascii_lowercase();
-    if lower == "/init" || lower.starts_with("/init ") {
-        Some("init")
-    } else if lower == "/update" || lower.starts_with("/update ") {
-        Some("update")
-    } else if matches!(lower.as_str(), "/exit" | "/quit" | "exit" | "quit" | ":q")
-        || matches!(
-            lower.as_str(),
-            "/help" | "help" | "/clear" | "clear" | "/history" | "/restore"
-        )
-        || lower.starts_with("/history ")
-        || lower.starts_with("/restore ")
-    {
-        None
-    } else {
-        Some("chat")
     }
 }
 
@@ -230,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn command_start_renders_header_block() {
+    fn command_start_does_not_add_transcript_noise() {
         let mut entries = Vec::new();
         let mut live_tools = Vec::new();
         let mut applier = applier(&mut entries, &mut live_tools);
@@ -239,9 +218,7 @@ mod tests {
             provider: "opencode".into(),
             model: "big-pickle".into(),
         });
-        assert_eq!(entries[0].kind, OwlyEntryKind::CommandHeader);
-        assert!(entries[0].inner.content.contains("Init"));
-        assert!(entries[0].inner.content.contains("opencode"));
+        assert!(entries.is_empty());
     }
 
     #[test]
@@ -316,15 +293,7 @@ mod tests {
         applier.apply(AgentUiEvent::RunCompleted { elapsed_secs: 1.2 });
         assert!(!entries[0].inner.is_streaming);
         assert!(live_tools.is_empty());
-        assert!(entries.last().unwrap().inner.content.contains("done in"));
-    }
-
-    #[test]
-    fn command_label_for_slash_commands() {
-        assert_eq!(command_label_for_input("/init"), Some("init"));
-        assert_eq!(command_label_for_input("/update docs"), Some("update"));
-        assert_eq!(command_label_for_input("hello"), Some("chat"));
-        assert_eq!(command_label_for_input("/exit"), None);
+        assert_eq!(entries.len(), 1);
     }
 
     #[test]

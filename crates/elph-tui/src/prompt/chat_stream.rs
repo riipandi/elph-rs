@@ -1,7 +1,11 @@
 use crate::agent::render_transcript_view;
 use crate::theme::Theme;
 use crate::transcript::TranscriptEntry;
-use slt::{Context, KeyCode, ScrollState};
+use slt::{Context, ScrollState};
+
+use super::transcript_scroll::{
+    ScrollSnapshot, apply_transcript_auto_scroll, handle_transcript_scroll_keys, prepare_transcript_follow,
+};
 
 /// Default lines scrolled per Up/Down key press.
 pub const DEFAULT_LINE_SCROLL_STEP: u16 = 3;
@@ -41,42 +45,16 @@ impl ChatStreamState {
             ..Self::new()
         }
     }
+
+    /// Re-pin the viewport to the tail (e.g. when the user submits a prompt).
+    pub fn pin_to_tail(&mut self) {
+        self.auto_scroll = true;
+    }
 }
 
 impl Default for ChatStreamState {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Handle keyboard scrolling for the transcript area.
-pub fn handle_chat_scroll(ui: &mut Context, state: &mut ChatStreamState) {
-    if !state.scroll_enabled {
-        return;
-    }
-
-    let step = state.line_scroll_step.max(1);
-    if ui.key_code(KeyCode::Up) {
-        state.scroll.scroll_up(step as usize);
-    }
-    if ui.key_code(KeyCode::Down) {
-        state.scroll.scroll_down(step as usize);
-    }
-    if ui.key_code(KeyCode::PageUp) {
-        state.scroll.scroll_up(page_scroll_amount(state));
-    }
-    if ui.key_code(KeyCode::PageDown) {
-        state.scroll.scroll_down(page_scroll_amount(state));
-    }
-    if ui.key_code(KeyCode::Home) {
-        state.scroll.offset = 0;
-    }
-    if ui.key_code(KeyCode::End) && state.auto_scroll {
-        let max = state
-            .scroll
-            .content_height()
-            .saturating_sub(state.scroll.viewport_height()) as usize;
-        state.scroll.offset = max;
     }
 }
 
@@ -88,9 +66,30 @@ fn page_scroll_amount(state: &ChatStreamState) -> usize {
     }
 }
 
+fn entries_follow_tail(entries: &[TranscriptEntry], agent_running: bool) -> bool {
+    agent_running || entries.iter().any(|entry| entry.is_streaming)
+}
+
 /// Render scrollable chat content (plain messages or rich transcript entries).
 pub fn render_chat_stream(ui: &mut Context, state: &mut ChatStreamState, theme: Theme) {
-    handle_chat_scroll(ui, state);
+    render_chat_stream_with_agent(ui, state, theme, false);
+}
+
+/// Like [`render_chat_stream`] but also follows the tail while `agent_running`.
+pub fn render_chat_stream_with_agent(ui: &mut Context, state: &mut ChatStreamState, theme: Theme, agent_running: bool) {
+    let snapshot = ScrollSnapshot::capture(&state.scroll);
+    let page_step = page_scroll_amount(state);
+    let line_step = state.line_scroll_step.max(1) as usize;
+
+    if state.scroll_enabled {
+        handle_transcript_scroll_keys(ui, &mut state.scroll, &mut state.auto_scroll, line_step, page_step);
+    }
+
+    let follow_tail = entries_follow_tail(&state.entries, agent_running);
+
+    if state.scroll_enabled {
+        prepare_transcript_follow(&mut state.scroll, state.auto_scroll, follow_tail, snapshot);
+    }
 
     let _ = ui.scroll_col(&mut state.scroll, |ui| {
         if !state.entries.is_empty() {
@@ -106,4 +105,8 @@ pub fn render_chat_stream(ui: &mut Context, state: &mut ChatStreamState, theme: 
             }
         }
     });
+
+    if state.scroll_enabled {
+        apply_transcript_auto_scroll(&mut state.scroll, &mut state.auto_scroll, snapshot, follow_tail);
+    }
 }

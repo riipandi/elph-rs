@@ -32,9 +32,10 @@ pub use diff::{
     open_tui_writer, png_dimensions, render_markdown_lines, resolve_layout,
 };
 pub use prompt::{
-    AgentMode, ChatStreamState, DEFAULT_LINE_SCROLL_STEP, PAGE_SCROLL_VIEWPORT, PromptAction, PromptState,
-    handle_chat_scroll, handle_prompt_input, is_quit_command, render_chat_stream, render_prompt,
-    should_cycle_agent_mode, text_with_theme,
+    AgentMode, ChatStreamState, DEFAULT_LINE_SCROLL_STEP, PAGE_SCROLL_VIEWPORT, PromptAction, PromptOpts, PromptState,
+    ScrollSnapshot, apply_transcript_auto_scroll, handle_prompt_input, handle_transcript_scroll_keys,
+    is_pinned_to_bottom, is_quit_command, prepare_transcript_follow, render_chat_stream, render_chat_stream_with_agent,
+    render_prompt, scroll_to_bottom, should_cycle_agent_mode, text_with_theme,
 };
 
 pub use terminal::{SigintReceiver, disable_keyboard_enhancement, enable_keyboard_enhancement, sigint_channel};

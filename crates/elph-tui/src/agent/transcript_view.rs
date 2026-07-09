@@ -26,7 +26,7 @@ fn render_entry(ui: &mut Context, entry: &TranscriptEntry, theme: Theme, show_th
             let label = if entry.thinking_expanded {
                 format!("Thinking:\n{}", entry.content)
             } else {
-                "Thinking... (collapsed)".to_string()
+                "Thinking…".to_string()
             };
             text_optional_color(ui, &label, Some(theme.muted));
         }

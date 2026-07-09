@@ -1,6 +1,5 @@
 //! SuperLightTUI interactive shell for Owly.
 
-mod activity;
 mod app;
 mod banner;
 mod chat_stream;

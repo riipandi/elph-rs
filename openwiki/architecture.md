@@ -1,6 +1,6 @@
 ---
 title: "Architecture"
-last_updated: 2026-07-11T22:10:00Z
+last_updated: 2026-07-11T22:30:00Z
 category: architecture
 tags:
     - architecture
@@ -108,6 +108,34 @@ When `owly` is run with no arguments (or in a TTY), the startup mode resolves to
 6. Enters a REPL loop that accepts follow-up messages and slash commands (`/exit`, `/help`, `/history [n]`, `/restore <#|id>`, `/clear`)
 7. Each turn preserves conversation history via the same session store
 8. On restart, the session is recovered: mid-turn assistant drafts are merged into the transcript and pending `ask_*` interrupts are reported so the user knows what the agent was waiting for
+
+**TUI keybindings** (rendered as a help bar below the prompt):
+
+| Key                     | Action                        |
+| ----------------------- | ----------------------------- |
+| `Enter`                 | Send message                  |
+| `Shift+Enter`           | Insert newline                |
+| `Esc`                   | Clear prompt                  |
+| `Tab`                   | Cycle agent mode              |
+| `←` / `→`               | Move cursor                   |
+| `Alt+←` / `Alt+→`       | Jump word                     |
+| `Alt+Backspace`         | Delete word backward          |
+| `Shift+↑` / `Shift+↓`   | Scroll chat transcript        |
+| `Shift+End`             | Jump to tail (re-enable auto) |
+| `Page Up` / `Page Down` | Page scroll                   |
+
+The prompt widget was redesigned: it is no longer a bordered box. Instead a mode badge, model label, and compact help bar sit above and below an unbordered textarea. Cursor navigation (arrow keys, word jumps, deletions) is handled by the [`editing.rs`](../crates/elph-tui/src/prompt/editing.rs) module _before_ SLT's built-in handler, ensuring reliable behavior even when chat scroll or focus order would otherwise intercept arrow keys.
+
+**Transcript scroll** uses the shared [`transcript_scroll`](../crates/elph-tui/src/prompt/transcript_scroll.rs) module (extracted from `elph-tui` into its own `prompt/transcript_scroll.rs`). It provides:
+
+- `ScrollSnapshot` — captures scroll state before each render frame
+- `handle_transcript_scroll_keys()` — Shift+arrow / PageUp/Down / Shift+End keybindings
+- `prepare_transcript_follow()` — snap to tail before rendering when auto-scroll is active
+- `apply_transcript_auto_scroll()` — sticky-tail behavior after content is measured
+
+The session banner ([`banner.rs`](../owly/src/tui/banner.rs)) is now rendered **inside** the scrollable transcript area via the `OwlyBannerInfo` struct, so it scrolls with the content instead of staying fixed outside the viewport.
+
+**Keyboard enhancement**: Both the `owly` and `elph` TUI apps enable the terminal keyboard enhancement protocol on startup (`enable_keyboard_enhancement()`) and disable it on drop, allowing reliable modifier key detection (Shift, Alt, Ctrl) for all keybindings above.
 
 **Source:** [`owly/src/shell.rs`](../owly/src/shell.rs) — interactive REPL, [`owly/src/startup.rs`](../owly/src/startup.rs) — mode resolution, [`owly/src/onboarding.rs`](../owly/src/onboarding.rs) — credential wizard, [`owly/src/session.rs`](../owly/src/session.rs) — checkpoint persistence and recovery.
 
@@ -234,7 +262,7 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 | `ui_events.rs`        | Agent→TUI event bridge (`AgentUiEvent` enum for streaming progress)                                                                                                                                                                                                                                                                                                                                          | [`owly/src/ui_events.rs`](../owly/src/ui_events.rs)               |
 | `tui/context.rs`      | Thread-safe `AppContext` for TUI and async dispatch                                                                                                                                                                                                                                                                                                                                                          | [`owly/src/tui/context.rs`](../owly/src/tui/context.rs)           |
 | `tui/entries.rs`      | Typed transcript entries (`OwlyEntry`, `OwlyEntryKind`)                                                                                                                                                                                                                                                                                                                                                      | [`owly/src/tui/entries.rs`](../owly/src/tui/entries.rs)           |
-| `tui/chat_stream.rs`  | Scrollable transcript with keyboard navigation and typed entry rendering                                                                                                                                                                                                                                                                                                                                     | [`owly/src/tui/chat_stream.rs`](../owly/src/tui/chat_stream.rs)   |
+| `tui/chat_stream.rs`  | Scrollable transcript with Shift-based keyboard navigation, auto-scroll follow-tail, and typed entry rendering                                                                                                                                                                                                                                                                                               | [`owly/src/tui/chat_stream.rs`](../owly/src/tui/chat_stream.rs)   |
 | `tui/transcript.rs`   | `TranscriptApplier`: maps `AgentUiEvent` → `OwlyEntry` list updates                                                                                                                                                                                                                                                                                                                                          | [`owly/src/tui/transcript.rs`](../owly/src/tui/transcript.rs)     |
 | `tui/activity.rs`     | Activity bar with live tool chips                                                                                                                                                                                                                                                                                                                                                                            | [`owly/src/tui/activity.rs`](../owly/src/tui/activity.rs)         |
 | `tui/chrome.rs`       | Shared visual tokens (`subtle_border` for low-contrast frames)                                                                                                                                                                                                                                                                                                                                               | [`owly/src/tui/chrome.rs`](../owly/src/tui/chrome.rs)             |

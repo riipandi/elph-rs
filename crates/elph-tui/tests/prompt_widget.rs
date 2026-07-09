@@ -2,18 +2,17 @@ use elph_tui::{AgentMode, PromptState, Theme, handle_prompt_input, render_prompt
 use slt::{Event, KeyCode, TestBackend};
 
 #[test]
-fn prompt_renders_model_and_mode_footer() {
+fn prompt_renders_minimal_prefix() {
     let mut backend = TestBackend::new(80, 10);
     let mut state = PromptState::new("test-model");
     state.mode = AgentMode::Ask;
     let theme = Theme::dark();
 
     backend.render(|ui| {
-        render_prompt(ui, &mut state, theme);
+        render_prompt(ui, &mut state, theme, elph_tui::PromptOpts::default());
     });
 
-    backend.assert_contains("test-model");
-    backend.assert_contains("Ask");
+    backend.assert_contains("❯");
 }
 
 #[test]
