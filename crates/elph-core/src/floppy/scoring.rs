@@ -55,10 +55,13 @@ pub fn compute_task_score(
         return token_delta + error_delta - user_corrections * 0.5 + completed_signal;
     }
 
-    let z_tokens = (tokens - baseline.mean_tokens) / stddev(baseline.m2_tokens, baseline.count);
-    let z_errors = (errors - baseline.mean_errors) / stddev(baseline.m2_errors, baseline.count);
-    let z_user_corr =
-        (user_corrections - baseline.mean_user_corrections) / stddev(baseline.m2_user_corrections, baseline.count);
+    let stddev_tokens = stddev(baseline.m2_tokens, baseline.count);
+    let stddev_errors = stddev(baseline.m2_errors, baseline.count);
+    let stddev_user_corr = stddev(baseline.m2_user_corrections, baseline.count);
+
+    let z_tokens = (tokens - baseline.mean_tokens) / stddev_tokens;
+    let z_errors = (errors - baseline.mean_errors) / stddev_errors;
+    let z_user_corr = (user_corrections - baseline.mean_user_corrections) / stddev_user_corr;
 
     -z_tokens - z_errors - z_user_corr + completed_signal
 }

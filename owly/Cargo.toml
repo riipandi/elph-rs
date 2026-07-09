@@ -22,6 +22,7 @@ clap = { workspace = true, features = ["env"] }
 elph-agent.workspace = true
 elph-ai.workspace = true
 indicatif.workspace = true
+memchr.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

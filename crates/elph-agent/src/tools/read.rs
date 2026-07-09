@@ -62,21 +62,16 @@ async fn execute_read(
     }
 
     let content = read_file_text(&env, &absolute, signal.as_ref()).await?;
-    let all_lines: Vec<&str> = content.split('\n').collect();
     let start_line = offset.map(|value| value.saturating_sub(1)).unwrap_or(0);
-    if start_line >= all_lines.len() {
-        return Err(anyhow::anyhow!(
-            "Offset {} is beyond end of file ({} lines total)",
-            offset.unwrap_or(1),
-            all_lines.len()
-        ));
-    }
-
-    let selected = if let Some(limit) = limit {
-        let end = (start_line + limit).min(all_lines.len());
-        all_lines[start_line..end].join("\n")
-    } else {
-        all_lines[start_line..].join("\n")
+    let selected = match crate::harness::utils::truncate::select_line_range(&content, start_line, limit) {
+        Ok(selected) => selected,
+        Err(total_lines) => {
+            return Err(anyhow::anyhow!(
+                "Offset {} is beyond end of file ({} lines total)",
+                offset.unwrap_or(1),
+                total_lines
+            ));
+        }
     };
 
     let truncation = truncate_head(&selected, TruncationOptions::default());

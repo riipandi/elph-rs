@@ -19,6 +19,8 @@ fastembed = ["dep:fastembed"]
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
+memchr.workspace = true
 fastembed = { workspace = true, optional = true }
 rand.workspace = true
 serde.workspace = true

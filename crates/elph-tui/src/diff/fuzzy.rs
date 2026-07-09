@@ -1,5 +1,10 @@
 //! Fuzzy matching utilities.
 
+use rayon::prelude::*;
+
+/// Minimum item count before parallel scoring kicks in.
+const PARALLEL_THRESHOLD: usize = 64;
+
 /// Result of a fuzzy match attempt.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FuzzyMatch {
@@ -28,7 +33,7 @@ pub fn fuzzy_match(query: &str, text: &str) -> FuzzyMatch {
     primary
 }
 
-fn fold_ascii(c: char) -> char {
+const fn fold_ascii(c: char) -> char {
     c.to_ascii_lowercase()
 }
 
@@ -43,29 +48,35 @@ fn match_query(query: &str, text: &str) -> FuzzyMatch {
             score: 0.0,
         };
     }
-    if query.chars().count() > text.chars().count() {
+
+    let query_len = query.chars().count();
+    let text_len = text.chars().count();
+    if query_len > text_len {
         return FuzzyMatch {
             matches: false,
             score: 0.0,
         };
     }
 
-    let query_chars: Vec<char> = query.chars().map(fold_ascii).collect();
-    let text_chars: Vec<char> = text.chars().collect();
-    let mut query_index = 0usize;
+    let mut query_chars = query.chars().map(fold_ascii);
+    let Some(mut next_query) = query_chars.next() else {
+        return FuzzyMatch {
+            matches: true,
+            score: 0.0,
+        };
+    };
+
     let mut score = 0.0f64;
     let mut last_match_index: Option<usize> = None;
     let mut consecutive_matches = 0usize;
+    let mut matched = 0usize;
+    let mut prev_ch: Option<char> = None;
 
-    for (i, &ch) in text_chars.iter().enumerate() {
-        if query_index >= query_chars.len() {
-            break;
-        }
-        if chars_match(ch, query_chars[query_index]) {
+    for (i, ch) in text.chars().enumerate() {
+        if chars_match(ch, next_query) {
             let is_boundary = i == 0
-                || text_chars
-                    .get(i - 1)
-                    .is_some_and(|prev| prev.is_ascii_whitespace() || matches!(*prev, '-' | '_' | '.' | '/' | ':'));
+                || prev_ch
+                    .is_some_and(|prev| prev.is_ascii_whitespace() || matches!(prev, '-' | '_' | '.' | '/' | ':'));
 
             if i > 0 && last_match_index == Some(i - 1) {
                 consecutive_matches += 1;
@@ -82,13 +93,18 @@ fn match_query(query: &str, text: &str) -> FuzzyMatch {
             if is_boundary {
                 score -= 10.0;
             }
-            score += i as f64 * 0.1;
+            score = (i as f64).mul_add(0.1, score);
             last_match_index = Some(i);
-            query_index += 1;
+            matched += 1;
+            match query_chars.next() {
+                Some(qc) => next_query = qc,
+                None => break,
+            }
         }
+        prev_ch = Some(ch);
     }
 
-    if query_index < query_chars.len() {
+    if matched < query_len {
         return FuzzyMatch {
             matches: false,
             score: 0.0,
@@ -130,11 +146,30 @@ fn regex_like_alpha_num(query: &str) -> Option<(&str, &str)> {
     Some((left, right))
 }
 
-/// Filters and sorts items by fuzzy match quality (best matches first).
-/// Whitespace- or slash-separated tokens must all match.
-pub fn fuzzy_filter<T>(items: &[T], query: &str, get_text: impl Fn(&T) -> String) -> Vec<T>
+fn score_item<T, F>(item: &T, tokens: &[&str], get_text: &F) -> Option<(T, f64)>
 where
     T: Clone,
+    F: Fn(&T) -> String,
+{
+    let text = get_text(item);
+    let mut total_score = 0.0;
+    for token in tokens {
+        let m = fuzzy_match(token, &text);
+        if m.matches {
+            total_score += m.score;
+        } else {
+            return None;
+        }
+    }
+    Some((item.clone(), total_score))
+}
+
+/// Filters and sorts items by fuzzy match quality (best matches first).
+/// Whitespace- or slash-separated tokens must all match.
+pub fn fuzzy_filter<T, F>(items: &[T], query: &str, get_text: F) -> Vec<T>
+where
+    T: Clone + Send + Sync,
+    F: Fn(&T) -> String + Sync,
 {
     let trimmed = query.trim();
     if trimmed.is_empty() {
@@ -149,24 +184,17 @@ where
         return items.to_vec();
     }
 
-    let mut results = Vec::new();
-    for item in items {
-        let text = get_text(item);
-        let mut total_score = 0.0;
-        let mut all_match = true;
-        for token in &tokens {
-            let m = fuzzy_match(token, &text);
-            if m.matches {
-                total_score += m.score;
-            } else {
-                all_match = false;
-                break;
-            }
-        }
-        if all_match {
-            results.push((item.clone(), total_score));
-        }
-    }
+    let mut results: Vec<(T, f64)> = if items.len() >= PARALLEL_THRESHOLD {
+        items
+            .par_iter()
+            .filter_map(|item| score_item(item, &tokens, &get_text))
+            .collect()
+    } else {
+        items
+            .iter()
+            .filter_map(|item| score_item(item, &tokens, &get_text))
+            .collect()
+    };
 
     results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
     results.into_iter().map(|(item, _)| item).collect()

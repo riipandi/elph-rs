@@ -8,5 +8,5 @@ pub use shell_output::{
 };
 pub use truncate::{
     DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, GREP_MAX_LINE_LENGTH, TruncatedBy, TruncationOptions, TruncationResult,
-    format_size, truncate_head, truncate_line, truncate_tail,
+    format_size, select_line_range, truncate_head, truncate_line, truncate_tail,
 };

@@ -4,6 +4,7 @@
 //! `src/env.ts`. Original MIT License, Copyright (c) 2026 LangChain.
 
 use anyhow::{Context, Result};
+use memchr::memchr;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -33,16 +34,27 @@ pub fn load_env() -> Result<HashMap<String, String>> {
     let content = std::fs::read_to_string(&env_path).context("Failed to read environment file")?;
 
     let mut env = HashMap::new();
-    for line in content.lines() {
+    let mut start = 0usize;
+    while start <= content.len() {
+        let remaining = &content[start..];
+        if remaining.is_empty() {
+            break;
+        }
+        let (line, next_start) = match memchr(b'\n', remaining.as_bytes()) {
+            Some(end) => (&remaining[..end], start + end + 1),
+            None => (remaining, content.len() + 1),
+        };
         let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
+        if !line.is_empty()
+            && !line.starts_with('#')
+            && let Some((key, value)) = line.split_once('=')
+        {
+            env.insert(key.trim().to_string(), parse_env_value(value.trim()));
         }
-        if let Some((key, value)) = line.split_once('=') {
-            let key = key.trim().to_string();
-            let value = parse_env_value(value.trim());
-            env.insert(key, value);
+        if next_start > content.len() {
+            break;
         }
+        start = next_start;
     }
 
     // Apply to process env

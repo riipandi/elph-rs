@@ -1,7 +1,7 @@
 use crate::fs::write_json_file;
 use crate::utils::path::AppPaths;
-use crate::utils::time::utc_rfc3339_now;
 use anyhow::Result;
+use chrono::{SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -18,7 +18,7 @@ pub struct VersionFile {
 
 impl VersionFile {
     pub fn defaults(app_version: &str) -> Self {
-        let now = utc_rfc3339_now();
+        let now = Utc::now().to_rfc3339_opts(SecondsFormat::AutoSi, true);
         Self {
             last_sync_providers: None,
             release_checked_at: Some(now),
@@ -35,5 +35,18 @@ impl VersionFile {
 
         write_json_file(&path, &Self::defaults(app_version))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_release_checked_at_is_rfc3339_utc() {
+        let file = VersionFile::defaults("0.0.1");
+        let stamp = file.release_checked_at.expect("release_checked_at");
+        assert!(stamp.ends_with('Z'));
+        assert!(stamp.contains('T'));
     }
 }

@@ -35,7 +35,9 @@ pub fn AssistantMessage(mut hooks: Hooks, props: &AssistantMessageProps) -> impl
                 rendered,
             });
         }
-        format!("{}{}", guard.as_ref().expect("cache populated").rendered, suffix)
+        let rendered = guard.as_ref().expect("cache populated").rendered.clone();
+        drop(guard);
+        format!("{rendered}{suffix}")
     };
 
     element! {

@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
+use memchr::memchr;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
@@ -105,23 +106,36 @@ pub(crate) fn decode_sse_line(line: &str, state: &mut SseDecoderState) -> Option
 /// Parse raw bytes into Anthropic SSE events.
 pub fn decode_sse_buffer(buffer: &str, state: &mut SseDecoderState) -> Vec<ServerSentEvent> {
     let mut events = Vec::new();
-    for line in buffer.split('\n') {
+    let mut start = 0usize;
+    while start <= buffer.len() {
+        let remaining = &buffer[start..];
+        if remaining.is_empty() {
+            break;
+        }
+        let (line, next_start) = match memchr(b'\n', remaining.as_bytes()) {
+            Some(end) => (&remaining[..end], start + end + 1),
+            None => (remaining, buffer.len() + 1),
+        };
         let line = line.trim_end_matches('\r');
         if let Some(event) = decode_sse_line(line, state) {
             events.push(event);
         }
+        if next_start > buffer.len() {
+            break;
+        }
+        start = next_start;
     }
     events
 }
 
 fn process_sse_line_buffer(line_buffer: &mut String, state: &mut SseDecoderState) -> Vec<ServerSentEvent> {
     let mut events = Vec::new();
-    while let Some(newline_pos) = line_buffer.find('\n') {
-        let line = line_buffer[..newline_pos].trim_end_matches('\r').to_string();
-        *line_buffer = line_buffer[newline_pos + 1..].to_string();
-        if let Some(event) = decode_sse_line(&line, state) {
+    while let Some(newline_pos) = memchr(b'\n', line_buffer.as_bytes()) {
+        let line = line_buffer[..newline_pos].trim_end_matches('\r');
+        if let Some(event) = decode_sse_line(line, state) {
             events.push(event);
         }
+        line_buffer.drain(..=newline_pos);
     }
     events
 }

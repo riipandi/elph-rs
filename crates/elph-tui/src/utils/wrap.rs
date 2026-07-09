@@ -1,3 +1,5 @@
+use memchr::memchr;
+
 use super::truncate::truncate_to_width_no_ellipsis;
 use super::width::{char_display_width, str_display_width};
 
@@ -9,12 +11,25 @@ pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     }
 
     let mut lines = Vec::new();
-    for paragraph in text.split('\n') {
+    let mut start = 0usize;
+    while start <= text.len() {
+        let remaining = &text[start..];
+        if remaining.is_empty() {
+            break;
+        }
+        let (paragraph, next_start) = match memchr(b'\n', remaining.as_bytes()) {
+            Some(end) => (&remaining[..end], start + end + 1),
+            None => (remaining, text.len() + 1),
+        };
         if paragraph.is_empty() {
             lines.push(String::new());
-            continue;
+        } else {
+            lines.extend(wrap_paragraph(paragraph, max_width));
         }
-        lines.extend(wrap_paragraph(paragraph, max_width));
+        if next_start > text.len() {
+            break;
+        }
+        start = next_start;
     }
     lines
 }
@@ -139,12 +154,25 @@ pub fn wrap_ansi_text(text: &str, max_width: usize) -> Vec<String> {
     }
 
     let mut lines = Vec::new();
-    for paragraph in text.split('\n') {
+    let mut start = 0usize;
+    while start <= text.len() {
+        let remaining = &text[start..];
+        if remaining.is_empty() {
+            break;
+        }
+        let (paragraph, next_start) = match memchr(b'\n', remaining.as_bytes()) {
+            Some(end) => (&remaining[..end], start + end + 1),
+            None => (remaining, text.len() + 1),
+        };
         if paragraph.is_empty() {
             lines.push(String::new());
-            continue;
+        } else {
+            lines.extend(wrap_ansi_line(paragraph, max_width));
         }
-        lines.extend(wrap_ansi_line(paragraph, max_width));
+        if next_start > text.len() {
+            break;
+        }
+        start = next_start;
     }
     lines
 }
