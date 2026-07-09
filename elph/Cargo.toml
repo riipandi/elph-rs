@@ -33,4 +33,4 @@ tsid.workspace = true
 libc.workspace = true
 
 [dev-dependencies]
-tempfile = "3.27.0"
+tempfile.workspace = true

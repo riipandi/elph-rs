@@ -17,18 +17,18 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
-base64 = "0.22"
+base64.workspace = true
 crokey.workspace = true
 crossterm.workspace = true
 iocraft.workspace = true
 pulldown-cmark.workspace = true
 similar.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
-unicode-width = "0.2"
+unicode-width.workspace = true
 
 [dev-dependencies]
-futures = "0.3"
-similar-asserts = "2.0.0"
+futures.workspace = true
+similar-asserts.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 
 [target.'cfg(unix)'.dev-dependencies]

@@ -23,22 +23,21 @@ obscura = []
 
 [dependencies]
 anyhow.workspace = true
-async-trait = "0.1"
-bytes = "1"
-crossbeam-channel = "0.5.16"
+async-trait.workspace = true
+bytes.workspace = true
+crossbeam-channel.workspace = true
 elph-ai.workspace = true
 elph-core.workspace = true
 fff-search.workspace = true
-futures = "0.3"
-ignore = "0.4"
+futures.workspace = true
+ignore.workspace = true
 indicatif.workspace = true
-
-regex = "1"
-reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls", "stream"] }
+regex.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml = "0.9"
-tempfile = "3.27.0"
+serde_yaml.workspace = true
+tempfile.workspace = true
 time.workspace = true
 tokio = { workspace = true, features = [
   "fs",
@@ -51,13 +50,13 @@ tokio = { workspace = true, features = [
   "sync",
   "time",
 ] }
-tokio-util = { version = "0.7", features = ["rt"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 turso.workspace = true
-url = "2"
-urlencoding = "2"
-uuid = { version = "1", features = ["v7"] }
-walkdir = "2.5"
+url.workspace = true
+urlencoding.workspace = true
+uuid.workspace = true
+walkdir.workspace = true
 
 [[example]]
 name = "faux_agent"
@@ -121,6 +120,6 @@ path = "examples/agent_skill_math.rs"
 
 [dev-dependencies]
 elph-ai = { workspace = true }
-tempfile = "3.27.0"
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-uuid = { version = "1", features = ["v7"] }
+uuid.workspace = true

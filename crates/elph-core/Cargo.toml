@@ -19,17 +19,17 @@ fastembed = ["dep:fastembed"]
 
 [dependencies]
 anyhow.workspace = true
-fastembed = { version = "5", optional = true }
-rand = "0.10.2"
+fastembed = { workspace = true, optional = true }
+rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
-tracing-appender.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
+tracing-appender.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
 turso.workspace = true
-uuid = { version = "1", features = ["v7"] }
+uuid.workspace = true
 
 [dev-dependencies]
-tempfile = "3.27.0"
+tempfile.workspace = true

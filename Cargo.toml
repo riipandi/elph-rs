@@ -9,15 +9,16 @@ rust-version = "1.96"
 edition = "2024"
 
 [workspace.dependencies]
-# Planned — not yet wired into crates:
-# agent-client-protocol = "1.0.1"
-# git2 = { version = "0.21.0", features = ["cred", "https", "ssh"] }
-# jsonschema = "=0.46.10"
-# rmcp = { version = "2.1.0", features = ["auth", "client"] }
-# ropey = { version = "1.6.1", features = ["metric_lines_lf_cr", "simd"] }
-# rustc-hash = { version = "2.1.3", features = ["rand", "std"] }
 anyhow = "1.0.103"
+async-trait = "0.1"
+aws-config = "1"
+aws-sdk-bedrockruntime = "1"
+aws-smithy-runtime-api = "1"
+aws-smithy-types = "1"
 axum = { version = "0.8.8", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+base64 = "0.22"
+bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 clap = { version = "4.5", default-features = false, features = [
   "color",
   "derive",
@@ -27,27 +28,72 @@ clap = { version = "4.5", default-features = false, features = [
   "usage",
 ] }
 crokey = "1.4.0"
+crossbeam-channel = "0.5.16"
 crossterm = { version = "0.29", default-features = false, features = ["bracketed-paste", "events"] }
+dialoguer = "0.12"
+dirs = "6"
 elph-agent = { path = "crates/elph-agent", version = "0.0.25" }
 elph-ai = { path = "crates/elph-ai", version = "0.0.24" }
 elph-core = { path = "crates/elph-core", version = "0.0.13" }
 elph-tui = { path = "crates/elph-tui", version = "0.0.24" }
+eventsource-stream = "0.2"
+fastembed = { version = "5" }
 fff-search = "0.9.6"
+futures = "0.3"
+futures-util = "0.3"
+http = "1"
+ignore = "0.4"
+image = "0.25"
 indicatif = { version = "0.18.6", default-features = false, features = ["unicode-width"] }
 iocraft = "0.8.3"
+jsonschema = "0.46.10"
+lazy_static = "1.5"
 libc = "0.2"
+memorable-ids = "0.1.0"
+once_cell = "1.21"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["simd"] }
+rand = "0.10.2"
+regex = "1"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls", "stream"] }
+rust-embed = { version = "8.9.0" }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+schemars = "1.2.1"
 serde = { version = "1.0.228", default-features = false, features = ["derive", "std"] }
 serde_json = { version = "1.0.150", default-features = false, features = ["std"] }
+serde_yaml = "0.9"
+sha2 = "0.11.0"
 similar = { version = "3.1.1", features = ["inline", "unicode"] }
+similar-asserts = "2.0.0"
+tempfile = "3.27.0"
+thiserror = "2"
 time = { version = "0.3", default-features = false, features = ["formatting", "parsing", "std"] }
 tokio = { version = "1", default-features = false, features = ["macros", "rt"] }
+tokio-rustls = "0.26"
+tokio-tungstenite = { version = "0.29.0", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+tokio-util = "0.7"
+tower = { version = "0.5.2", features = ["util"] }
 tower-http = { version = "0.7.0", default-features = false, features = ["catch-panic"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "json", "std"] }
 tsid = "0.3.4"
 turso = { version = "0.6.1", default-features = false }
+unicode-width = "0.2"
+url = "2"
+urlencoding = "2"
+uuid = { version = "1", features = ["v7"] }
+walkdir = "2.5"
+webpki-roots = "1.0.8"
+yaml-front-matter = "0.1"
+zstd = "0.13"
+
+# Planned — not yet wired into crates:
+# agent-client-protocol = "1.0.1"
+# git2 = { version = "0.21.0", features = ["cred", "https", "ssh"] }
+# jsonschema = "=0.46.10"
+# rmcp = { version = "2.1.0", features = ["auth", "client"] }
+# ropey = { version = "1.6.1", features = ["metric_lines_lf_cr", "simd"] }
+# rustc-hash = { version = "2.1.3", features = ["rand", "std"] }
 
 [profile.release]
 opt-level = 2 # Optimization level: 2 = balanced runtime perf vs compile time
