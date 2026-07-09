@@ -1,5 +1,7 @@
+mod inline;
 mod label;
 
+pub use inline::{inline_label_value, inline_line};
 pub use label::render_label;
 
 use slt::{Border, Color, Context};
@@ -7,7 +9,7 @@ use slt::{Border, Color, Context};
 /// Renders text with an optional foreground color.
 pub fn text_optional_color(ui: &mut Context, content: impl AsRef<str>, color: Option<Color>) {
     let content = content.as_ref();
-    if let Some(c) = color {
+    if let Some(c) = color.filter(|c| *c != Color::Reset) {
         ui.text(content).fg(c);
     } else {
         ui.text(content);

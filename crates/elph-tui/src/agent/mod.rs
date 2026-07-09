@@ -1,6 +1,8 @@
 //! Agent-facing SLT render helpers (Elph-parity UI).
 
 mod assistant_message;
+mod composer_view;
+mod detail_block;
 mod list_modal;
 mod login_dialog;
 mod model_selector;
@@ -10,6 +12,10 @@ mod tool_execution;
 mod transcript_view;
 
 pub use assistant_message::render_assistant_message;
+pub use composer_view::{composer_demo_entries, render_composer_transcript, render_tool_block, render_user_card};
+pub use detail_block::{
+    CollapseState, detail_dot, detail_dot_color, format_detail_hint, render_detail_block, render_pipe_message,
+};
 pub use login_dialog::{AuthStatus, render_login_dialog};
 pub use model_selector::{
     ModelSelectorAction, ModelSelectorState, handle_model_selector_input, model_overlay_slot, render_model_selector,

@@ -9,11 +9,7 @@ pub enum ThemeMode {
     Light,
 }
 
-/// Color palette applied across TUI components.
-///
-/// Base colors use [`Color::Reset`] so foreground and background inherit the
-/// terminal's configured theme. Accent and muted colors use ANSI names so they
-/// map to the terminal palette instead of fixed RGB values.
+/// Terminal-native palette — no custom RGB; defers to the emulator theme.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Theme {
     pub mode: ThemeMode,
@@ -31,46 +27,30 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// Palette tuned for dark terminal backgrounds.
+    /// Palette for dark terminal backgrounds (standard ANSI accents).
     pub fn dark() -> Self {
-        Self {
-            mode: ThemeMode::Dark,
-            background: Color::Reset,
-            foreground: Color::Reset,
-            muted: Color::DarkGray,
-            prompt_prefix: Color::DarkGray,
-            scrollbar_thumb: Color::DarkGray,
-            scrollbar_track: Color::DarkGray,
-            frame_border: Color::Blue,
-            mode_build: Color::DarkGray,
-            mode_plan: Color::Green,
-            mode_ask: Color::Blue,
-            mode_brave: Color::Red,
-        }
+        Self::from_mode(ThemeMode::Dark)
     }
 
-    /// Palette tuned for light terminal backgrounds.
+    /// Palette for light terminal backgrounds (standard ANSI accents).
     pub fn light() -> Self {
-        Self {
-            mode: ThemeMode::Light,
-            background: Color::Reset,
-            foreground: Color::Reset,
-            muted: Color::Black,
-            prompt_prefix: Color::Black,
-            scrollbar_thumb: Color::Black,
-            scrollbar_track: Color::DarkGray,
-            frame_border: Color::LightBlue,
-            mode_build: Color::DarkGray,
-            mode_plan: Color::LightGreen,
-            mode_ask: Color::LightBlue,
-            mode_brave: Color::LightRed,
-        }
+        Self::from_mode(ThemeMode::Light)
     }
 
     pub fn from_mode(mode: ThemeMode) -> Self {
-        match mode {
-            ThemeMode::Dark => Self::dark(),
-            ThemeMode::Light => Self::light(),
+        Self {
+            mode,
+            background: Color::Reset,
+            foreground: Color::Reset,
+            muted: Color::DarkGray,
+            prompt_prefix: Color::Reset,
+            scrollbar_thumb: Color::DarkGray,
+            scrollbar_track: Color::DarkGray,
+            frame_border: Color::Reset,
+            mode_build: Color::DarkGray,
+            mode_plan: Color::Cyan,
+            mode_ask: Color::Blue,
+            mode_brave: Color::Red,
         }
     }
 
@@ -100,15 +80,57 @@ impl Theme {
         })
     }
 
-    /// Sync the SuperLightTUI global theme with this palette.
+    /// Sync SuperLightTUI with a terminal-respecting palette for the active mode.
     pub fn apply_to(self, ui: &mut Context) {
-        ui.set_theme(match self.mode {
-            ThemeMode::Dark => SltTheme::dark(),
-            ThemeMode::Light => SltTheme::light(),
-        });
+        ui.set_theme(self.slt_theme());
+    }
+
+    fn slt_theme(self) -> SltTheme {
+        match self.mode {
+            ThemeMode::Dark => SltTheme::builder()
+                .is_dark(true)
+                .text(Color::Reset)
+                .text_dim(Color::DarkGray)
+                .bg(Color::Reset)
+                .border(Color::DarkGray)
+                .primary(Color::Cyan)
+                .secondary(Color::Blue)
+                .accent(Color::Magenta)
+                .success(Color::Green)
+                .warning(Color::Yellow)
+                .error(Color::Red)
+                .selected_bg(Color::Blue)
+                .selected_fg(Color::Reset)
+                .surface(Color::Reset)
+                .surface_hover(Color::Reset)
+                .surface_text(Color::Reset)
+                .build(),
+            ThemeMode::Light => SltTheme::builder()
+                .is_dark(false)
+                .text(Color::Reset)
+                .text_dim(Color::DarkGray)
+                .bg(Color::Reset)
+                .border(Color::DarkGray)
+                .primary(Color::Blue)
+                .secondary(Color::Cyan)
+                .accent(Color::Magenta)
+                .success(Color::Green)
+                .warning(Color::Yellow)
+                .error(Color::Red)
+                .selected_bg(Color::Blue)
+                .selected_fg(Color::Reset)
+                .surface(Color::Reset)
+                .surface_hover(Color::Reset)
+                .surface_text(Color::Reset)
+                .build(),
+        }
     }
 
     pub fn mode_accent(self, mode: AgentMode) -> Color {
+        self.mode_border_color(mode)
+    }
+
+    pub fn mode_border_color(self, mode: AgentMode) -> Color {
         match mode {
             AgentMode::Build => self.mode_build,
             AgentMode::Plan => self.mode_plan,
@@ -133,25 +155,90 @@ impl Theme {
         }
     }
 
-    /// Block cursor color for the prompt field.
     pub fn input_cursor(self) -> Color {
-        match self.mode {
-            ThemeMode::Dark => Color::DarkGray,
-            ThemeMode::Light => Color::DarkGray,
-        }
+        self.dim_text()
     }
 
-    /// Placeholder hint shown when the prompt is empty.
     pub fn input_placeholder(self) -> Color {
+        self.dim_text()
+    }
+
+    pub fn paste_label(self) -> Color {
+        self.dim_text()
+    }
+
+    pub fn blue_col(self) -> Color {
         match self.mode {
-            ThemeMode::Dark => Color::DarkGray,
-            ThemeMode::Light => Color::DarkGray,
+            ThemeMode::Dark => Color::Cyan,
+            ThemeMode::Light => Color::Blue,
         }
     }
 
-    /// Label color for collapsed paste chips (`[Pasted: NN lines]`).
-    pub fn paste_label(self) -> Color {
+    pub fn yellow_col(self) -> Color {
+        Color::Yellow
+    }
+
+    pub fn highlight(self) -> Color {
+        Color::Magenta
+    }
+
+    pub fn special(self) -> Color {
+        Color::Green
+    }
+
+    pub fn dim_text(self) -> Color {
         self.muted
+    }
+
+    pub fn bright_text(self) -> Color {
+        Color::Reset
+    }
+
+    pub fn user_pipe_col(self) -> Color {
+        Color::Magenta
+    }
+
+    pub fn ai_pipe_col(self) -> Color {
+        Color::DarkGray
+    }
+
+    /// Primary emphasis — inherits terminal foreground.
+    pub fn white_col(self) -> Color {
+        Color::Reset
+    }
+
+    pub fn thinking_color(self, level: &str) -> Color {
+        match level.trim().to_ascii_lowercase().as_str() {
+            "low" => Color::Green,
+            "medium" => Color::Yellow,
+            "high" => Color::Yellow,
+            "xhigh" => Color::Red,
+            _ => Color::DarkGray,
+        }
+    }
+
+    pub fn context_usage_color(self, pct: f64) -> Color {
+        if pct >= 90.0 {
+            Color::Red
+        } else if pct >= 80.0 {
+            Color::LightRed
+        } else if pct >= 50.0 {
+            Color::Yellow
+        } else {
+            Color::Reset
+        }
+    }
+
+    pub fn git_status_color(self, additions: u32, deletions: u32) -> Color {
+        if additions == 0 && deletions == 0 {
+            Color::DarkGray
+        } else if additions > 0 && deletions == 0 {
+            Color::Green
+        } else if additions == 0 && deletions > 0 {
+            Color::Red
+        } else {
+            Color::Yellow
+        }
     }
 }
 
@@ -166,17 +253,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dark_and_light_palettes_differ() {
+    fn palettes_use_terminal_reset() {
         let dark = Theme::dark();
         let light = Theme::light();
         assert_eq!(dark.background, Color::Reset);
         assert_eq!(light.background, Color::Reset);
         assert_eq!(dark.foreground, Color::Reset);
         assert_eq!(light.foreground, Color::Reset);
-        assert_ne!(dark.muted, light.muted);
-        assert_ne!(dark.frame_border, light.frame_border);
         assert_eq!(dark.mode, ThemeMode::Dark);
         assert_eq!(light.mode, ThemeMode::Light);
+    }
+
+    #[test]
+    fn no_custom_rgb_in_semantic_tokens() {
+        let theme = Theme::dark();
+        for color in [
+            theme.blue_col(),
+            theme.yellow_col(),
+            theme.highlight(),
+            theme.special(),
+            theme.dim_text(),
+            theme.bright_text(),
+            theme.user_pipe_col(),
+            theme.ai_pipe_col(),
+            theme.white_col(),
+            theme.thinking_color("high"),
+            theme.context_usage_color(95.0),
+            theme.git_status_color(1, 0),
+            theme.mode_border_color(AgentMode::Ask),
+        ] {
+            assert!(
+                !matches!(color, Color::Rgb(_, _, _)),
+                "expected terminal color, got {color:?}"
+            );
+        }
     }
 
     #[test]
@@ -187,15 +297,19 @@ mod tests {
     }
 
     #[test]
-    fn mode_accent_returns_palette_entry() {
+    fn mode_border_uses_ansi() {
         let theme = Theme::dark();
-        assert_eq!(theme.mode_accent(AgentMode::Plan), Color::Green);
+        assert_eq!(theme.mode_border_color(AgentMode::Plan), Color::Cyan);
+        assert_eq!(theme.mode_border_color(AgentMode::Ask), Color::Blue);
     }
 
     #[test]
-    fn palettes_use_ansi_not_rgb() {
+    fn context_usage_thresholds() {
         let theme = Theme::dark();
-        assert!(!matches!(theme.muted, Color::Rgb(_, _, _) | Color::Indexed(_)));
+        assert_eq!(theme.context_usage_color(30.0), Color::Reset);
+        assert_eq!(theme.context_usage_color(60.0), Color::Yellow);
+        assert_eq!(theme.context_usage_color(85.0), Color::LightRed);
+        assert_eq!(theme.context_usage_color(95.0), Color::Red);
     }
 
     #[test]

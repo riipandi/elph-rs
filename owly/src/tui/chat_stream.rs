@@ -3,6 +3,7 @@
 use elph_tui::{
     ScrollSnapshot, Theme, ToolExecutionState, ToolExecutionStatus, apply_transcript_auto_scroll,
     handle_transcript_scroll_keys, prepare_transcript_follow, render_assistant_message,
+    unpin_auto_scroll_if_scrolled_up,
 };
 use slt::{Color, Context, ScrollState};
 
@@ -81,6 +82,7 @@ pub fn render_owly_chat_stream(
     });
 
     if state.scroll_enabled {
+        unpin_auto_scroll_if_scrolled_up(&state.scroll, &mut state.auto_scroll, snapshot);
         apply_transcript_auto_scroll(&mut state.scroll, &mut state.auto_scroll, snapshot, follow_tail);
     }
 }

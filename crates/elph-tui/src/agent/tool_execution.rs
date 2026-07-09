@@ -25,7 +25,7 @@ pub fn render_tool_execution_card(ui: &mut Context, tool: &ToolExecutionState, t
                 text_optional_color(ui, &tool.args_summary, Some(theme.muted));
             }
             if tool.status == ToolExecutionStatus::Running {
-                ui.text("⠋ Running... (Esc to cancel)");
+                ui.text("⠋ Running... (Ctrl+C to cancel)");
             }
             if !output.is_empty() {
                 let _ = ui.markdown(&output);

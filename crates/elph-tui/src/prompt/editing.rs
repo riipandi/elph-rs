@@ -176,6 +176,27 @@ fn delete_to_line_start(state: &mut TextareaState) {
     }
 }
 
+fn insert_newline(state: &mut TextareaState) {
+    normalize_cursor(state);
+    let split_index = byte_index_for_grapheme(&state.lines[state.cursor_row], state.cursor_col);
+    let remainder = state.lines[state.cursor_row].split_off(split_index);
+    state.cursor_row += 1;
+    state.lines.insert(state.cursor_row, remainder);
+    state.cursor_col = 0;
+}
+
+fn is_newline_key(key: &KeyEvent) -> bool {
+    if key.kind != KeyEventKind::Press {
+        return false;
+    }
+    match key.code {
+        KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => true,
+        KeyCode::Char('\n') => true,
+        KeyCode::Char(c) if key.modifiers.contains(KeyModifiers::CONTROL) && (c == 'j' || c == 'J') => true,
+        _ => false,
+    }
+}
+
 fn delete_to_line_end(state: &mut TextareaState) {
     normalize_cursor(state);
     let line_len = grapheme_count(current_line(state));
@@ -216,6 +237,11 @@ fn is_plain_navigation(modifiers: KeyModifiers) -> bool {
 
 /// Apply one prompt key binding. Returns `true` when the event was handled.
 pub fn apply_textarea_key(state: &mut TextareaState, key: &KeyEvent) -> bool {
+    if is_newline_key(key) {
+        insert_newline(state);
+        return true;
+    }
+
     if key.kind != KeyEventKind::Press {
         return false;
     }
@@ -379,6 +405,27 @@ mod tests {
             &press(KeyCode::Left, KeyModifiers::SUPER)
         ));
         assert_eq!(state.cursor_col, 0);
+    }
+
+    #[test]
+    fn shift_enter_inserts_newline() {
+        let mut state = textarea_with("hello");
+        assert!(apply_textarea_key(
+            &mut state,
+            &press(KeyCode::Enter, KeyModifiers::SHIFT)
+        ));
+        assert_eq!(state.lines.len(), 2);
+        assert_eq!(state.lines[0], "hello");
+    }
+
+    #[test]
+    fn ctrl_j_inserts_newline() {
+        let mut state = textarea_with("hello");
+        assert!(apply_textarea_key(
+            &mut state,
+            &press(KeyCode::Char('\x0a'), KeyModifiers::NONE)
+        ));
+        assert_eq!(state.lines.len(), 2);
     }
 
     #[test]

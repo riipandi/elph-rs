@@ -1,55 +1,77 @@
 use super::assistant_message::render_assistant_message;
-use super::tool_execution::render_tool_execution_card;
-use crate::components::text_optional_color;
+use super::detail_block::{CollapseState, render_detail_block, render_pipe_message};
+use crate::components::inline_line;
 use crate::theme::Theme;
 use crate::transcript::{TranscriptEntry, TranscriptRole};
 use slt::Context;
 
 /// Renders a transcript column from the given entries.
-pub fn render_transcript_view(ui: &mut Context, entries: &[TranscriptEntry], show_thinking: bool, theme: Theme) {
-    let _ = ui.container().grow(1).col(|ui| {
-        for entry in entries {
-            render_entry(ui, entry, theme, show_thinking);
+pub fn render_transcript_view(
+    ui: &mut Context,
+    entries: &[TranscriptEntry],
+    show_thinking: bool,
+    theme: Theme,
+    collapse: &CollapseState,
+) {
+    let _ = ui.container().col(|ui| {
+        for (index, entry) in entries.iter().enumerate() {
+            render_entry(ui, entry, index, theme, show_thinking, collapse);
         }
     });
 }
 
-fn render_entry(ui: &mut Context, entry: &TranscriptEntry, theme: Theme, show_thinking: bool) {
+fn render_entry(
+    ui: &mut Context,
+    entry: &TranscriptEntry,
+    index: usize,
+    theme: Theme,
+    show_thinking: bool,
+    collapse: &CollapseState,
+) {
     match entry.role {
         TranscriptRole::User => {
-            text_optional_color(ui, format_user(&entry.content), theme.text_color());
+            if let Some(ts) = &entry.timestamp {
+                inline_line(ui, |ui| {
+                    let _ = ui.text(ts).fg(theme.dim_text()).dim();
+                });
+            }
+            render_pipe_message(ui, &entry.content, theme.user_pipe_col(), "  ");
         }
         TranscriptRole::Assistant => {
+            if let Some(ts) = &entry.timestamp {
+                inline_line(ui, |ui| {
+                    let _ = ui.text(ts).fg(theme.dim_text()).dim();
+                });
+            }
+            inline_line(ui, |ui| {
+                let _ = ui.text("| ").fg(theme.ai_pipe_col());
+            });
             render_assistant_message(ui, &entry.content, entry.is_streaming, theme);
         }
         TranscriptRole::Thinking if show_thinking => {
-            let label = if entry.thinking_expanded {
+            let expanded = collapse.is_expanded(index);
+            let label = if expanded {
                 format!("Thinking:\n{}", entry.content)
             } else {
                 "Thinking…".to_string()
             };
-            text_optional_color(ui, &label, Some(theme.muted));
+            inline_line(ui, |ui| {
+                let _ = ui.text("● ").fg(theme.dim_text());
+                let _ = ui.text(label).fg(theme.muted);
+            });
         }
         TranscriptRole::Thinking => {}
         TranscriptRole::Tool => {
             if let Some(tool) = entry.tool.as_ref() {
-                render_tool_execution_card(ui, tool, theme, true);
+                let expanded = collapse.is_expanded(index);
+                render_detail_block(ui, tool, expanded, theme, index);
             }
         }
+        TranscriptRole::System => {
+            inline_line(ui, |ui| {
+                let _ = ui.text("> ").fg(theme.highlight());
+                let _ = ui.text(&entry.content).fg(theme.dim_text());
+            });
+        }
     }
-}
-
-fn format_user(message: &str) -> String {
-    let trimmed = message.trim_end();
-    let mut lines = trimmed.lines();
-    let Some(first) = lines.next() else {
-        return String::new();
-    };
-    let mut out = format!("> {first}");
-    for line in lines {
-        out.push('\n');
-        out.push_str("  ");
-        out.push_str(line);
-    }
-    out
 }

@@ -52,26 +52,49 @@ pub fn consume_prompt_clear(ui: &mut Context) -> bool {
     }
 }
 
-/// Consume Enter without Shift (submit); Shift+Enter is left for newline insertion.
-pub fn consume_submit_enter(ui: &mut Context) -> bool {
+/// Enter key intent (Shift+Enter is left for newline insertion in the textarea).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnterAction {
+    None,
+    /// Plain Enter — submit when idle, queue when the agent is busy.
+    Submit,
+    /// Ctrl+Enter — steer / interrupt the in-flight response.
+    Steer,
+}
+
+/// Consume Enter / Ctrl+Enter; Shift+Enter is not consumed here.
+pub fn consume_enter_action(ui: &mut Context) -> EnterAction {
     let mut target = None;
+    let mut action = EnterAction::None;
     for (index, key) in ui.key_presses_when(true) {
-        if key.code == KeyCode::Enter && !key.modifiers.contains(KeyModifiers::SHIFT) {
-            target = Some(index);
-            break;
+        if key.code != KeyCode::Enter || key.modifiers.contains(KeyModifiers::SHIFT) {
+            continue;
         }
+        target = Some(index);
+        action = if key.modifiers.contains(KeyModifiers::CONTROL) {
+            EnterAction::Steer
+        } else {
+            EnterAction::Submit
+        };
+        break;
     }
     if let Some(index) = target {
         ui.consume_event(index);
-        true
+        action
     } else {
-        false
+        EnterAction::None
     }
+}
+
+/// Consume plain Enter (no Ctrl/Shift).
+#[allow(dead_code)]
+pub fn consume_submit_enter(ui: &mut Context) -> bool {
+    matches!(consume_enter_action(ui), EnterAction::Submit)
 }
 
 /// Returns true when submitted text is the Neovim-style quit command (`:q`).
 pub fn is_quit_command(text: &str) -> bool {
-    text.trim() == ":q"
+    matches!(text.trim(), ":q" | ":q!")
 }
 
 #[cfg(test)]

@@ -2,23 +2,34 @@
 
 pub mod agent;
 pub mod bridge;
+pub mod chrome;
 pub mod components;
 pub mod diff;
+pub mod keys;
 pub mod prompt;
+pub mod shell;
 pub mod terminal;
 pub mod theme;
 pub mod transcript;
 pub mod utils;
 
 pub use agent::{
-    AuthStatus, ModelSelectorAction, ModelSelectorState, OAuthSelectorAction, OAuthSelectorState,
-    SessionSelectorAction, SessionSelectorState, handle_model_selector_input, handle_oauth_selector_input,
-    handle_session_selector_input, mock_oauth_providers, model_overlay_slot, render_assistant_message,
-    render_login_dialog, render_model_selector, render_oauth_selector, render_session_selector,
-    render_tool_execution_card, render_tool_execution_list, render_transcript_view, session_overlay_slot,
+    AuthStatus, CollapseState, ModelSelectorAction, ModelSelectorState, OAuthSelectorAction, OAuthSelectorState,
+    SessionSelectorAction, SessionSelectorState, composer_demo_entries, handle_model_selector_input,
+    handle_oauth_selector_input, handle_session_selector_input, mock_oauth_providers, model_overlay_slot,
+    render_assistant_message, render_composer_transcript, render_detail_block, render_login_dialog,
+    render_model_selector, render_oauth_selector, render_pipe_message, render_session_selector, render_tool_block,
+    render_tool_execution_card, render_tool_execution_list, render_transcript_view, render_user_card,
+    session_overlay_slot,
 };
 pub use bridge::{OverlaySlot, OverlayStack, key_event_to_terminal_data, render_diff_overlay};
-pub use components::{frame, render_label, text_optional_color};
+pub use chrome::{
+    ActivityState, BANNER_TIPS, BannerInfo, BannerMode, BannerState, FooterInfo, FooterMode, FooterTokenDisplay,
+    StatusBarInfo, TaskItem, TaskStatus, format_tasks_completed_notice, pick_tip, render_activity, render_banner,
+    render_banner_with_mode, render_footer, render_footer_with_mode, render_simple_banner, render_status_bar,
+    render_tasks_panel,
+};
+pub use components::{frame, inline_label_value, inline_line, render_label, text_optional_color};
 pub use diff::{
     AutocompletePopup, AutocompleteProvider, CURSOR_MARKER, CancellableLoader, ChangeType,
     CombinedAutocompleteProvider, Container as DiffContainer, CrosstermTerminal, CursorPosition, DiffLine, DiffTui,
@@ -31,11 +42,18 @@ pub use diff::{
     first_changed_line, fuzzy_filter, fuzzy_match, hardware_cursor_enabled, hyperlink, match_editor_action,
     open_tui_writer, png_dimensions, render_markdown_lines, resolve_layout,
 };
+pub use keys::{consume_ctrl_char, consume_key_code_mod, ctrl_char_for, matches_ctrl_key, pressed_ctrl_char};
 pub use prompt::{
-    AgentMode, ChatStreamState, DEFAULT_LINE_SCROLL_STEP, PAGE_SCROLL_VIEWPORT, PromptAction, PromptOpts, PromptState,
-    ScrollSnapshot, apply_transcript_auto_scroll, handle_prompt_input, handle_transcript_scroll_keys,
-    is_pinned_to_bottom, is_quit_command, prepare_transcript_follow, render_chat_stream, render_chat_stream_with_agent,
-    render_prompt, scroll_to_bottom, should_cycle_agent_mode, text_with_theme,
+    AgentMode, ChatStreamState, DEFAULT_LINE_SCROLL_STEP, PAGE_SCROLL_VIEWPORT, PromptAction, PromptOpts, PromptQueue,
+    PromptState, ScrollSnapshot, SlashPaletteAction, SlashPaletteState, ThinkingLevel, TranscriptStyle,
+    apply_transcript_auto_scroll, elph_builtin_commands, handle_prompt_input, handle_slash_palette_keys,
+    handle_transcript_scroll_keys, is_pinned_to_bottom, is_quit_command, owly_builtin_commands,
+    prepare_transcript_follow, render_chat_stream, render_chat_stream_with_agent, render_prompt, render_slash_palette,
+    scroll_to_bottom, should_cycle_agent_mode, slash_palette_visible, text_with_theme,
+    unpin_auto_scroll_if_scrolled_up,
+};
+pub use shell::{
+    ShellChrome, ShellRegion, ShellTier, default_activity_spinner, default_run_config, layout_pad, render_agent_shell,
 };
 
 pub use terminal::{SigintReceiver, disable_keyboard_enhancement, enable_keyboard_enhancement, sigint_channel};
@@ -45,6 +63,7 @@ pub use transcript::{
     cap_entries, push_capped,
 };
 pub use utils::{
-    TAB_STOP, char_display_width, pad_lines, str_display_width, strip_ansi, truncate_to_width,
-    truncate_to_width_ellipsis, wrap_ansi_line, wrap_ansi_text, wrap_text,
+    TAB_STOP, char_display_width, format_message_timestamp, now_timestamp, pad_lines, path_basename, read_git_branch,
+    str_display_width, strip_ansi, truncate_to_width, truncate_to_width_ellipsis, wrap_ansi_line, wrap_ansi_text,
+    wrap_text,
 };

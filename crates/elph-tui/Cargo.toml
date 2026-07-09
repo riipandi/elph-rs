@@ -17,6 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
 base64.workspace = true
 crossterm.workspace = true
 memchr.workspace = true

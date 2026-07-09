@@ -4,6 +4,7 @@ use crate::utils::{pad_lines, str_display_width, wrap_ansi_line};
 
 use super::ansi::{self, StylePrefix, hyperlink, styled};
 use super::component::{Line, LineComponent};
+use super::markdown_table::render_gfm_table_data;
 
 /// ANSI palette for markdown rendering.
 #[derive(Debug, Clone, Copy)]
@@ -48,7 +49,7 @@ impl MarkdownTheme {
         }
     }
 
-    fn paint_text(&self, text: &str) -> String {
+    pub(crate) fn paint_text(&self, text: &str) -> String {
         styled(&ansi::fg(self.text), text)
     }
 
@@ -177,6 +178,15 @@ struct ListFrame {
     indent: usize,
 }
 
+#[derive(Default)]
+struct TableFrame {
+    header: Option<Vec<String>>,
+    rows: Vec<Vec<String>>,
+    current_row: Vec<String>,
+    in_header: bool,
+    in_cell: bool,
+}
+
 struct Renderer<'a> {
     theme: &'a MarkdownTheme,
     width: usize,
@@ -190,6 +200,7 @@ struct Renderer<'a> {
     code_block_lines: Vec<String>,
     link_url: Option<String>,
     heading_level: Option<u8>,
+    table: Option<TableFrame>,
 }
 
 impl<'a> Renderer<'a> {
@@ -207,6 +218,7 @@ impl<'a> Renderer<'a> {
             code_block_lines: Vec::new(),
             link_url: None,
             heading_level: None,
+            table: None,
         }
     }
 
@@ -234,6 +246,7 @@ impl<'a> Renderer<'a> {
         if self.in_code_block {
             self.flush_code_block();
         }
+        self.flush_table();
     }
 
     fn start_tag(&mut self, tag: Tag<'_>) {
@@ -293,6 +306,25 @@ impl<'a> Renderer<'a> {
             Tag::Link { dest_url, .. } => {
                 self.link_url = Some(dest_url.to_string());
             }
+            Tag::Table(_) => {
+                self.flush_paragraph();
+                self.table = Some(TableFrame::default());
+            }
+            Tag::TableHead => {
+                if let Some(table) = self.table.as_mut() {
+                    table.in_header = true;
+                }
+            }
+            Tag::TableRow => {
+                if let Some(table) = self.table.as_mut() {
+                    table.current_row.clear();
+                }
+            }
+            Tag::TableCell => {
+                if let Some(table) = self.table.as_mut() {
+                    table.in_cell = true;
+                }
+            }
             _ => {}
         }
     }
@@ -336,6 +368,34 @@ impl<'a> Renderer<'a> {
                     self.current.push_str(&self.style.apply_after(&rendered));
                 }
             }
+            TagEnd::TableCell => {
+                if let Some(table) = self.table.as_mut() {
+                    if !self.current.is_empty() {
+                        table.current_row.push(std::mem::take(&mut self.current));
+                    }
+                    table.in_cell = false;
+                }
+            }
+            TagEnd::TableRow => {
+                if let Some(table) = self.table.as_mut() {
+                    let row = std::mem::take(&mut table.current_row);
+                    if !row.is_empty() {
+                        table.rows.push(row);
+                    }
+                }
+            }
+            TagEnd::TableHead => {
+                if let Some(table) = self.table.as_mut() {
+                    let row = std::mem::take(&mut table.current_row);
+                    if !row.is_empty() {
+                        table.header = Some(row);
+                    }
+                    table.in_header = false;
+                }
+            }
+            TagEnd::Table => {
+                self.flush_table();
+            }
             _ => {}
         }
     }
@@ -362,12 +422,25 @@ impl<'a> Renderer<'a> {
     }
 
     fn flush_paragraph(&mut self) {
+        if self.table.as_ref().is_some_and(|t| t.in_cell) {
+            return;
+        }
         if self.current.trim().is_empty() {
             self.current.clear();
             return;
         }
         let line = std::mem::take(&mut self.current);
         self.push_wrapped_line(line);
+    }
+
+    fn flush_table(&mut self) {
+        let Some(table) = self.table.take() else {
+            return;
+        };
+        let rendered = render_gfm_table_data(table.header, table.rows, self.theme);
+        for line in rendered {
+            self.push_wrapped_line(line);
+        }
     }
 
     fn flush_code_block(&mut self) {
@@ -416,5 +489,16 @@ mod tests {
         let lines = md.render(40);
         let joined = lines.join("\n");
         assert!(joined.contains("let x = 1;"));
+    }
+
+    #[test]
+    fn renders_gfm_table() {
+        let md = "| Name | Age |\n|------|-----|\n| Alice | 30 |\n| Bob | 25 |";
+        let lines = render_markdown_lines(md, 50, MarkdownTheme::dark());
+        let joined = lines.join("\n");
+        assert!(joined.contains("Name"));
+        assert!(joined.contains("Alice"));
+        assert!(joined.contains('┌'));
+        assert!(joined.contains('┘'));
     }
 }

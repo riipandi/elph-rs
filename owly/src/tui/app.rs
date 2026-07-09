@@ -4,18 +4,19 @@ use std::sync::{Arc, Mutex};
 
 use elph_agent::try_block_on;
 use elph_tui::{
-    DEFAULT_TRANSCRIPT_CAP, PromptAction, PromptOpts, PromptState, Theme, ToolExecutionState,
-    disable_keyboard_enhancement, enable_keyboard_enhancement, handle_prompt_input, is_quit_command, push_capped,
-    render_prompt,
+    ActivityState, BannerInfo, DEFAULT_TRANSCRIPT_CAP, FooterInfo, PromptAction, PromptOpts, PromptQueue, PromptState,
+    ShellChrome, ShellRegion, Theme, ToolExecutionState, consume_ctrl_char, default_activity_spinner,
+    default_run_config, disable_keyboard_enhancement, enable_keyboard_enhancement, handle_prompt_input,
+    is_quit_command, pick_tip, push_capped, render_agent_shell, render_prompt,
 };
-use slt::{Context, KeyModifiers, RunConfig};
+use slt::{Context, widgets::SpinnerState};
 use tokio::sync::mpsc;
 
 use crate::env;
 use crate::onboarding::{self, SetupCredentials};
 use crate::ui_events::AgentUiEvent;
 
-use super::banner::{OwlyBannerInfo, directory_display, render_status_line};
+use super::banner::directory_display;
 use super::chat_stream::{OwlyChatState, render_owly_chat_stream};
 use super::context::AppContext;
 use super::entries::OwlyEntry;
@@ -46,6 +47,12 @@ pub struct OwlyApp {
     pub show_thinking: bool,
     pub should_exit: bool,
     pub submit_tx: mpsc::UnboundedSender<String>,
+    pub tip: &'static str,
+    pub turn: u32,
+    pub session_id: String,
+    pub activity: ActivityState,
+    pub spinner: SpinnerState,
+    pub prompt_queue: PromptQueue,
 }
 
 impl OwlyApp {
@@ -54,6 +61,7 @@ impl OwlyApp {
         let startup_entries = lines_to_entries(&launch.startup_lines);
         let setup = SetupWizardState::new(&launch.provider, &launch.model);
 
+        let session_id = launch.session_id.clone();
         Self {
             context: launch.app_context,
             entries: startup_entries,
@@ -70,6 +78,25 @@ impl OwlyApp {
             show_thinking,
             should_exit: false,
             submit_tx: launch.submit_tx,
+            tip: pick_tip(&session_id),
+            turn: 0,
+            session_id,
+            activity: ActivityState::default(),
+            spinner: default_activity_spinner(),
+            prompt_queue: PromptQueue::default(),
+        }
+    }
+
+    fn dispatch_prompt(&mut self, text: String) {
+        let _ = self.submit_tx.send(text);
+    }
+
+    fn drain_prompt_queue(&mut self) {
+        if self.running {
+            return;
+        }
+        if let Some(next) = self.prompt_queue.pop_front() {
+            self.dispatch_prompt(next);
         }
     }
 
@@ -81,48 +108,76 @@ impl OwlyApp {
             }
             AppMessage::DispatchDone { lines, should_exit } => {
                 self.running = false;
+                self.activity.clear();
                 self.live_tools.clear();
                 append_shell_lines(&mut self.entries, &lines);
                 if should_exit {
                     self.should_exit = true;
+                } else {
+                    self.drain_prompt_queue();
                 }
             }
             AppMessage::DispatchError(err) => {
                 self.running = false;
+                self.activity.clear();
                 self.live_tools.clear();
                 push_capped(
                     &mut self.entries,
                     OwlyEntry::assistant(format!("Error: {err}")),
                     DEFAULT_TRANSCRIPT_CAP,
                 );
+                self.drain_prompt_queue();
             }
         }
     }
 
     fn handle_global_keys(&mut self, ui: &mut Context) {
-        if ui.key_mod('c', KeyModifiers::CONTROL) {
+        if self.running {
+            if consume_ctrl_char(ui, 'c') {
+                self.activity.request_cancel();
+            }
+        } else if consume_ctrl_char(ui, 'c') {
             self.prompt.clear();
             return;
         }
-        if ui.key_mod('q', KeyModifiers::CONTROL) {
+
+        if !self.running && consume_ctrl_char(ui, 'q') {
             self.should_exit = true;
             return;
         }
-        if ui.key_mod('t', KeyModifiers::CONTROL) {
+        if consume_ctrl_char(ui, 't') {
             self.theme = self.theme.toggle();
         }
     }
 
     fn handle_prompt(&mut self, ui: &mut Context) {
-        if self.running {
-            return;
-        }
-        match handle_prompt_input(ui, &mut self.prompt) {
+        match handle_prompt_input(ui, &mut self.prompt, self.running) {
             PromptAction::Submit(text) => {
                 if is_quit_command(&text) {
-                    let _ = self.submit_tx.send("/exit".to_string());
+                    self.dispatch_prompt("/exit".to_string());
                 } else {
-                    let _ = self.submit_tx.send(text);
+                    self.dispatch_prompt(text);
+                }
+            }
+            PromptAction::Queue(text) => {
+                if is_quit_command(&text) {
+                    self.dispatch_prompt("/exit".to_string());
+                } else {
+                    self.prompt_queue.push_back(text);
+                }
+            }
+            PromptAction::Steer(text) => {
+                if is_quit_command(&text) {
+                    self.dispatch_prompt("/exit".to_string());
+                    return;
+                }
+                self.activity.request_cancel();
+                self.prompt_queue.push_front(text);
+                if self.running {
+                    self.running = false;
+                    self.activity.clear();
+                    self.live_tools.clear();
+                    self.drain_prompt_queue();
                 }
             }
             PromptAction::Clear => self.prompt.clear(),
@@ -185,28 +240,101 @@ pub fn render_owly_app(ui: &mut Context, app: &mut OwlyApp) {
 
     let directory = directory_display(app.context.cwd());
     let version = env!("CARGO_PKG_VERSION");
+    let model_name = app.model.clone();
+    let provider_name = app.provider.clone();
+    let session_id = app.session_id.clone();
+    let tip = app.tip;
+    let model = if model_name.is_empty() {
+        None
+    } else {
+        Some(model_name.as_str())
+    };
+    let provider = if provider_name.is_empty() {
+        None
+    } else {
+        Some(provider_name.as_str())
+    };
 
-    let _ = ui.container().grow(1).col(|ui| {
-        let banner = OwlyBannerInfo {
-            provider: &app.provider,
-            model: &app.model,
-            directory: &directory,
-            version,
-        };
-        render_status_line(ui, banner, app.theme);
-        let _ = ui.container().grow(1).col(|ui| {
+    let banner = BannerInfo {
+        app_name: "Owly",
+        version,
+        update_available: false,
+        directory: &directory,
+        model,
+        provider,
+        extensions: 0,
+        commands: 0,
+        skills: 0,
+        tools: 0,
+        mcp_connected: 0,
+        mcp_total: 0,
+        mcp_tools: 0,
+        tip,
+    };
+    let footer = FooterInfo {
+        model_name: model,
+        provider,
+        thinking_level: "high",
+        supports_images: false,
+        cost_usd: 0.0,
+        tokens_used: 0,
+        context_pct: 0.0,
+        context_limit: 262_000,
+        token_display: Default::default(),
+        project_dir: &directory,
+        session_id: &session_id,
+        mode: app.prompt.mode,
+        turn: app.turn,
+        branch: None,
+        git_additions: 0,
+        git_deletions: 0,
+    };
+
+    if app.running && !app.activity.visible {
+        app.activity = ActivityState::working();
+    }
+
+    let theme = app.theme;
+    let running = app.running;
+    let show_thinking = app.show_thinking;
+
+    let chrome = ShellChrome::simple(
+        banner,
+        footer,
+        running,
+        if running && app.activity.visible {
+            Some(app.activity.clone())
+        } else {
+            None
+        },
+        app.spinner.clone(),
+    );
+
+    render_agent_shell(ui, theme, chrome, |ui, region| match region {
+        ShellRegion::Chat => {
             render_owly_chat_stream(
                 ui,
                 &mut app.chat,
                 &app.entries,
                 &app.live_tools,
-                app.theme,
-                app.show_thinking,
-                app.running,
+                theme,
+                show_thinking,
+                running,
             );
-        });
-        app.handle_prompt(ui);
-        render_prompt(ui, &mut app.prompt, app.theme, PromptOpts { running: app.running });
+        }
+        ShellRegion::Input => {
+            app.handle_prompt(ui);
+            render_prompt(
+                ui,
+                &mut app.prompt,
+                theme,
+                PromptOpts {
+                    running,
+                    queued_count: app.prompt_queue.len(),
+                    ..Default::default()
+                },
+            );
+        }
     });
 }
 
@@ -243,6 +371,8 @@ pub async fn run_shell(mut launch: LaunchState) -> anyhow::Result<()> {
             if !trimmed.is_empty()
                 && let Ok(mut guard) = app_dispatch.lock()
             {
+                guard.turn = guard.turn.saturating_add(1);
+                guard.activity = ActivityState::working();
                 push_capped(&mut guard.entries, OwlyEntry::user(trimmed), DEFAULT_TRANSCRIPT_CAP);
                 guard.chat.pin_to_tail();
                 guard.live_tools.clear();
@@ -282,7 +412,7 @@ pub async fn run_shell(mut launch: LaunchState) -> anyhow::Result<()> {
 
     let app_ui = Arc::clone(&app);
     tokio::task::spawn_blocking(move || {
-        let config = RunConfig::default();
+        let config = default_run_config();
         slt::run_with(config, move |ui: &mut Context| {
             let mut guard = app_ui.lock().expect("owly app lock");
             while let Ok(message) = msg_rx.try_recv() {

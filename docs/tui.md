@@ -35,14 +35,14 @@
 │                                                                 │
 ╰─────────────────────────────────────────────────────────────────╯
 
- | This is an example input message from user                         <- FLUID MAIN_AREA / RESPONSE_STREAM
- | This is an example response from AI agent
+ This is an example input message from user                           <- FLUID MAIN_AREA / RESPONSE_STREAM
+ This is an example response from AI agent
 
 ╭─────────────────────────────────────────────────────────────────╮
 │ >                                                               │   <- INPUT_PROMPT (multiline with ctrl+j or shift+enter)
-╰─────────────────────────────────────────────────────────────────╯
+╰─────────────────────────────────────────────────── AGENT_MODE ──╯
 MODEL_NAME | PROVIDER | T: high | IMG      $0.00 | 0k | 0.0% (262k)   <- FOOTER / STATUSLINE (line-clamp if not enough width)
-PROJECT_DIR [abcd12345] AGENT_MODE           turn: 0 | main [-N +N]
+PROJECT_DIR [abcd12345]                      turn: 0 | main [-N +N]      (PROJECT_DIR only name, not full path)
 ```
 
 ---

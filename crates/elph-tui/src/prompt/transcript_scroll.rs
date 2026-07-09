@@ -103,6 +103,21 @@ fn should_follow_tail(auto_scroll: bool, follow_tail: bool, was_at_bottom: bool)
     auto_scroll || (follow_tail && was_at_bottom)
 }
 
+/// Unpin sticky tail after deliberate user scroll (keyboard or mouse wheel).
+pub fn unpin_auto_scroll_if_scrolled_up(scroll: &ScrollState, auto_scroll: &mut bool, before: ScrollSnapshot) {
+    if before.max_offset == 0 {
+        return;
+    }
+    let max = max_scroll_offset(scroll);
+    if user_scrolled_up(scroll.offset, before, max) {
+        *auto_scroll = false;
+        return;
+    }
+    if before.was_at_bottom && !is_pinned_to_bottom(scroll) {
+        *auto_scroll = false;
+    }
+}
+
 pub fn apply_transcript_auto_scroll(
     scroll: &mut ScrollState,
     auto_scroll: &mut bool,
@@ -120,11 +135,15 @@ pub fn apply_transcript_auto_scroll(
         return;
     }
 
+    if !*auto_scroll && follow_tail && !before.was_at_bottom {
+        return;
+    }
+
     if should_follow_tail(*auto_scroll, follow_tail, before.was_at_bottom) {
         scroll.set_offset(max);
     }
 
-    if follow_tail && is_pinned_to_bottom(scroll) {
+    if follow_tail && is_pinned_to_bottom(scroll) && *auto_scroll {
         *auto_scroll = true;
     }
 }

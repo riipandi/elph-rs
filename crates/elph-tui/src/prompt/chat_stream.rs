@@ -1,10 +1,11 @@
-use crate::agent::render_transcript_view;
+use crate::agent::{CollapseState, render_composer_transcript, render_transcript_view};
 use crate::theme::Theme;
 use crate::transcript::TranscriptEntry;
-use slt::{Context, ScrollState};
+use slt::{Context, Justify, ScrollState};
 
 use super::transcript_scroll::{
     ScrollSnapshot, apply_transcript_auto_scroll, handle_transcript_scroll_keys, prepare_transcript_follow,
+    unpin_auto_scroll_if_scrolled_up,
 };
 
 /// Default lines scrolled per Up/Down key press.
@@ -12,6 +13,16 @@ pub const DEFAULT_LINE_SCROLL_STEP: u16 = 3;
 
 /// Use viewport height for Page Up/Down when zero.
 pub const PAGE_SCROLL_VIEWPORT: u16 = 0;
+
+/// Transcript presentation style.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TranscriptStyle {
+    /// Pipe-column layout from `docs/tui.md`.
+    #[default]
+    Classic,
+    /// Cursor Composer-style cards and blocks.
+    Composer,
+}
 
 /// Scrollable chat transcript backed by SLT [`ScrollState`].
 pub struct ChatStreamState {
@@ -23,6 +34,8 @@ pub struct ChatStreamState {
     pub line_scroll_step: u16,
     pub page_scroll_step: u16,
     pub show_thinking: bool,
+    pub collapse: CollapseState,
+    pub style: TranscriptStyle,
 }
 
 impl ChatStreamState {
@@ -36,6 +49,8 @@ impl ChatStreamState {
             line_scroll_step: DEFAULT_LINE_SCROLL_STEP,
             page_scroll_step: PAGE_SCROLL_VIEWPORT,
             show_thinking: true,
+            collapse: CollapseState::default(),
+            style: TranscriptStyle::default(),
         }
     }
 
@@ -91,22 +106,33 @@ pub fn render_chat_stream_with_agent(ui: &mut Context, state: &mut ChatStreamSta
         prepare_transcript_follow(&mut state.scroll, state.auto_scroll, follow_tail, snapshot);
     }
 
+    let viewport_h = state.scroll.viewport_height().max(1);
     let _ = ui.scroll_col(&mut state.scroll, |ui| {
-        if !state.entries.is_empty() {
-            render_transcript_view(ui, &state.entries, state.show_thinking, theme);
-        } else {
-            for message in &state.messages {
-                let color = theme.text_color();
-                if let Some(c) = color {
-                    ui.text(message).fg(c);
-                } else {
-                    ui.text(message);
+        let _ = ui.container().min_h(viewport_h).justify(Justify::End).col(|ui| {
+            if !state.entries.is_empty() {
+                match state.style {
+                    TranscriptStyle::Composer => {
+                        render_composer_transcript(ui, &state.entries, state.show_thinking, theme, &state.collapse);
+                    }
+                    TranscriptStyle::Classic => {
+                        render_transcript_view(ui, &state.entries, state.show_thinking, theme, &state.collapse);
+                    }
+                }
+            } else {
+                for message in &state.messages {
+                    let color = theme.text_color();
+                    if let Some(c) = color {
+                        ui.text(message).fg(c);
+                    } else {
+                        ui.text(message);
+                    }
                 }
             }
-        }
+        });
     });
 
     if state.scroll_enabled {
+        unpin_auto_scroll_if_scrolled_up(&state.scroll, &mut state.auto_scroll, snapshot);
         apply_transcript_auto_scroll(&mut state.scroll, &mut state.auto_scroll, snapshot, follow_tail);
     }
 }
