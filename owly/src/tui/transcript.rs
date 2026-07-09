@@ -1,25 +1,37 @@
-//! Applies [`AgentUiEvent`] updates to rich [`TranscriptEntry`] lists.
+//! Applies [`AgentUiEvent`] updates to typed [`OwlyEntry`] transcript lists.
 
 use std::collections::HashMap;
 
 use elph_tui::{
-    DEFAULT_TRANSCRIPT_CAP, ToolExecutionState, ToolExecutionStatus, TranscriptEntry, TranscriptRole, push_capped,
+    DEFAULT_TRANSCRIPT_CAP, ToolExecutionState, ToolExecutionStatus, TranscriptRole, push_capped,
 };
 
 use crate::ui_events::AgentUiEvent;
 
+use super::entries::{OwlyEntry, OwlyEntryKind, command_result_entry};
+
 /// Mutable transcript state for one agent run.
 pub struct TranscriptApplier<'a> {
-    entries: &'a mut Vec<TranscriptEntry>,
+    entries: &'a mut Vec<OwlyEntry>,
+    live_tools: &'a mut Vec<ToolExecutionState>,
     tool_indexes: HashMap<String, usize>,
     show_thinking: bool,
 }
 
 impl<'a> TranscriptApplier<'a> {
-    pub fn new(entries: &'a mut Vec<TranscriptEntry>, show_thinking: bool) -> Self {
+    pub fn new(
+        entries: &'a mut Vec<OwlyEntry>,
+        live_tools: &'a mut Vec<ToolExecutionState>,
+        show_thinking: bool,
+    ) -> Self {
+        let mut tool_indexes = HashMap::new();
+        for (index, tool) in live_tools.iter().enumerate() {
+            tool_indexes.insert(tool.id.clone(), index);
+        }
         Self {
             entries,
-            tool_indexes: HashMap::new(),
+            live_tools,
+            tool_indexes,
             show_thinking,
         }
     }
@@ -43,30 +55,33 @@ impl<'a> TranscriptApplier<'a> {
         }
     }
 
-    fn push_capped(&mut self, entry: TranscriptEntry) {
+    fn push_capped(&mut self, entry: OwlyEntry) {
         push_capped(self.entries, entry, DEFAULT_TRANSCRIPT_CAP);
     }
 
     fn push_command_start(&mut self, command: &str, provider: &str, model: &str) {
-        self.push_capped(TranscriptEntry::assistant(format!(
-            ">_ Owly {command}\nprovider: {provider}\nmodel: {model}"
-        )));
+        self.push_capped(OwlyEntry::command_header(command, provider, model));
     }
 
     fn push_command_complete(&mut self, message: &str, success: bool) {
         if message.is_empty() {
             return;
         }
-        let icon = if success { "✓" } else { "✗" };
-        self.push_capped(TranscriptEntry::assistant(format!("{icon} {message}")));
+        self.push_capped(command_result_entry(message, success));
     }
 
     fn push_status(&mut self, line: &str) {
+        let line = line.trim();
         if line.is_empty() {
-            self.push_capped(TranscriptEntry::assistant(String::new()));
             return;
         }
-        self.push_capped(TranscriptEntry::assistant(format!("[status] {line}")));
+        if let Some(last) = self.entries.last_mut()
+            && last.kind == OwlyEntryKind::Status
+        {
+            last.inner.content = line.to_string();
+            return;
+        }
+        self.push_capped(OwlyEntry::status(line));
     }
 
     fn append_assistant_text(&mut self, delta: &str) {
@@ -74,13 +89,13 @@ impl<'a> TranscriptApplier<'a> {
             return;
         }
         if let Some(last) = self.entries.last_mut()
-            && last.role == TranscriptRole::Assistant
-            && last.is_streaming
+            && last.kind == OwlyEntryKind::Assistant
+            && last.inner.is_streaming
         {
-            last.content.push_str(delta);
+            last.inner.content.push_str(delta);
             return;
         }
-        self.push_capped(TranscriptEntry::assistant_streaming(delta));
+        self.push_capped(OwlyEntry::assistant_streaming(delta));
     }
 
     fn append_thinking(&mut self, delta: &str) {
@@ -88,43 +103,37 @@ impl<'a> TranscriptApplier<'a> {
             return;
         }
         if let Some(last) = self.entries.last_mut()
-            && last.role == TranscriptRole::Thinking
+            && last.kind == OwlyEntryKind::Thinking
         {
-            last.content.push_str(delta);
+            last.inner.content.push_str(delta);
             return;
         }
-        self.push_capped(TranscriptEntry::thinking(delta, true));
+        self.push_capped(OwlyEntry::thinking(delta));
     }
 
     fn start_tool(&mut self, id: String, name: String, args_summary: String) {
         let state = ToolExecutionState::new(id.clone(), name)
             .with_args(args_summary)
             .with_status(ToolExecutionStatus::Running);
-        self.tool_indexes.insert(id, self.entries.len());
-        self.push_capped(TranscriptEntry::tool(state));
+        self.tool_indexes.insert(id, self.live_tools.len());
+        self.live_tools.push(state);
     }
 
     fn update_tool_output(&mut self, id: &str, output: &str) {
         let Some(&idx) = self.tool_indexes.get(id) else {
             return;
         };
-        let Some(entry) = self.entries.get_mut(idx) else {
-            return;
-        };
-        let Some(tool) = entry.tool.as_mut() else {
+        let Some(tool) = self.live_tools.get_mut(idx) else {
             return;
         };
         tool.output = output.to_string();
     }
 
     fn end_tool(&mut self, id: &str, is_error: bool, output: &str) {
-        let Some(&idx) = self.tool_indexes.get(id) else {
+        let Some(idx) = self.tool_indexes.remove(id) else {
             return;
         };
-        let Some(entry) = self.entries.get_mut(idx) else {
-            return;
-        };
-        let Some(tool) = entry.tool.as_mut() else {
+        let Some(tool) = self.live_tools.get_mut(idx) else {
             return;
         };
         tool.status = if is_error {
@@ -135,62 +144,46 @@ impl<'a> TranscriptApplier<'a> {
         if !output.is_empty() {
             tool.output = output.to_string();
         }
+        let summary = tool.clone();
+        self.live_tools.remove(idx);
+        self.rebuild_tool_indexes();
+        self.push_capped(OwlyEntry::tool_summary(summary));
+    }
+
+    fn rebuild_tool_indexes(&mut self) {
+        self.tool_indexes.clear();
+        for (index, tool) in self.live_tools.iter().enumerate() {
+            self.tool_indexes.insert(tool.id.clone(), index);
+        }
     }
 
     fn complete_run(&mut self, elapsed_secs: f64) {
         for entry in self.entries.iter_mut() {
-            if entry.role == TranscriptRole::Assistant {
-                entry.is_streaming = false;
+            if entry.inner.role == TranscriptRole::Assistant {
+                entry.inner.is_streaming = false;
             }
         }
-        self.push_status(&format!("Completed in {elapsed_secs:.1}s"));
+        self.live_tools.clear();
+        self.tool_indexes.clear();
+        self.push_status(&format!("done in {elapsed_secs:.1}s"));
     }
 }
 
-/// Tools to show in the live tool panel while a turn is running.
-pub fn tool_panel_entries(entries: &[TranscriptEntry], max_visible: usize) -> Vec<ToolExecutionState> {
-    let max_visible = max_visible.max(1);
-    let mut tools: Vec<ToolExecutionState> = entries
-        .iter()
-        .filter_map(|entry| entry.tool.clone())
-        .filter(|tool| matches!(tool.status, ToolExecutionStatus::Running | ToolExecutionStatus::Pending))
-        .collect();
-
-    if tools.is_empty() {
-        tools = entries
-            .iter()
-            .filter_map(|entry| entry.tool.clone())
-            .rev()
-            .take(max_visible)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect();
-    }
-
-    tools.truncate(max_visible);
-    tools
-}
-
-/// Convert plain startup hint lines into transcript entries.
-pub fn lines_to_entries(lines: &[String]) -> Vec<TranscriptEntry> {
+/// Convert plain startup hint lines into transcript entries (skips blanks).
+pub fn lines_to_entries(lines: &[String]) -> Vec<OwlyEntry> {
     lines
         .iter()
-        .map(|line| {
-            if line.is_empty() {
-                TranscriptEntry::assistant(String::new())
-            } else {
-                TranscriptEntry::assistant(line.clone())
-            }
-        })
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| OwlyEntry::hint(line.clone()))
         .collect()
 }
 
 /// Append static shell output lines after a command finishes.
-pub fn append_shell_lines(entries: &mut Vec<TranscriptEntry>, lines: &[String]) {
-    let mut applier = TranscriptApplier::new(entries, false);
+pub fn append_shell_lines(entries: &mut Vec<OwlyEntry>, lines: &[String]) {
+    let mut live_tools = Vec::new();
+    let mut applier = TranscriptApplier::new(entries, &mut live_tools, false);
     for line in lines {
-        applier.push_status(line);
+        applier.apply(AgentUiEvent::Status(line.clone()));
     }
 }
 
@@ -214,85 +207,113 @@ pub fn command_label_for_input(input: &str) -> Option<&'static str> {
 mod tests {
     use super::*;
 
+    fn applier<'a>(
+        entries: &'a mut Vec<OwlyEntry>,
+        live_tools: &'a mut Vec<ToolExecutionState>,
+    ) -> TranscriptApplier<'a> {
+        TranscriptApplier::new(entries, live_tools, false)
+    }
+
     #[test]
     fn text_deltas_append_to_streaming_assistant() {
         let mut entries = Vec::new();
-        let mut applier = TranscriptApplier::new(&mut entries, false);
+        let mut live_tools = Vec::new();
+        let mut applier = applier(&mut entries, &mut live_tools);
         applier.apply(AgentUiEvent::TextDelta("Hel".into()));
         applier.apply(AgentUiEvent::TextDelta("lo".into()));
         assert_eq!(entries.len(), 1);
-        assert!(entries[0].is_streaming);
-        assert_eq!(entries[0].content, "Hello");
+        assert!(entries[0].inner.is_streaming);
+        assert_eq!(entries[0].inner.content, "Hello");
     }
 
     #[test]
     fn command_start_renders_header_block() {
         let mut entries = Vec::new();
-        let mut applier = TranscriptApplier::new(&mut entries, false);
+        let mut live_tools = Vec::new();
+        let mut applier = applier(&mut entries, &mut live_tools);
         applier.apply(AgentUiEvent::CommandStart {
             command: "Init".into(),
             provider: "opencode".into(),
             model: "big-pickle".into(),
         });
-        assert!(entries[0].content.contains(">_ Owly Init"));
-        assert!(entries[0].content.contains("provider: opencode"));
+        assert_eq!(entries[0].kind, OwlyEntryKind::CommandHeader);
+        assert!(entries[0].inner.content.contains("Init"));
+        assert!(entries[0].inner.content.contains("opencode"));
     }
 
     #[test]
     fn command_complete_renders_success_marker() {
         let mut entries = Vec::new();
-        let mut applier = TranscriptApplier::new(&mut entries, false);
+        let mut live_tools = Vec::new();
+        let mut applier = applier(&mut entries, &mut live_tools);
         applier.apply(AgentUiEvent::CommandComplete {
             message: "Documentation updated.".into(),
             success: true,
         });
-        assert_eq!(entries[0].content, "✓ Documentation updated.");
+        assert_eq!(entries[0].inner.content, "✓ Documentation updated.");
     }
 
     #[test]
-    fn tool_lifecycle_updates_card_status_and_output() {
+    fn tool_lifecycle_keeps_running_in_live_panel_until_end() {
         let mut entries = Vec::new();
-        let mut applier = TranscriptApplier::new(&mut entries, false);
-        applier.apply(AgentUiEvent::ToolStart {
-            id: "t1".into(),
-            name: "bash".into(),
-            args_summary: "ls".into(),
-        });
-        applier.apply(AgentUiEvent::ToolUpdate {
-            id: "t1".into(),
-            output: "file.txt".into(),
-        });
-        applier.apply(AgentUiEvent::ToolEnd {
-            id: "t1".into(),
-            is_error: false,
-            output: "file.txt\n".into(),
-        });
+        let mut live_tools = Vec::new();
+        {
+            let mut applier = applier(&mut entries, &mut live_tools);
+            applier.apply(AgentUiEvent::ToolStart {
+                id: "t1".into(),
+                name: "bash".into(),
+                args_summary: "ls".into(),
+            });
+        }
+        assert_eq!(live_tools.len(), 1);
+        assert!(entries.is_empty());
+
+        {
+            let mut applier = applier(&mut entries, &mut live_tools);
+            applier.apply(AgentUiEvent::ToolUpdate {
+                id: "t1".into(),
+                output: "file.txt".into(),
+            });
+        }
+        assert_eq!(live_tools[0].output, "file.txt");
+
+        {
+            let mut applier = applier(&mut entries, &mut live_tools);
+            applier.apply(AgentUiEvent::ToolEnd {
+                id: "t1".into(),
+                is_error: false,
+                output: "file.txt\n".into(),
+            });
+        }
+        assert!(live_tools.is_empty());
         assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, OwlyEntryKind::ToolSummary);
         assert_eq!(
-            entries[0].tool.as_ref().map(|t| t.status),
+            entries[0].inner.tool.as_ref().map(|t| t.status),
             Some(ToolExecutionStatus::Success)
         );
-        assert_eq!(entries[0].tool.as_ref().map(|t| t.output.as_str()), Some("file.txt\n"));
     }
 
     #[test]
-    fn tool_panel_prefers_running_tools() {
-        let entries = vec![
-            TranscriptEntry::tool(ToolExecutionState::new("a", "read").with_status(ToolExecutionStatus::Success)),
-            TranscriptEntry::tool(ToolExecutionState::new("b", "bash").with_status(ToolExecutionStatus::Running)),
-        ];
-        let panel = tool_panel_entries(&entries, 4);
-        assert_eq!(panel.len(), 1);
-        assert_eq!(panel[0].name, "bash");
+    fn status_lines_coalesce() {
+        let mut entries = Vec::new();
+        let mut live_tools = Vec::new();
+        let mut applier = applier(&mut entries, &mut live_tools);
+        applier.apply(AgentUiEvent::Status("step 1".into()));
+        applier.apply(AgentUiEvent::Status("step 2".into()));
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].inner.content, "step 2");
     }
 
     #[test]
     fn run_completed_clears_streaming_flag() {
-        let mut entries = vec![TranscriptEntry::assistant_streaming("Hi")];
-        let mut applier = TranscriptApplier::new(&mut entries, false);
+        let mut entries = vec![OwlyEntry::assistant_streaming("Hi")];
+        let mut live_tools = vec![ToolExecutionState::new("x", "bash").with_status(ToolExecutionStatus::Running)];
+        let mut applier = applier(&mut entries, &mut live_tools);
         applier.apply(AgentUiEvent::RunCompleted { elapsed_secs: 1.2 });
-        assert!(!entries[0].is_streaming);
-        assert!(entries.last().unwrap().content.contains("Completed"));
+        assert!(!entries[0].inner.is_streaming);
+        assert!(live_tools.is_empty());
+        assert!(entries.last().unwrap().inner.content.contains("done in"));
     }
 
     #[test]
@@ -301,5 +322,12 @@ mod tests {
         assert_eq!(command_label_for_input("/update docs"), Some("update"));
         assert_eq!(command_label_for_input("hello"), Some("chat"));
         assert_eq!(command_label_for_input("/exit"), None);
+    }
+
+    #[test]
+    fn lines_to_entries_skips_blank_lines() {
+        let entries = lines_to_entries(&["hint".into(), String::new(), "  ".into()]);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].kind, OwlyEntryKind::Hint);
     }
 }

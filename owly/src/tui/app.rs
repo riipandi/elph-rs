@@ -8,7 +8,7 @@ use elph_agent::try_block_on;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use elph_tui::{
-    AgentMode, ChatStream, DEFAULT_TRANSCRIPT_CAP, PromptInput, Theme, TranscriptEntry, disable_keyboard_enhancement,
+    AgentMode, DEFAULT_TRANSCRIPT_CAP, PromptInput, Theme, ToolExecutionState, disable_keyboard_enhancement,
     enable_keyboard_enhancement, is_force_quit_key, is_interrupt_key, is_quit_command, is_theme_toggle_key,
     push_capped,
 };
@@ -20,6 +20,8 @@ use crate::onboarding::{self, SetupCredentials};
 
 use super::activity::ActivityBar;
 use super::banner::{OwlyBanner, directory_display};
+use super::chat_stream::OwlyChatStream;
+use super::entries::OwlyEntry;
 use super::launch::LaunchState;
 use super::setup::SetupWizard;
 use super::transcript::{TranscriptApplier, append_shell_lines, command_label_for_input, lines_to_entries};
@@ -36,13 +38,33 @@ struct LaunchBootstrap {
     inbox: Arc<Mutex<SubmitInbox>>,
 }
 
+fn apply_ui_events(
+    ui_rx: &mut mpsc::UnboundedReceiver<crate::ui_events::AgentUiEvent>,
+    entries: &mut State<Vec<OwlyEntry>>,
+    live_tools: &mut State<Vec<ToolExecutionState>>,
+    show_thinking: bool,
+    first: crate::ui_events::AgentUiEvent,
+) {
+    let mut entries_guard = entries.write();
+    let mut live_tools_guard = live_tools.write();
+    let mut applier = TranscriptApplier::new(&mut entries_guard, &mut live_tools_guard, show_thinking);
+    applier.apply(first);
+    while let Ok(event) = ui_rx.try_recv() {
+        applier.apply(event);
+    }
+}
+
 fn drain_ui_events(
     ui_rx: &mut mpsc::UnboundedReceiver<crate::ui_events::AgentUiEvent>,
-    entries: &mut State<Vec<TranscriptEntry>>,
+    entries: &mut State<Vec<OwlyEntry>>,
+    live_tools: &mut State<Vec<ToolExecutionState>>,
     show_thinking: bool,
 ) {
+    let mut entries_guard = entries.write();
+    let mut live_tools_guard = live_tools.write();
+    let mut applier = TranscriptApplier::new(&mut entries_guard, &mut live_tools_guard, show_thinking);
     while let Ok(event) = ui_rx.try_recv() {
-        TranscriptApplier::new(&mut entries.write(), show_thinking).apply(event);
+        applier.apply(event);
     }
 }
 
@@ -90,6 +112,7 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let mut prompt_reset = hooks.use_state(|| 0u32);
     let startup_entries = lines_to_entries(&bootstrap.read().startup_lines);
     let mut entries = hooks.use_state(move || startup_entries);
+    let mut live_tools = hooks.use_state(Vec::<ToolExecutionState>::new);
     let mut mode = hooks.use_state(|| AgentMode::Ask);
     let mut should_exit = hooks.use_state(|| false);
     let mut running = hooks.use_state(|| false);
@@ -134,12 +157,13 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 if !trimmed.is_empty() {
                     push_capped(
                         &mut entries.write(),
-                        TranscriptEntry::user(trimmed),
+                        OwlyEntry::user(trimmed),
                         DEFAULT_TRANSCRIPT_CAP,
                     );
                 }
 
                 active_command.set(command_label_for_input(trimmed).map(|label| label.to_string()));
+                live_tools.write().clear();
                 running.set(true);
                 let (ui_tx, mut ui_rx) = mpsc::unbounded_channel();
                 let mut dispatch = Box::pin(app_context.dispatch(input, Some(ui_tx)));
@@ -150,16 +174,23 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                             let Some(event) = event else {
                                 continue;
                             };
-                            TranscriptApplier::new(&mut entries.write(), show_thinking).apply(event);
+                            apply_ui_events(
+                                &mut ui_rx,
+                                &mut entries,
+                                &mut live_tools,
+                                show_thinking,
+                                event,
+                            );
                         }
                         result = &mut dispatch => {
-                            drain_ui_events(&mut ui_rx, &mut entries, show_thinking);
+                            drain_ui_events(&mut ui_rx, &mut entries, &mut live_tools, show_thinking);
                             break result;
                         }
                     }
                 };
                 running.set(false);
                 active_command.set(None);
+                live_tools.write().clear();
 
                 match turn_result {
                     Ok(result) => {
@@ -172,7 +203,7 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     Err(err) => {
                         push_capped(
                             &mut entries.write(),
-                            TranscriptEntry::assistant(format!("Error: {err:#}")),
+                            OwlyEntry::assistant(format!("Error: {err:#}")),
                             DEFAULT_TRANSCRIPT_CAP,
                         );
                     }
@@ -303,9 +334,9 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                             padding_right: 0,
                             padding_top: 0,
                         ) {
-                            ChatStream(
+                            OwlyChatStream(
                                 entries_state: Some(entries),
-                                scroll_enabled: !busy,
+                                scroll_enabled: true,
                                 theme: palette,
                                 show_thinking: show_thinking,
                             )
@@ -314,7 +345,7 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                             Some(element! {
                                 ActivityBar(
                                     command: active_command_label,
-                                    entries: Some(entries),
+                                    live_tools: Some(live_tools),
                                     theme: palette,
                                 )
                             }.into_any())
@@ -334,7 +365,7 @@ pub fn OwlyRoot(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                                 model_name: model_label,
                                 mode: mode.get(),
                                 theme: palette,
-                                has_focus: !busy,
+                                has_focus: true,
                                 on_submit: {
                                     let submit_tx = submit_tx.clone();
                                     move |text: String| {

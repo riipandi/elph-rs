@@ -3,7 +3,9 @@
 mod activity;
 mod app;
 mod banner;
+mod chat_stream;
 mod context;
+mod entries;
 mod launch;
 mod setup;
 mod transcript;
