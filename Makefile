@@ -126,7 +126,7 @@ lint: ## Run clippy linter
 	@$(CARGO) clippy --workspace --all-targets -- -D warnings
 
 fmt: ## Format all code
-	@$(CARGO) fmt --all
+	@$(CARGO) fmt --all -- --check
 
 coverage: ## Run tests with coverage (requires tarpaulin)
 	@$(CARGO) tarpaulin --workspace 2>&1
