@@ -1,6 +1,10 @@
 //! Extended tests for Owly env module.
 
+use std::sync::{LazyLock, Mutex};
+
 use owly::constants::*;
+
+static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 #[test]
 fn test_provider_config_all_labels() {
@@ -72,8 +76,10 @@ fn test_all_providers_have_valid_config() {
 
 #[test]
 fn test_resolve_configured_provider_with_openrouter_key() {
-    // SAFETY: We're setting env vars in a single-threaded test context
+    let _guard = ENV_LOCK.lock().expect("env lock");
+    // SAFETY: env vars are isolated by ENV_LOCK across parallel tests.
     unsafe {
+        std::env::remove_var("OWLY_PROVIDER");
         std::env::remove_var("OPENCODE_API_KEY");
         std::env::remove_var("ANTHROPIC_API_KEY");
         std::env::remove_var("OPENAI_API_KEY");
@@ -88,11 +94,11 @@ fn test_resolve_configured_provider_with_openrouter_key() {
 
 #[test]
 fn test_resolve_configured_provider_with_anthropic_key() {
-    // SAFETY: We're setting env vars in a single-threaded test context
-    // The function checks OPENCODE_API_KEY first, so we need to remove it
-    // to allow ANTHROPIC_API_KEY to win
+    let _guard = ENV_LOCK.lock().expect("env lock");
+    // SAFETY: env vars are isolated by ENV_LOCK across parallel tests.
     unsafe {
         // Remove all provider env vars first
+        std::env::remove_var("OWLY_PROVIDER");
         std::env::remove_var("OPENCODE_API_KEY");
         std::env::remove_var("OPENROUTER_API_KEY");
         std::env::remove_var("OPENAI_API_KEY");
@@ -109,7 +115,8 @@ fn test_resolve_configured_provider_with_anthropic_key() {
 
 #[test]
 fn test_resolve_model_id_with_env_var() {
-    // SAFETY: We're setting env vars in a single-threaded test context
+    let _guard = ENV_LOCK.lock().expect("env lock");
+    // SAFETY: env vars are isolated by ENV_LOCK across parallel tests.
     unsafe {
         std::env::set_var("OWLY_MODEL_ID", "custom-model-123");
     }
@@ -122,7 +129,8 @@ fn test_resolve_model_id_with_env_var() {
 
 #[test]
 fn test_resolve_model_id_override_takes_precedence() {
-    // SAFETY: We're setting env vars in a single-threaded test context
+    let _guard = ENV_LOCK.lock().expect("env lock");
+    // SAFETY: env vars are isolated by ENV_LOCK across parallel tests.
     unsafe {
         std::env::set_var("OWLY_MODEL_ID", "env-model");
     }

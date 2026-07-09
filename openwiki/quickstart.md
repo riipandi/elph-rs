@@ -129,8 +129,13 @@ Every Markdown file includes [YAML frontmatter](frontmatter.md) with title, last
 | [`owly/src/commands.rs`](../owly/src/commands.rs)       | Command implementations: `init`, `update`, `chat`                             |
 | [`owly/src/agent.rs`](../owly/src/agent.rs)             | Agent integration: tool setup, prompt preparation, run loop, interactive chat |
 | [`owly/src/ask_user.rs`](../owly/src/ask_user.rs)       | Interactive tools: `ask_text`, `ask_select`, `ask_confirm`                    |
-| [`owly/src/checkpoint.rs`](../owly/src/checkpoint.rs)   | Conversation checkpointing (Sqlite-based persistence)                         |
+| [`owly/src/checkpoint.rs`](../owly/src/checkpoint.rs)   | Conversation checkpointing (`TursoCheckpointSaver`)                           |
+| [`owly/src/ecosystem.rs`](../owly/src/ecosystem.rs)     | Repository ecosystem hooks (`AGENTS.md` / `CLAUDE.md` sync)                   |
+| [`owly/src/onboarding.rs`](../owly/src/onboarding.rs)   | First-run credential onboarding wizard                                        |
 | [`owly/src/prompts.rs`](../owly/src/prompts.rs)         | System and user prompts for the agent                                         |
+| [`owly/src/session.rs`](../owly/src/session.rs)         | Turso-backed session store with checkpoint persistence                        |
+| [`owly/src/shell.rs`](../owly/src/shell.rs)             | Interactive Owly shell (REPL with credential wizard, follow-ups)              |
+| [`owly/src/startup.rs`](../owly/src/startup.rs)         | Startup command resolution, TTY validation                                    |
 | [`owly/src/config.rs`](../owly/src/config.rs)           | Provider/model resolution, config file loading                                |
 | [`owly/src/constants.rs`](../owly/src/constants.rs)     | Provider definitions, default values, env var keys                            |
 | [`owly/src/credentials.rs`](../owly/src/credentials.rs) | `~/.owly/.env` loading and API key management                                 |
@@ -149,6 +154,7 @@ Integration and unit tests live in [`owly/tests/`](../owly/tests/):
 | Test File                                                          | Tests                                                                                                |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | [`agent_test.rs`](../owly/tests/agent_test.rs)                     | Agent command preparation (`prepare_init_command`, `prepare_update_command`, `prepare_chat_command`) |
+| [`checkpoint_test.rs`](../owly/tests/checkpoint_test.rs)           | Turso checkpoint saver integration tests                                                             |
 | [`config_test.rs`](../owly/tests/config_test.rs)                   | Config resolution, provider overrides, model ID handling                                             |
 | [`docs_test.rs`](../owly/tests/docs_test.rs)                       | Documentation file management                                                                        |
 | [`frontmatter_ext_test.rs`](../owly/tests/frontmatter_ext_test.rs) | Frontmatter parsing edge cases                                                                       |
@@ -186,9 +192,12 @@ cargo clippy -p owly --all-targets -- -D warnings
 - **Agent runtime**: Uses `elph-agent` (not LangChain/LangGraph). Agent loop and tool execution are delegated to `elph-agent`.
 - **LLM integration**: Uses `elph-ai` for provider abstraction. Model lookup goes through `builtin_models()`.
 - **Tools**: Init/update mode uses all tools (read, bash, edit, write, grep, find, ls). Chat mode uses read-only tools plus `ask_text`, `ask_select`, `ask_confirm` for interactive use.
-- **Interactive mode**: Running `owly` with no arguments starts a multi-turn interactive chat session with conversation persistence via `checkpoint.rs`.
+- **Interactive mode**: Running `owly` with no arguments starts an interactive shell managed by [`shell.rs`](../owly/src/shell.rs) — a REPL that offers a first-run credential wizard (`onboarding.rs`), session persistence (`session.rs`), and supports follow-up commands after init/update/chat.
+- **Session persistence**: Each owly run creates a `SessionStore` backed by Turso checkpointing. Conversation messages are persisted across turns and restorable on subsequent runs in the same directory.
+- **Ecosystem sync**: After a successful init/update that changes documentation, [`ecosystem.rs`](../owly/src/ecosystem.rs) appends Owly context instructions to `AGENTS.md` and `CLAUDE.md` (if they exist).
 - **No-op detection**: The update command checks git HEAD and status to skip if nothing changed since the last documented update.
-- **Secrets**: API keys are never written into documentation. The diagnostics module redacts credentials from error output.
+- **Runtime note**: A `create_runtime_note()` prompt is appended to all user prompts, telling the agent the repository root path and runtime conventions (relative paths only, no host absolute paths).
+- **Secrets**: API keys are never written into documentation. The diagnostics module redacts credentials from error output. The `~/.owly/` directory is secured with `0o700` permissions on Unix.
 
 ---
 

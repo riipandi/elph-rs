@@ -1,6 +1,6 @@
 ---
 title: "Configuration"
-last_updated: 2026-07-08T14:14:00Z
+last_updated: 2026-07-09T18:00:00Z
 category: operations
 tags:
     - configuration
@@ -30,10 +30,16 @@ The configuration resolution order (from highest to lowest priority):
 
 ## Environment Variables
 
-| Variable        | Description       | Default      |
-| --------------- | ----------------- | ------------ |
-| `OWLY_PROVIDER` | LLM provider name | `opencode`   |
-| `OWLY_MODEL_ID` | Model identifier  | `big-pickle` |
+| Variable                     | Description                               | Default      |
+| ---------------------------- | ----------------------------------------- | ------------ |
+| `OWLY_PROVIDER`              | LLM provider name                         | `opencode`   |
+| `OWLY_MODEL_ID`              | Model identifier                          | `big-pickle` |
+| `ANTHROPIC_BASE_URL`         | Custom base URL for Anthropic (optional)  | —            |
+| `OPENAI_BASE_URL`            | Custom base URL for OpenAI (optional)     | —            |
+| `OPENROUTER_BASE_URL`        | Custom base URL for OpenRouter (optional) | —            |
+| `OPENAI_COMPATIBLE_API_KEY`  | API key for OpenAI-compatible provider    | —            |
+| `OPENAI_COMPATIBLE_BASE_URL` | Base URL for OpenAI-compatible (required) | —            |
+| `OWLY_DEBUG`                 | Enable debug logging (`1`, `true`)        | —            |
 
 ### Provider API Key Variables
 
@@ -45,6 +51,7 @@ Set the appropriate environment variable for your chosen provider:
 | OpenCode Go           | `OPENCODE_API_KEY`               |
 | Anthropic             | `ANTHROPIC_API_KEY`              |
 | OpenAI                | `OPENAI_API_KEY`                 |
+| OpenAI-compatible     | `OPENAI_COMPATIBLE_API_KEY`      |
 | OpenRouter            | `OPENROUTER_API_KEY`             |
 | Google                | `GOOGLE_API_KEY`                 |
 | Google Vertex         | `GOOGLE_APPLICATION_CREDENTIALS` |
@@ -88,7 +95,7 @@ OPENCODE_API_KEY=your-api-key-here
 **Behavior:**
 
 - Variables in `~/.owly/.env` are applied to the process environment **only if not already set** (process env takes precedence).
-- Managed keys include all provider API keys plus `OWLY_PROVIDER` and `OWLY_MODEL_ID`.
+- Managed keys include all provider API keys, base URL overrides, plus `OWLY_PROVIDER` and `OWLY_MODEL_ID`.
 - The file uses simple `KEY=VALUE` format with optional `"quoted"` values (newlines and special chars supported with escaping).
 
 **Source:** [`owly/src/credentials.rs`](../owly/src/credentials.rs).
@@ -136,15 +143,16 @@ Model can be specified in two formats:
 
 ### Provider Default Models
 
-| Provider   | Default Model             |
-| ---------- | ------------------------- |
-| OpenCode   | `big-pickle`              |
-| Anthropic  | `claude-sonnet-5`         |
-| OpenAI     | `gpt-5.4-mini`            |
-| OpenRouter | `z-ai/glm-5.2`            |
-| Google     | `gemini-2.5-flash`        |
-| DeepSeek   | `deepseek-chat`           |
-| Groq       | `llama-3.3-70b-versatile` |
+| Provider          | Default Model             |
+| ----------------- | ------------------------- |
+| OpenCode          | `big-pickle`              |
+| Anthropic         | `claude-sonnet-5`         |
+| OpenAI            | `gpt-5.4-mini`            |
+| OpenAI-compatible | `gpt-4o-mini`             |
+| OpenRouter        | `z-ai/glm-5.2`            |
+| Google            | `gemini-2.5-flash`        |
+| DeepSeek          | `deepseek-chat`           |
+| Groq              | `llama-3.3-70b-versatile` |
 
 ---
 

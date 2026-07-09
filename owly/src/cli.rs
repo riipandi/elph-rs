@@ -68,8 +68,6 @@ impl Cli {
             // --print without message is an error
             anyhow::bail!("--print requires a message argument");
         } else {
-            // TODO: improve TUI implementation for interactive mode
-            // Interactive mode: multi-turn chat with ask_user tools
             Command::Chat { message: None }
         };
 
@@ -86,33 +84,65 @@ impl Cli {
     }
 }
 
-/// Display the help banner with ASCII art
+const BANNER_INNER_WIDTH: usize = 52;
+
+/// Display the startup banner in the interactive shell.
 pub fn print_banner(provider: &str, model: &str, directory: &std::path::Path) {
+    let version = env!("CARGO_PKG_VERSION");
+    let border = "─".repeat(BANNER_INNER_WIDTH);
+
     println!();
-    println!("  ╔═══╗  ╔═══╗");
-    println!("  ║   ║  ║   ║");
-    println!("  ║ O ║──║ W ║──╗");
-    println!("  ║   ║  ║   ║  ║");
-    println!("  ╚═══╝  ╚═══╝  ║");
-    println!("                 ║");
-    println!("  ┌──────────────╨─────────────────────────────────────┐");
+    println!("  ┌{border}┐");
+    println!("{}", banner_title(version));
+    println!("{}", banner_field("provider", provider, "\x1b[32m"));
+    println!("{}", banner_field("model", model, "\x1b[32m"));
     println!(
-        "  │ \x1b[36;1m>_ Owly\x1b[0m \x1b[2mv{}\x1b[0m agent docs for codebases      │",
-        env!("CARGO_PKG_VERSION")
+        "{}",
+        banner_field(
+            "directory",
+            &truncate_path(directory, BANNER_INNER_WIDTH - "directory: ".len()),
+            "",
+        )
     );
-    println!(
-        "  │ provider: \x1b[32m{provider}\x1b[0m{:<width$}│",
-        "",
-        width = 33 - provider.len()
-    );
-    println!(
-        "  │ model: \x1b[32m{model}\x1b[0m{:<width$}│",
-        "",
-        width = 38 - model.len()
-    );
-    println!("  │ directory: {:<42}│", truncate_path(directory, 40));
-    println!("  └────────────────────────────────────────────────────┘");
+    println!("  └{border}┘");
     println!();
+}
+
+fn banner_title(version: &str) -> String {
+    let plain = format!(">_ Owly v{version} agent docs for codebases");
+    let styled = format!("\x1b[36;1m>_ Owly\x1b[0m \x1b[2mv{version}\x1b[0m agent docs for codebases");
+    banner_line(&plain, &styled)
+}
+
+fn banner_field(label: &str, value: &str, color: &str) -> String {
+    let prefix = format!("{label}: ");
+    let max_value = BANNER_INNER_WIDTH.saturating_sub(prefix.len());
+    let value = truncate_display(value, max_value);
+    let plain = format!("{prefix}{value}");
+    let styled = if color.is_empty() {
+        plain.clone()
+    } else {
+        format!("{prefix}{color}{value}\x1b[0m")
+    };
+    banner_line(&plain, &styled)
+}
+
+fn banner_line(plain: &str, styled: &str) -> String {
+    let pad = BANNER_INNER_WIDTH.saturating_sub(plain.len());
+    format!("  │ {styled}{}│", " ".repeat(pad))
+}
+
+fn truncate_display(value: &str, max_len: usize) -> String {
+    if max_len == 0 {
+        return String::new();
+    }
+    if value.len() <= max_len {
+        return value.to_string();
+    }
+    if max_len <= 3 {
+        return ".".repeat(max_len);
+    }
+    format!("...{}", &value[value.len() - max_len + 3..])
 }
 
 /// Display a compact header for command execution
@@ -155,12 +185,11 @@ pub fn print_completion(message: &str) {
     println!();
 }
 
-/// Truncate a path for display
+/// Truncate a path for display.
+pub fn truncate_path_for_display(path: &std::path::Path, max_len: usize) -> String {
+    truncate_display(&path.display().to_string(), max_len)
+}
+
 fn truncate_path(path: &std::path::Path, max_len: usize) -> String {
-    let s = path.display().to_string();
-    if s.len() <= max_len {
-        s
-    } else {
-        format!("...{}", &s[s.len() - max_len + 3..])
-    }
+    truncate_path_for_display(path, max_len)
 }

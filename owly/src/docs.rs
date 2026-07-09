@@ -105,19 +105,34 @@ pub fn save_update_metadata(cwd: &Path, command: &str, model: &str) -> Result<()
     save_metadata(cwd, &metadata)
 }
 
+/// Save metadata only when documentation content actually changed.
+pub fn save_update_metadata_if_changed(
+    cwd: &Path,
+    command: &str,
+    model: &str,
+    before: &DocumentationSnapshot,
+) -> Result<bool> {
+    let after = create_snapshot(cwd)?;
+    if !has_changed(before, &after) {
+        return Ok(false);
+    }
+    save_update_metadata(cwd, command, model)?;
+    Ok(true)
+}
+
 /// Get git summary for changes since last update
 pub fn get_git_summary(cwd: &Path) -> String {
     let last_update = crate::metadata::load_metadata(cwd);
     crate::metadata::create_git_summary(cwd, last_update.as_ref())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileEntry {
     pub relative_path: String,
     pub content_hash: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DocumentationSnapshot {
     pub files: Vec<FileEntry>,
     pub exists: bool,

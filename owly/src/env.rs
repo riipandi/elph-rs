@@ -6,7 +6,9 @@
 use anyhow::Result;
 
 use crate::config::Config;
-use crate::constants::{provider_config, resolve_configured_provider};
+use crate::constants::{
+    provider_config, provider_requires_base_url, resolve_configured_provider, resolve_provider_base_url,
+};
 
 /// Load and validate environment for running Owly
 pub fn setup_environment(config: &Config) -> Result<()> {
@@ -24,7 +26,30 @@ pub fn setup_environment(config: &Config) -> Result<()> {
         );
     }
 
+    if provider_requires_base_url(&config.provider) && resolve_provider_base_url(&config.provider).is_none() {
+        let label = provider_config(&config.provider).map(|c| c.label).unwrap_or("Unknown");
+        let base_key = provider_config(&config.provider)
+            .and_then(|c| c.base_url_env_key)
+            .unwrap_or("BASE_URL");
+        anyhow::bail!("{base_key} is required to run Owly with {label}.");
+    }
+
     Ok(())
+}
+
+/// Whether debug logging is enabled (`OWLY_DEBUG=1`).
+pub fn is_debug_enabled() -> bool {
+    matches!(
+        std::env::var("OWLY_DEBUG").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE")
+    )
+}
+
+/// Emit a debug line when `OWLY_DEBUG` is enabled.
+pub fn debug_log(message: impl AsRef<str>) {
+    if is_debug_enabled() {
+        eprintln!("\x1b[2m[debug]\x1b[0m {}", message.as_ref());
+    }
 }
 
 /// Get environment debug info (redacted)

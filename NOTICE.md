@@ -1,0 +1,35 @@
+# Attribution
+
+Elph is a Rust workspace for building AI agent applications. It was originally inspired by
+[pi](https://github.com/earendil-works/pi) by [Mario Zechner](https://github.com/badlogicgames),
+licensed under the MIT License.
+
+The original pi project is a TypeScript-based AI agent toolkit providing a unified
+multi-provider LLM API, agent runtime with tool calling and state management,
+terminal UI library with differential rendering, and an interactive coding agent CLI.
+
+Elph re-implements these concepts in Rust with the following key differences:
+
+- **Language**: Rust (edition 2024) instead of TypeScript
+- **Async runtime**: Tokio instead of Node.js
+- **Rendering**: `iocraft` + `crossterm` instead
+- **Serialization**: Serde + JSONL instead of JSON
+- **Memory store**: Turso-backed vector embeddings for lifelong agent context
+- **Codegraph**: `elph codegraph` — AST-graph analysis for structural code review
+- **MCP**: Built-in Model Context Protocol client integration
+- **Subagents**: Built-in sub-agent orchestration (spawn, steer, resume)
+- **Agent Swarm**: Multi-agent swarm coordination via `elph-swarm` crate
+- **Extension system (planned)**: WASM instead of npm packages
+
+The architectural design — tool system, provider abstraction, streaming event model,
+session tree structure, and overall API shape — is derived from the original pi project.
+All original pi code is Copyright (c) 2025 Mario Zechner, used under the MIT License.
+
+The `floppy` memory module in `elph-core` is a Rust port of the [memelord SDK](https://github.com/glommer/memelord/tree/main/packages/sdk).
+The original memelord code is Copyright (c) 2026 Glauber Costa, used under the MIT License.
+
+The `owly` crate is a Rust port of [OpenWiki](https://github.com/langchain-ai/openwiki) by LangChain.
+The original OpenWiki code is Copyright (c) 2026 LangChain, used under the MIT License.
+
+The `elph codegraph` integrates [code-review-graph](https://github.com/tirth8205/code-review-graph)
+by Tirth Kanani. The original code-review-graph is Copyright (c) 2026 Tirth Kanani, used under the MIT License.

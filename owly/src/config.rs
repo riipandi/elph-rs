@@ -44,11 +44,29 @@ impl Config {
             (None, None)
         };
 
-        // Resolve provider (CLI override takes precedence)
-        let provider = provider_override.unwrap_or_else(|| resolve_configured_provider().to_string());
+        let file_cfg = load_config_file();
 
-        // Resolve model ID
-        let model_id = resolve_model_id(model_override.as_deref());
+        // Resolve provider (CLI override > env > config file > auto-detect)
+        let provider = provider_override.unwrap_or_else(|| {
+            std::env::var(crate::constants::OWLY_PROVIDER_ENV_KEY)
+                .ok()
+                .filter(|p| provider_config(p).is_some())
+                .or_else(|| file_cfg.as_ref().and_then(|f| f.provider.clone()))
+                .unwrap_or_else(|| resolve_configured_provider().to_string())
+        });
+
+        // Resolve model ID (CLI override > env > config file > provider default)
+        let model_id = if let Some(model) = model_override {
+            model
+        } else if let Ok(model) = std::env::var(crate::constants::OWLY_MODEL_ID_ENV_KEY)
+            && !model.trim().is_empty()
+        {
+            model
+        } else if let Some(file) = file_cfg.as_ref().and_then(|f| f.model_id.clone()) {
+            file
+        } else {
+            resolve_model_id(None)
+        };
 
         // Validate provider
         let provider_cfg = provider_config(&provider).with_context(|| format!("Unknown provider: {provider}"))?;

@@ -3,6 +3,8 @@
 //! Ported from [OpenWiki](https://github.com/langchain-ai/openwiki)
 //! `src/agent/prompt.ts`. Original MIT License, Copyright (c) 2026 LangChain.
 
+use std::path::Path;
+
 use crate::constants::OWLY_DIR;
 use crate::metadata::UpdateMetadata;
 
@@ -98,6 +100,25 @@ tags: [getting-started, overview]
 status: published
 ---
 ```"#
+    )
+}
+
+/// Runtime note appended to agent user prompts (OpenWiki-compatible).
+pub fn create_runtime_note(cwd: &Path) -> String {
+    format!(
+        r#"
+Repository root:
+{}
+
+Runtime note:
+- Treat the repository root above as the only project you are documenting.
+- Filesystem tools resolve paths relative to the repository root via elph-agent.
+- Use relative paths such as README.md, src/..., and {OWLY_DIR}/quickstart.md with read, write, edit, grep, find, and ls.
+- Do not pass host absolute paths like /Users/... to filesystem tools.
+- Shell/bash commands run on the host from the repository directory.
+- Do not search parent directories or unrelated repositories."#,
+        cwd.display(),
+        OWLY_DIR = OWLY_DIR
     )
 }
 

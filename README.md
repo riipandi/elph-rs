@@ -68,6 +68,17 @@ cargo publish -p elph
 
 Documentation lives in [`docs/`](./docs/). Start with [docs/README.md](./docs/README.md).
 
+## Attribution
+
+Elph re-implements concepts from several open-source projects in Rust:
+
+- **[pi](https://pi.dev)** by Mario Zechner — architectural design, provider abstraction, tool system, streaming events, session tree (MIT).
+- **[memelord](https://github.com/glommer/memelord)** by Glauber Costa — `floppy` memory module port (MIT).
+- **[code-review-graph](https://github.com/tirth8205/code-review-graph)** by Tirth Kanani — `elph codegraph` integration (MIT).
+- **[OpenWiki](https://github.com/langchain-ai/openwiki)** by LangChain — `owly` crate port (MIT).
+
+See [NOTICE.md](./NOTICE.md) for details and license texts.
+
 ## License
 
 This project licensed under the [MIT license][license-mit]. See the [LICENSE](./LICENSE) file for more information.
