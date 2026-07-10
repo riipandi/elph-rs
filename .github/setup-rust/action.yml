@@ -61,12 +61,12 @@ runs:
         fi
 
     - name: Setup sccache
-      uses: mozilla-actions/sccache-action@v0.0.11
+      uses: mozilla-actions/sccache-action@v0.0.10
       with:
         version: "v0.10.0"
 
     - name: Setup Cargo cache
-      uses: swatinem/rust-cache@v2.10.0
+      uses: swatinem/rust-cache@v2.9.1
       with:
         cache-on-failure: true
         shared-key: ${{ inputs.sharedKey }}
@@ -79,6 +79,6 @@ runs:
         {
           echo "RUSTC_WRAPPER=sccache"
           echo "SCCACHE_GHA_ENABLED=true"
-          echo "CARGO_INCREMENTAL=0"
           echo "CARGO_TERM_COLOR=always"
+          echo "CARGO_INCREMENTAL=0"
         } >> "$GITHUB_ENV"
