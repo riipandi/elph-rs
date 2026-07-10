@@ -19,6 +19,7 @@ use crate::compaction::{
     collect_entries_for_branch_summary, compact, generate_branch_summary, prepare_compaction,
 };
 use crate::env::LocalExecutionEnv;
+use crate::goals::{GoalRuntime, GoalTurnFinish, GoalTurnStart};
 use crate::harness::hooks::{AgentHarnessEvent, HookRegistry};
 use crate::harness::types::{
     AbortResult, AfterProviderResponseEvent, AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOptions,
@@ -39,7 +40,7 @@ use crate::session::id::create_tsid;
 use crate::session::tree::{BranchSummaryOptions, Session};
 use crate::session::types::{CustomMessageEntryContent, HasSessionId, SessionError, SessionStorage, SessionTreeEntry};
 use crate::skills::format_skill_invocation;
-use crate::subagent::{AgentControl, SubagentLimits, SubagentSpawnConfig};
+use crate::subagent::{AgentControl, AgentRegistry, SubagentLimits, SubagentSpawnConfig};
 use crate::tools::create_multi_agent_tools;
 use crate::types::{
     AfterToolCallResult, AgentContext, AgentEvent, AgentLoopConfig, AgentLoopTurnUpdate, AgentMessage,
@@ -102,6 +103,8 @@ where
     baseline_active_tool_names: Mutex<Vec<String>>,
     pending_plan: Mutex<Option<PendingPlanConfirmation>>,
     agent_control: Mutex<Arc<AgentControl>>,
+    goal_runtime: Option<Arc<GoalRuntime>>,
+    subagent_bootstrap: Option<crate::subagent::SubagentBootstrap>,
 }
 
 /// Session-backed agent harness with hooks, queues, and pending session writes.
@@ -142,29 +145,45 @@ where
 
         let metadata = try_block_on(async { options.session.metadata().await })
             .map_err(|_| AgentHarnessError::new(AgentHarnessErrorCode::InvalidState, "session metadata"))?;
-        let parent_session_id = metadata.session_id().to_string();
+        let root_session_id = metadata.session_id().to_string();
         let models_for_stream = options.models.clone();
         let stream_fn: StreamFn =
             Arc::new(move |model, context, opts| models_for_stream.stream_simple(model, context, opts));
-        let child_tools: Vec<AgentTool> = tools_map
+        let base_tools: Vec<AgentTool> = tools_map
             .values()
             .filter(|tool| !crate::mode::is_multi_agent_tool(tool.name()))
             .cloned()
             .collect();
-        let agent_control = Arc::new(AgentControl::new(
-            SubagentSpawnConfig {
-                env: options.env.clone(),
-                model: options.model.clone(),
-                system_prompt: String::new(),
-                tools: child_tools,
-                stream_fn,
-                parent_session_id,
-            },
-            SubagentLimits::default(),
-            0,
-        ));
-        for tool in create_multi_agent_tools(agent_control.clone()) {
-            tools_map.insert(tool.name().to_string(), tool);
+        let shared_registry = options
+            .shared_registry
+            .clone()
+            .unwrap_or_else(|| Arc::new(AgentRegistry::new()));
+        let limits = SubagentLimits::default();
+        let is_child_harness = options.agent_control.is_some();
+        let agent_control = if let Some(control) = options.agent_control {
+            control
+        } else {
+            Arc::new(AgentControl::new(
+                SubagentSpawnConfig {
+                    env: options.env.clone(),
+                    model: options.model.clone(),
+                    system_prompt: String::new(),
+                    base_tools: base_tools.clone(),
+                    stream_fn,
+                    models: options.models.clone(),
+                    root_session_id: root_session_id.clone(),
+                    bootstrap: options.subagent_bootstrap.clone(),
+                },
+                limits.clone(),
+                0,
+                shared_registry.clone(),
+                "root",
+            ))
+        };
+        if agent_control.depth() < limits.max_depth && !is_child_harness {
+            for tool in create_multi_agent_tools(agent_control.clone()) {
+                tools_map.insert(tool.name().to_string(), tool);
+            }
         }
 
         let baseline_active_tool_names: Vec<String> = if options.active_tool_names.is_empty() {
@@ -195,6 +214,8 @@ where
                 baseline_active_tool_names: Mutex::new(baseline_active_tool_names),
                 pending_plan: Mutex::new(None),
                 agent_control: Mutex::new(agent_control),
+                goal_runtime: options.goal_runtime,
+                subagent_bootstrap: options.subagent_bootstrap,
                 steer_queue: Mutex::new(Vec::new()),
                 steering_queue_mode: Mutex::new(options.steering_mode),
                 follow_up_queue: Mutex::new(Vec::new()),
@@ -343,6 +364,50 @@ where
 
     pub async fn agent_control(&self) -> Arc<AgentControl> {
         self.shared.agent_control.lock().await.clone()
+    }
+
+    pub fn agent_graph(&self) -> Option<Arc<crate::subagent::AgentGraphStore>> {
+        self.shared
+            .subagent_bootstrap
+            .as_ref()
+            .and_then(|b| b.agent_graph.clone())
+    }
+
+    pub async fn refresh_subagent_config(&self, system_prompt: String, model: Model) {
+        let active_tools = self.shared.active_tool_names.lock().await.clone();
+        let tools_map = self.shared.tools.lock().await;
+        let base_tools: Vec<AgentTool> = active_tools
+            .iter()
+            .filter_map(|name| tools_map.get(name).cloned())
+            .filter(|tool| !crate::mode::is_multi_agent_tool(tool.name()))
+            .collect();
+        drop(tools_map);
+        self.shared
+            .agent_control
+            .lock()
+            .await
+            .refresh_config(system_prompt, model, base_tools)
+            .await;
+    }
+
+    pub async fn queue_user_message(&self, message: AgentMessage) -> HarnessOpResult<()> {
+        self.shared.next_turn_queue.lock().await.push(message);
+        Ok(())
+    }
+
+    pub async fn subscribe_agent_events<F>(&self, callback: Arc<F>)
+    where
+        F: Fn(AgentEvent) + Send + Sync + 'static,
+    {
+        self.subscribe(move |event, _| {
+            let callback = callback.clone();
+            Box::pin(async move {
+                if let AgentHarnessEvent::Agent(agent_event) = event {
+                    callback(agent_event);
+                }
+            })
+        })
+        .await;
     }
 
     pub async fn get_resources(&self) -> AgentHarnessResources {
@@ -1245,7 +1310,7 @@ where
             system_prompt.push_str(plan_mode_system_prompt());
         }
 
-        let child_tools: Vec<AgentTool> = active_tools
+        let base_tools: Vec<AgentTool> = active_tools
             .iter()
             .filter(|tool| !crate::mode::is_multi_agent_tool(tool.name()))
             .cloned()
@@ -1254,7 +1319,7 @@ where
             .agent_control
             .lock()
             .await
-            .refresh_config(system_prompt.clone(), model.clone(), child_tools)
+            .refresh_config(system_prompt.clone(), model.clone(), base_tools)
             .await;
 
         Ok(AgentHarnessTurnState {
@@ -1313,6 +1378,22 @@ where
                 .unwrap_or_else(CancellationToken::new)
         };
 
+        if let Some(goal_runtime) = &self.shared.goal_runtime {
+            let mode = *self.shared.collaboration_mode.lock().await;
+            match goal_runtime.start_turn(mode).await {
+                Ok(GoalTurnStart::Ok) => {}
+                Ok(GoalTurnStart::Blocked(message)) => {
+                    return Err(AgentHarnessError::new(AgentHarnessErrorCode::InvalidState, message));
+                }
+                Err(error) => {
+                    return Err(AgentHarnessError::new(
+                        AgentHarnessErrorCode::InvalidState,
+                        error.to_string(),
+                    ));
+                }
+            }
+        }
+
         let turn_state = Arc::new(StdMutex::new(turn_state));
         let system_prompt_override = before_result.and_then(|r| r.system_prompt);
         let context = self.create_context(
@@ -1349,6 +1430,40 @@ where
             if let Some(assistant) = message.as_llm()
                 && let Message::Assistant(assistant) = assistant
             {
+                if let Some(goal_runtime) = &self.shared.goal_runtime {
+                    let mode = *self.shared.collaboration_mode.lock().await;
+                    match goal_runtime.finish_turn(mode, Some(&assistant.usage)).await {
+                        Ok(GoalTurnFinish::BudgetLimited(goal)) => {
+                            let steering = GoalRuntime::budget_steering(&goal);
+                            self.shared
+                                .next_turn_queue
+                                .lock()
+                                .await
+                                .push(llm_message_to_agent(Message::User {
+                                    content: UserContent::Text(steering),
+                                    timestamp: now_ms(),
+                                }));
+                        }
+                        Ok(GoalTurnFinish::Continuation(goal)) => {
+                            let steering = GoalRuntime::continuation_steering(&goal);
+                            self.shared
+                                .next_turn_queue
+                                .lock()
+                                .await
+                                .push(llm_message_to_agent(Message::User {
+                                    content: UserContent::Text(steering),
+                                    timestamp: now_ms(),
+                                }));
+                        }
+                        Ok(GoalTurnFinish::None) => {}
+                        Err(error) => {
+                            return Err(AgentHarnessError::new(
+                                AgentHarnessErrorCode::InvalidState,
+                                error.to_string(),
+                            ));
+                        }
+                    }
+                }
                 return Ok(assistant.clone());
             }
         }

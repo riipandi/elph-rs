@@ -89,6 +89,27 @@ pub fn metadata_migrations() -> &'static [Migration] {
                 CREATE INDEX IF NOT EXISTS idx_skill_cache_name ON skill_cache(skill_name);
                 CREATE INDEX IF NOT EXISTS idx_skill_cache_expires ON skill_cache(expires_at);",
         },
+        Migration {
+            version: 6,
+            name: "add_goal_id_column",
+            up: "ALTER TABLE goals ADD COLUMN goal_id TEXT;
+                CREATE INDEX IF NOT EXISTS idx_goals_goal_id ON goals(goal_id);",
+        },
+        Migration {
+            version: 7,
+            name: "create_agent_spawn_edges_table",
+            up: "CREATE TABLE IF NOT EXISTS agent_spawn_edges (
+                    parent_session_id TEXT NOT NULL,
+                    child_session_id TEXT NOT NULL,
+                    agent_path TEXT NOT NULL,
+                    depth INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (parent_session_id, child_session_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_agent_spawn_parent ON agent_spawn_edges(parent_session_id);
+                CREATE INDEX IF NOT EXISTS idx_agent_spawn_path ON agent_spawn_edges(agent_path);",
+        },
     ]
 }
 

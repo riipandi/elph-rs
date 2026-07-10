@@ -1,6 +1,6 @@
 ---
 title: "Architecture"
-last_updated: 2026-07-11T22:30:00Z
+last_updated: 2026-07-20T10:00:00Z
 category: architecture
 tags:
     - architecture
@@ -133,7 +133,7 @@ The prompt widget was redesigned: it is no longer a bordered box. Instead a mode
 - `prepare_transcript_follow()` — snap to tail before rendering when auto-scroll is active
 - `apply_transcript_auto_scroll()` — sticky-tail behavior after content is measured
 
-The session banner ([`banner.rs`](../owly/src/tui/banner.rs)) is now rendered **inside** the scrollable transcript area via the `OwlyBannerInfo` struct, so it scrolls with the content instead of staying fixed outside the viewport.
+The session banner is rendered **inside** the scrollable transcript area via the `BannerInfo` struct (from `elph-tui`'s chrome module), so it scrolls with the content instead of staying fixed outside the viewport. The `owly/src/tui/banner.rs` module was simplified to only provide the `directory_display()` path helper; the banner itself is assembled from `BannerInfo` in `app.rs`.
 
 **Keyboard enhancement**: Both the `owly` and `elph` TUI apps enable the terminal keyboard enhancement protocol on startup (`enable_keyboard_enhancement()`) and disable it on drop, allowing reliable modifier key detection (Shift, Alt, Ctrl) for all keybindings above.
 
@@ -264,7 +264,6 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 | `tui/entries.rs`      | Typed transcript entries (`OwlyEntry`, `OwlyEntryKind`)                                                                                                                                                                                                                                                                                                                                                      | [`owly/src/tui/entries.rs`](../owly/src/tui/entries.rs)           |
 | `tui/chat_stream.rs`  | Scrollable transcript with Shift-based keyboard navigation, auto-scroll follow-tail, and typed entry rendering                                                                                                                                                                                                                                                                                               | [`owly/src/tui/chat_stream.rs`](../owly/src/tui/chat_stream.rs)   |
 | `tui/transcript.rs`   | `TranscriptApplier`: maps `AgentUiEvent` → `OwlyEntry` list updates                                                                                                                                                                                                                                                                                                                                          | [`owly/src/tui/transcript.rs`](../owly/src/tui/transcript.rs)     |
-| `tui/activity.rs`     | Activity bar with live tool chips                                                                                                                                                                                                                                                                                                                                                                            | [`owly/src/tui/activity.rs`](../owly/src/tui/activity.rs)         |
 | `tui/chrome.rs`       | Shared visual tokens (`subtle_border` for low-contrast frames)                                                                                                                                                                                                                                                                                                                                               | [`owly/src/tui/chrome.rs`](../owly/src/tui/chrome.rs)             |
 | `tui/tool_display.rs` | Shared formatting for tool execution output (`tool_output_preview`, `tool_chip_label`, `tool_transcript_header`, `tool_transcript_body`, `truncate_chars`)                                                                                                                                                                                                                                                   | [`owly/src/tui/tool_display.rs`](../owly/src/tui/tool_display.rs) |
 | `utils.rs`            | HTML tag stripping utility                                                                                                                                                                                                                                                                                                                                                                                   | [`owly/src/utils.rs`](../owly/src/utils.rs)                       |

@@ -12,10 +12,11 @@ pub fn render_transcript_view(
     show_thinking: bool,
     theme: Theme,
     collapse: &CollapseState,
+    agent_running: bool,
 ) {
     let _ = ui.container().col(|ui| {
         for (index, entry) in entries.iter().enumerate() {
-            render_entry(ui, entry, index, theme, show_thinking, collapse);
+            render_entry(ui, entry, index, theme, show_thinking, collapse, agent_running);
         }
     });
 }
@@ -27,6 +28,7 @@ fn render_entry(
     theme: Theme,
     show_thinking: bool,
     collapse: &CollapseState,
+    agent_running: bool,
 ) {
     match entry.role {
         TranscriptRole::User => {
@@ -46,7 +48,7 @@ fn render_entry(
             inline_line(ui, |ui| {
                 let _ = ui.text("| ").fg(theme.ai_pipe_col());
             });
-            render_assistant_message(ui, &entry.content, entry.is_streaming, theme);
+            render_assistant_message(ui, &entry.content, entry.is_streaming && agent_running, theme);
         }
         TranscriptRole::Thinking if show_thinking => {
             let expanded = collapse.is_expanded(index);

@@ -27,7 +27,12 @@ pub enum AgentUiEvent {
     ToolApprovalRequired(ToolApprovalRequest),
     SubagentStatus {
         agent_id: String,
+        agent_path: String,
         message: String,
+    },
+    GoalUpdated {
+        objective: Option<String>,
+        status: Option<String>,
     },
 }
 

@@ -22,7 +22,7 @@ fn composer_transcript_renders_blocks() {
     let collapse = CollapseState::default();
 
     backend.render(|ui| {
-        render_composer_transcript(ui, &entries, true, theme, &collapse);
+        render_composer_transcript(ui, &entries, true, theme, &collapse, false);
     });
 
     backend.assert_contains("›");

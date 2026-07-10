@@ -112,10 +112,24 @@ pub fn render_chat_stream_with_agent(ui: &mut Context, state: &mut ChatStreamSta
             if !state.entries.is_empty() {
                 match state.style {
                     TranscriptStyle::Composer => {
-                        render_composer_transcript(ui, &state.entries, state.show_thinking, theme, &state.collapse);
+                        render_composer_transcript(
+                            ui,
+                            &state.entries,
+                            state.show_thinking,
+                            theme,
+                            &state.collapse,
+                            agent_running,
+                        );
                     }
                     TranscriptStyle::Classic => {
-                        render_transcript_view(ui, &state.entries, state.show_thinking, theme, &state.collapse);
+                        render_transcript_view(
+                            ui,
+                            &state.entries,
+                            state.show_thinking,
+                            theme,
+                            &state.collapse,
+                            agent_running,
+                        );
                     }
                 }
             } else {

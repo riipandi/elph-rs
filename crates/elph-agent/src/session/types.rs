@@ -259,18 +259,20 @@ impl HasSessionId for SessionMetadata {
     }
 }
 
+/// Metadata for a multi-file session directory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonlSessionMetadata {
+pub struct SessionDirMetadata {
     pub id: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
     pub cwd: String,
-    pub path: String,
-    #[serde(rename = "parentSessionPath", skip_serializing_if = "Option::is_none")]
-    pub parent_session_path: Option<String>,
+    /// Absolute path to the session directory (`~/.elph/sessions/<key>/<id>/`).
+    pub dir: String,
+    #[serde(rename = "parentSessionId", skip_serializing_if = "Option::is_none")]
+    pub parent_session_id: Option<String>,
 }
 
-impl HasSessionId for JsonlSessionMetadata {
+impl HasSessionId for SessionDirMetadata {
     fn session_id(&self) -> &str {
         &self.id
     }

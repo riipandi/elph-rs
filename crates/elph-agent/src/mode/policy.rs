@@ -35,8 +35,16 @@ const MULTI_AGENT_TOOLS: &[&str] = &[
     "list_agents",
 ];
 
+pub fn is_mcp_tool(name: &str) -> bool {
+    name.starts_with("mcp_")
+}
+
+pub fn is_goal_tool(name: &str) -> bool {
+    matches!(name, "CreateGoal" | "GetGoal" | "UpdateGoal" | "SetGoalBudget")
+}
+
 pub fn is_plan_mode_tool(name: &str) -> bool {
-    PLAN_MODE_TOOLS.contains(&name)
+    PLAN_MODE_TOOLS.contains(&name) || is_mcp_tool(name) || is_goal_tool(name)
 }
 
 pub fn is_mutating_tool(name: &str) -> bool {

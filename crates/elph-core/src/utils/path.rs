@@ -107,8 +107,16 @@ pub trait AppPaths {
         self.config_dir().join("providers")
     }
 
+    fn projects_dir(&self) -> PathBuf {
+        self.config_dir().join("projects")
+    }
+
     fn sessions_dir(&self) -> PathBuf {
         self.config_dir().join("sessions")
+    }
+
+    fn mcp_config_path(&self) -> PathBuf {
+        self.config_dir().join("mcp.json")
     }
 
     fn skills_dir(&self) -> PathBuf {
@@ -163,6 +171,7 @@ pub trait AppPaths {
         dirs.extend([
             self.prompts_dir(),
             self.providers_dir(),
+            self.projects_dir(),
             self.sessions_dir(),
             self.skills_dir(),
             self.worktrees_dir(),
@@ -244,6 +253,6 @@ mod tests {
             paths.bundled_manifest_path(),
             PathBuf::from("/cfg/bundled/manifest.json")
         );
-        assert_eq!(paths.standard_required_dirs().len(), 14);
+        assert_eq!(paths.standard_required_dirs().len(), 15);
     }
 }

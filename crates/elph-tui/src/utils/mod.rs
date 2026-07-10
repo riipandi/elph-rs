@@ -6,7 +6,7 @@ mod truncate;
 mod width;
 mod wrap;
 
-pub use git::read_git_branch;
+pub use git::{read_git_branch, read_git_diff_stats};
 pub use path::path_basename;
 pub use strip_ansi::strip_ansi;
 pub use timestamp::{format_message_timestamp, now_timestamp};

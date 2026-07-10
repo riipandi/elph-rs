@@ -49,7 +49,13 @@ pub fn handle(args: &SessionArgs) -> ExitCode {
     };
     let cwd = env::current_dir().unwrap_or_else(|_| ".".into());
     let env = Arc::new(LocalExecutionEnv::new(&cwd));
-    let manager = SessionManager::new(&paths, env, &cwd);
+    let manager = match SessionManager::new(&paths, env, &cwd) {
+        Ok(manager) => manager,
+        Err(err) => {
+            tracing::error!(error = %err, "init session manager");
+            return EXIT_ERROR;
+        }
+    };
 
     match cmd {
         SessionCommands::List | SessionCommands::Search { .. } => match elph_agent::block_on(manager.list()) {
@@ -58,7 +64,7 @@ pub fn handle(args: &SessionArgs) -> ExitCode {
                     println!("No sessions found for {}", cwd.display());
                 } else {
                     for meta in sessions {
-                        println!("{}  {}  {}", meta.id, meta.created_at, meta.path);
+                        println!("{}  {}  {}", meta.id, meta.created_at, meta.dir);
                     }
                 }
                 EXIT_SUCCESS

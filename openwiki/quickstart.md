@@ -1,6 +1,6 @@
 ---
 title: "Quickstart Guide"
-last_updated: 2026-07-11T22:12:00Z
+last_updated: 2026-07-20T10:00:00Z
 category: quickstart
 tags:
     - getting-started
@@ -151,13 +151,12 @@ Every Markdown file includes [YAML frontmatter](frontmatter.md) with title, last
 | [`owly/src/tui/chat_stream.rs`](../owly/src/tui/chat_stream.rs)   | Scrollable transcript with Shift-based keyboard navigation, auto-scroll follow-tail, and typed entry rendering                           |
 | [`owly/src/tui/entries.rs`](../owly/src/tui/entries.rs)           | Typed transcript entries (`OwlyEntry`, `OwlyEntryKind`)                                                                                  |
 | [`owly/src/tui/transcript.rs`](../owly/src/tui/transcript.rs)     | `TranscriptApplier`: maps `AgentUiEvent` → `OwlyEntry` list updates                                                                      |
-| [`owly/src/tui/activity.rs`](../owly/src/tui/activity.rs)         | Activity bar with live tool chips during agent execution                                                                                 |
 | [`owly/src/tui/chrome.rs`](../owly/src/tui/chrome.rs)             | Shared visual tokens (`subtle_border` for low-contrast frames)                                                                           |
 | [`owly/src/tui/tool_display.rs`](../owly/src/tui/tool_display.rs) | Shared formatting for tool execution output (`tool_output_preview`, `tool_chip_label`, `tool_transcript_header`, `tool_transcript_body`) |
 | [`owly/src/tui/context.rs`](../owly/src/tui/context.rs)           | Thread-safe `AppContext` for TUI and async command dispatch                                                                              |
 | [`owly/src/tui/launch.rs`](../owly/src/tui/launch.rs)             | One-shot launch payload for the Owly interactive shell                                                                                   |
 | [`owly/src/tui/setup.rs`](../owly/src/tui/setup.rs)               | In-TUI first-run credential setup wizard                                                                                                 |
-| [`owly/src/tui/banner.rs`](../owly/src/tui/banner.rs)             | Session banner rendered inline inside the scrollable transcript (`OwlyBannerInfo` struct)                                                |
+| [`owly/src/tui/banner.rs`](../owly/src/tui/banner.rs)             | Session banner rendered inline inside the scrollable transcript via `BannerInfo` from `elph-tui` (`directory_display` helper)            |
 | [`owly/src/lib.rs`](../owly/src/lib.rs)                           | Crate root — re-exports all public modules                                                                                               |
 
 ### Tests

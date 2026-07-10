@@ -42,8 +42,17 @@ impl<'a> TranscriptApplier<'a> {
             AgentUiEvent::ToolUpdate { id, output } => self.update_tool_output(&id, &output),
             AgentUiEvent::ToolEnd { id, is_error, output } => self.end_tool(&id, is_error, &output),
             AgentUiEvent::RunCompleted { .. } => self.finalize_streaming(),
-            AgentUiEvent::SubagentStatus { agent_id, message } => {
-                self.push_status(&format!("[{agent_id}] {message}"));
+            AgentUiEvent::SubagentStatus {
+                agent_id,
+                agent_path,
+                message,
+            } => {
+                self.push_status(&format!("[{agent_path} ({agent_id})] {message}"));
+            }
+            AgentUiEvent::GoalUpdated { objective, status } => {
+                if let (Some(objective), Some(status)) = (objective, status) {
+                    self.push_status(&format!("Goal ({status}): {objective}"));
+                }
             }
             AgentUiEvent::PlanConfirmationRequired(_) | AgentUiEvent::ToolApprovalRequired(_) => {}
             AgentUiEvent::ThinkingDelta(_) => {}
@@ -140,10 +149,54 @@ impl<'a> TranscriptApplier<'a> {
     }
 
     fn finalize_streaming(&mut self) {
-        if let Some(last) = self.entries.last_mut()
-            && last.role == TranscriptRole::Assistant
-        {
-            last.is_streaming = false;
+        for entry in self.entries.iter_mut() {
+            if entry.role == TranscriptRole::Assistant {
+                entry.is_streaming = false;
+            }
         }
+        self.live_tools.clear();
+        self.tool_indexes.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use elph_tui::{ToolExecutionState, ToolExecutionStatus};
+
+    fn applier<'a>(
+        entries: &'a mut Vec<TranscriptEntry>,
+        live_tools: &'a mut Vec<ToolExecutionState>,
+    ) -> TranscriptApplier<'a> {
+        TranscriptApplier::new(entries, live_tools, false)
+    }
+
+    #[test]
+    fn text_deltas_append_to_streaming_assistant() {
+        let mut entries = Vec::new();
+        let mut live_tools = Vec::new();
+        let mut applier = applier(&mut entries, &mut live_tools);
+        applier.apply(AgentUiEvent::TextDelta("Hel".into()));
+        applier.apply(AgentUiEvent::TextDelta("lo".into()));
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].is_streaming);
+        assert_eq!(entries[0].content, "Hello");
+    }
+
+    #[test]
+    fn run_completed_clears_streaming_flag() {
+        let mut entries = vec![TranscriptEntry {
+            role: TranscriptRole::Assistant,
+            content: "Hi".into(),
+            is_streaming: true,
+            tool: None,
+            thinking_expanded: false,
+            timestamp: None,
+        }];
+        let mut live_tools = vec![ToolExecutionState::new("x", "bash").with_status(ToolExecutionStatus::Running)];
+        let mut applier = applier(&mut entries, &mut live_tools);
+        applier.apply(AgentUiEvent::RunCompleted { elapsed_secs: 1.2 });
+        assert!(!entries[0].is_streaming);
+        assert!(live_tools.is_empty());
     }
 }

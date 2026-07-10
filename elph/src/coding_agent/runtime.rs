@@ -2,11 +2,14 @@
 
 use anyhow::Result;
 use elph_agent::{
-    AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, LocalExecutionEnv, QueueMode, SystemPrompt,
-    create_all_tools,
+    AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, GoalRuntime, GoalStore,
+    LocalExecutionEnv, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt, create_all_tools,
+    create_goal_tools,
 };
+use elph_core::utils::path::AppPaths;
 use std::path::Path;
 use std::sync::Arc;
+use tracing::warn;
 
 use super::model_registry::resolve_model;
 use super::resource_loader::load_resources;
@@ -31,8 +34,10 @@ pub async fn create_coding_session_with_events(
     CodingAgentSession,
     tokio::sync::mpsc::UnboundedReceiver<super::events::AgentUiEvent>,
 )> {
+    crate::runtime::ensure_datastore(options.paths).await?;
+
     let env = Arc::new(LocalExecutionEnv::new(options.cwd));
-    let session_manager = SessionManager::new(options.paths, env.clone(), options.cwd);
+    let session_manager = SessionManager::new(options.paths, env.clone(), options.cwd)?;
     let session = session_manager.create(options.resume_id).await?;
     let session_id = {
         use elph_agent::session::types::HasSessionId;
@@ -41,12 +46,36 @@ pub async fn create_coding_session_with_events(
     let selection = resolve_model(options.settings, options.provider_override, options.model_override).await?;
 
     let resources = load_resources(options.paths, options.cwd);
-    let tools = create_all_tools(env.clone());
+    let mut tools = create_all_tools(env.clone());
+
+    let mcp_config = crate::runtime::mcp::load_config(options.paths)?;
+    let mcp_registry = match McpToolRegistry::load(mcp_config).await {
+        Ok(registry) => Arc::new(registry),
+        Err(error) => {
+            warn!("MCP tool discovery failed: {error}");
+            Arc::new(McpToolRegistry::empty())
+        }
+    };
+    tools.extend(mcp_registry.create_agent_tools());
+
+    let goal_store = Arc::new(GoalStore::new(options.paths.metadata_db_path()));
+    let goal_runtime = Arc::new(GoalRuntime::new(goal_store.clone(), session_id.clone()));
+    tools.extend(create_goal_tools(goal_store, session_id.clone()));
+
+    let thinking = to_agent_thinking(thinking_level_from_setting(&options.settings.session.thinking_level));
+    let agent_graph = Arc::new(AgentGraphStore::new(options.paths.metadata_db_path()));
+    let subagent_bootstrap = SubagentBootstrap {
+        project_key: session_manager.project_key().to_string(),
+        cwd: options.cwd.display().to_string(),
+        sessions_root: options.paths.sessions_dir().to_string_lossy().to_string(),
+        resources: resources.clone(),
+        stream_options: AgentHarnessStreamOptions::default(),
+        thinking_level: thinking,
+        agent_graph: Some(agent_graph),
+    };
     let tool_names: Vec<String> = tools.iter().map(|t| t.name().to_string()).collect();
     let agents_md = agents_md_for_cwd(options.cwd);
     let system_prompt = build_system_prompt(options.cwd, &resources, &tool_names, agents_md.as_deref());
-
-    let thinking = to_agent_thinking(thinking_level_from_setting(&options.settings.session.thinking_level));
     let agent_mode = agent_mode_from_setting(&options.settings.session.agent_mode);
 
     let model = selection.model.clone();
@@ -64,6 +93,10 @@ pub async fn create_coding_session_with_events(
         active_tool_names: vec![],
         steering_mode: QueueMode::OneAtATime,
         follow_up_mode: QueueMode::OneAtATime,
+        goal_runtime: Some(goal_runtime.clone()),
+        subagent_bootstrap: Some(subagent_bootstrap),
+        shared_registry: None,
+        agent_control: None,
     })
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -74,6 +107,7 @@ pub async fn create_coding_session_with_events(
         selection,
         agent_mode,
         options.settings.show_thinking,
+        goal_runtime,
     )
     .await
 }

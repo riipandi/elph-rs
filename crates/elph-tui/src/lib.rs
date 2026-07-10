@@ -68,6 +68,6 @@ pub use transcript::{
 };
 pub use utils::{
     TAB_STOP, char_display_width, format_message_timestamp, now_timestamp, pad_lines, path_basename, read_git_branch,
-    str_display_width, strip_ansi, truncate_to_width, truncate_to_width_ellipsis, wrap_ansi_line, wrap_ansi_text,
-    wrap_text,
+    read_git_diff_stats, str_display_width, strip_ansi, truncate_to_width, truncate_to_width_ellipsis, wrap_ansi_line,
+    wrap_ansi_text, wrap_text,
 };

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use elph_agent::PlanConfirmationChoice;
@@ -11,7 +11,7 @@ use elph_tui::{
     default_activity_spinner, default_run_config, disable_keyboard_enhancement, enable_keyboard_enhancement,
     handle_model_selector_input, handle_plan_confirmation_input, handle_prompt_input, handle_session_selector_input,
     handle_slash_palette_keys, handle_tool_approval_input, handle_tree_navigator_input, is_quit_command, push_capped,
-    read_git_branch, render_agent_shell, render_chat_stream_with_agent, render_model_selector,
+    read_git_branch, read_git_diff_stats, render_agent_shell, render_chat_stream_with_agent, render_model_selector,
     render_plan_confirmation, render_prompt, render_session_selector, render_tool_approval, render_tree_navigator,
     sigint_channel, slash_palette_visible,
 };
@@ -375,6 +375,9 @@ impl ElphApp {
                     self.pending_tool_approval_tx = Some(req.response_tx);
                 }
                 AgentUiEvent::RunCompleted { elapsed_secs } => {
+                    let mut applier =
+                        TranscriptApplier::new(&mut self.chat.entries, &mut self.live_tools, self.show_thinking);
+                    applier.apply(AgentUiEvent::RunCompleted { elapsed_secs });
                     self.agent_running = false;
                     self.last_turn_elapsed_secs = elapsed_secs;
                     self.activity.clear();
@@ -497,6 +500,39 @@ impl ElphApp {
                     elph_tui::DEFAULT_TRANSCRIPT_CAP,
                 );
             }
+            SlashDispatch::Goal(args) => {
+                let goal_runtime = self.session.goal_runtime();
+                let result = elph_agent::block_on(async move {
+                    crate::coding_agent::goal_slash::handle_goal_slash_result(&goal_runtime, &args).await
+                });
+                match result {
+                    Ok((message, goal)) => {
+                        push_capped(
+                            &mut self.chat.entries,
+                            TranscriptEntry::system(message),
+                            elph_tui::DEFAULT_TRANSCRIPT_CAP,
+                        );
+                        if let Some(goal) = goal {
+                            let mut applier = TranscriptApplier::new(
+                                &mut self.chat.entries,
+                                &mut self.live_tools,
+                                self.show_thinking,
+                            );
+                            applier.apply(AgentUiEvent::GoalUpdated {
+                                objective: Some(goal.objective),
+                                status: Some(goal.status.as_str().to_string()),
+                            });
+                        }
+                    }
+                    Err(error) => {
+                        push_capped(
+                            &mut self.chat.entries,
+                            TranscriptEntry::system(format!("Goal error: {error}")),
+                            elph_tui::DEFAULT_TRANSCRIPT_CAP,
+                        );
+                    }
+                }
+            }
             SlashDispatch::NotImplemented(cmd) => {
                 push_capped(
                     &mut self.chat.entries,
@@ -604,6 +640,9 @@ impl ElphApp {
                 self.activity.request_cancel();
                 TurnDispatcher::spawn_abort(Arc::clone(&self.session));
                 if self.agent_running {
+                    let mut applier =
+                        TranscriptApplier::new(&mut self.chat.entries, &mut self.live_tools, self.show_thinking);
+                    applier.apply(AgentUiEvent::RunCompleted { elapsed_secs: 0.0 });
                     self.agent_running = false;
                     self.activity.clear();
                 }
@@ -640,6 +679,7 @@ pub fn render_app(ui: &mut Context, app: &mut ElphApp) {
     let thinking = app.thinking.label();
     let branch = app.git_branch.clone();
     let branch_ref = branch.as_deref();
+    let (git_additions, git_deletions) = read_git_diff_stats(Path::new(&project_dir));
     let model_ref = if model_name.is_empty() {
         None
     } else {
@@ -661,8 +701,8 @@ pub fn render_app(ui: &mut Context, app: &mut ElphApp) {
         mode: app.prompt.mode,
         turn: app.turn,
         branch: branch_ref,
-        git_additions: 0,
-        git_deletions: 0,
+        git_additions,
+        git_deletions,
     };
 
     let status_bar = StatusBarInfo {

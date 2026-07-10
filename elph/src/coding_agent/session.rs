@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use elph_agent::{
-    AgentEvent, AgentHarness, AgentHarnessEvent, AgentHarnessOwnEvent, CollaborationMode, JsonlSessionStorage,
-    PlanConfirmationChoice, SubagentEventForwarder, ToolCallEvent, ToolCallHookResult,
+    AgentEvent, AgentHarness, AgentHarnessEvent, AgentHarnessOwnEvent, CollaborationMode, GoalRuntime,
+    PlanConfirmationChoice, SessionDirStorage, SubagentEventForwarder, SubagentInfo, ToolCallEvent, ToolCallHookResult,
 };
 use elph_ai::AssistantMessageEvent;
 use elph_tui::AgentMode;
@@ -17,23 +17,25 @@ use super::session_manager::SessionManager;
 use super::tool_policy::{AgentModePolicy, to_agent_thinking};
 
 pub struct CodingAgentSession {
-    harness: Arc<AgentHarness<JsonlSessionStorage>>,
+    harness: Arc<AgentHarness<SessionDirStorage>>,
     session_manager: SessionManager,
     session_id: String,
     selection: ModelSelection,
     policy: Arc<Mutex<AgentModePolicy>>,
     ui_tx: mpsc::UnboundedSender<AgentUiEvent>,
     show_thinking: bool,
+    goal_runtime: Arc<GoalRuntime>,
 }
 
 impl CodingAgentSession {
     pub async fn new(
-        harness: Arc<AgentHarness<JsonlSessionStorage>>,
+        harness: Arc<AgentHarness<SessionDirStorage>>,
         session_manager: SessionManager,
         session_id: String,
         selection: ModelSelection,
         agent_mode: AgentMode,
         show_thinking: bool,
+        goal_runtime: Arc<GoalRuntime>,
     ) -> Result<(Self, mpsc::UnboundedReceiver<AgentUiEvent>)> {
         let (ui_tx, ui_rx) = mpsc::unbounded_channel();
         let session = Self {
@@ -44,13 +46,14 @@ impl CodingAgentSession {
             policy: Arc::new(Mutex::new(AgentModePolicy::new(agent_mode))),
             ui_tx: ui_tx.clone(),
             show_thinking,
+            goal_runtime,
         };
         session.wire_harness(ui_tx).await?;
         session.apply_agent_mode(agent_mode).await?;
         Ok((session, ui_rx))
     }
 
-    pub fn harness(&self) -> Arc<AgentHarness<JsonlSessionStorage>> {
+    pub fn harness(&self) -> Arc<AgentHarness<SessionDirStorage>> {
         self.harness.clone()
     }
 
@@ -67,6 +70,10 @@ impl CodingAgentSession {
 
     pub fn session_id(&self) -> &str {
         &self.session_id
+    }
+
+    pub fn goal_runtime(&self) -> Arc<GoalRuntime> {
+        self.goal_runtime.clone()
     }
 
     pub async fn set_agent_mode(&self, mode: AgentMode) -> Result<()> {
@@ -90,14 +97,11 @@ impl CodingAgentSession {
         } else {
             self.harness.prompt(text, None).await.map(|_| ())
         };
+        let elapsed_secs = start.elapsed().as_secs_f64();
+        let _ = self.harness.wait_for_idle().await;
+        let _ = self.ui_tx.send(AgentUiEvent::RunCompleted { elapsed_secs });
         match result {
-            Ok(_) => {
-                self.harness.wait_for_idle().await.map_err(|e| anyhow::anyhow!("{e}"))?;
-                let _ = self.ui_tx.send(AgentUiEvent::RunCompleted {
-                    elapsed_secs: start.elapsed().as_secs_f64(),
-                });
-                Ok(())
-            }
+            Ok(_) => Ok(()),
             Err(err) => {
                 let _ = self.ui_tx.send(AgentUiEvent::Status(format!("Error: {err}")));
                 Err(anyhow::anyhow!("{err}"))
@@ -258,11 +262,12 @@ impl CodingAgentSession {
 
         let forwarder: SubagentEventForwarder = Arc::new({
             let ui_tx = ui_tx.clone();
-            move |event| {
+            move |event, info: &SubagentInfo| {
                 if let AgentEvent::ToolExecutionStart { tool_name, .. } = &event {
                     let _ = ui_tx.send(AgentUiEvent::SubagentStatus {
-                        agent_id: "subagent".into(),
-                        message: format!("Subagent tool: {tool_name}"),
+                        agent_id: info.id.clone(),
+                        agent_path: info.agent_path.clone(),
+                        message: format!("tool: {tool_name}"),
                     });
                 }
             }

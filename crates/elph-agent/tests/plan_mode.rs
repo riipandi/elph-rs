@@ -50,6 +50,10 @@ async fn harness_enter_plan_mode_filters_active_tools() {
         active_tool_names: vec![],
         steering_mode: QueueMode::default(),
         follow_up_mode: QueueMode::default(),
+        goal_runtime: None,
+        subagent_bootstrap: None,
+        shared_registry: None,
+        agent_control: None,
     })
     .expect("harness");
 
@@ -95,6 +99,10 @@ async fn harness_emits_plan_confirmation_events() {
         active_tool_names: vec![],
         steering_mode: QueueMode::default(),
         follow_up_mode: QueueMode::default(),
+        goal_runtime: None,
+        subagent_bootstrap: None,
+        shared_registry: None,
+        agent_control: None,
     })
     .expect("harness");
 

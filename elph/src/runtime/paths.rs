@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 pub use elph_core::utils::path::AppPaths;
 use elph_core::utils::path::{PathResolver, ResolvedPaths};
+use elph_core::utils::project_key;
 
 const PROJECT_DIR_NAME: &str = ".elph";
 
@@ -56,7 +57,54 @@ impl Paths {
         let mut dirs = vec![self.config_dir().clone(), self.data_dir().clone()];
         dirs.extend(self.standard_required_dirs());
         dirs.push(self.project_elph_dir());
+        if let Ok(layout) = self.project_layout_dirs() {
+            dirs.extend(layout);
+        }
         dirs
+    }
+
+    /// Stable `{hash}_{folder_name}` key for the current project directory.
+    pub fn project_key(&self) -> Result<String> {
+        project_key::from_path(self.project_dir())
+    }
+
+    /// `~/.elph/projects/<key>/`
+    pub fn project_data_dir(&self) -> Result<PathBuf> {
+        Ok(self.projects_dir().join(self.project_key()?))
+    }
+
+    /// `~/.elph/sessions/<key>/`
+    #[allow(dead_code)]
+    pub fn project_sessions_dir(&self) -> Result<PathBuf> {
+        Ok(self.sessions_dir().join(self.project_key()?))
+    }
+
+    /// Per-project runtime directories (mcps, terminals, agent-tools).
+    pub fn project_layout_dirs(&self) -> Result<Vec<PathBuf>> {
+        let base = self.project_data_dir()?;
+        Ok(vec![
+            base.join("mcps"),
+            base.join("terminals"),
+            base.join("agent-tools"),
+        ])
+    }
+
+    /// Resolve layout dirs for an arbitrary project path (e.g. session resume).
+    #[allow(dead_code)]
+    pub fn project_layout_dirs_for(&self, project_path: &Path) -> Result<Vec<PathBuf>> {
+        let key = project_key::from_path(project_path)?;
+        let base = self.projects_dir().join(key);
+        Ok(vec![
+            base.join("mcps"),
+            base.join("terminals"),
+            base.join("agent-tools"),
+        ])
+    }
+
+    /// Session storage root for a project path.
+    #[allow(dead_code)]
+    pub fn project_sessions_dir_for(&self, project_path: &Path) -> Result<PathBuf> {
+        Ok(self.sessions_dir().join(project_key::from_path(project_path)?))
     }
 }
 
@@ -87,6 +135,7 @@ mod tests {
         assert_eq!(paths.project_gitignore_path(), project.join(".elph/.gitignore"));
         assert_eq!(paths.bundled_manifest_path(), config.join("bundled/manifest.json"));
         assert_eq!(paths.models_dir(), data.join("models"));
-        assert_eq!(paths.required_dirs().len(), 17);
+        // 15 standard + config/data/project_elph + 3 project layout dirs (mcps/terminals/agent-tools)
+        assert_eq!(paths.required_dirs().len(), 21);
     }
 }

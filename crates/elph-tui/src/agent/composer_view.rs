@@ -18,6 +18,7 @@ pub fn render_composer_transcript(
     show_thinking: bool,
     theme: Theme,
     collapse: &CollapseState,
+    agent_running: bool,
 ) {
     let gap = ui.spacing().xs();
     let _ = ui.container().gap(gap).col(|ui| {
@@ -28,7 +29,7 @@ pub fn render_composer_transcript(
                     let _ = ui.text("");
                 }
             }
-            render_entry(ui, entry, index, theme, show_thinking, collapse);
+            render_entry(ui, entry, index, theme, show_thinking, collapse, agent_running);
             prev_role = Some(entry.role);
         }
     });
@@ -45,11 +46,12 @@ fn render_entry(
     theme: Theme,
     show_thinking: bool,
     collapse: &CollapseState,
+    agent_running: bool,
 ) {
     match entry.role {
         TranscriptRole::User => render_user_card(ui, &entry.content, theme),
         TranscriptRole::Assistant => {
-            render_assistant_message(ui, &entry.content, entry.is_streaming, theme);
+            render_assistant_message(ui, &entry.content, entry.is_streaming && agent_running, theme);
         }
         TranscriptRole::Thinking if show_thinking => {
             render_thought_block(ui, entry, collapse.is_expanded(index), theme);

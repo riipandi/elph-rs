@@ -1099,4 +1099,8 @@ where
     pub active_tool_names: Vec<String>,
     pub steering_mode: QueueMode,
     pub follow_up_mode: QueueMode,
+    pub goal_runtime: Option<std::sync::Arc<crate::goals::GoalRuntime>>,
+    pub subagent_bootstrap: Option<crate::subagent::SubagentBootstrap>,
+    pub shared_registry: Option<std::sync::Arc<crate::subagent::AgentRegistry>>,
+    pub agent_control: Option<std::sync::Arc<crate::subagent::AgentControl>>,
 }

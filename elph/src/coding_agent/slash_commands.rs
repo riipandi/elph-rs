@@ -121,6 +121,7 @@ pub enum SlashDispatch {
     OpenLogin,
     Reload,
     Message(String),
+    Goal(String),
     NotImplemented(String),
 }
 
@@ -130,9 +131,10 @@ pub fn dispatch_slash_command(input: &str) -> Option<SlashDispatch> {
         return None;
     }
     let body = trimmed.trim_start_matches('/').trim();
-    let (name, _args) = body.split_once(' ').map_or((body, ""), |(n, a)| (n, a));
+    let (name, args) = body.split_once(' ').map_or((body, ""), |(n, a)| (n, a));
     let name = name.to_ascii_lowercase();
     Some(match name.as_str() {
+        "goal" | "goals" => SlashDispatch::Goal(args.trim().to_string()),
         "quit" | "exit" => SlashDispatch::Quit,
         "compact" | "c" => SlashDispatch::Compact,
         "new" => SlashDispatch::NewSession,

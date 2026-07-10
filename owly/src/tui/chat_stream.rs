@@ -74,7 +74,7 @@ pub fn render_owly_chat_stream(
     let _ = ui.scroll_col(&mut state.scroll, |ui| {
         let mut prev_kind = None;
         for entry in entries {
-            render_entry(ui, entry, theme, show_thinking, &mut prev_kind);
+            render_entry(ui, entry, theme, show_thinking, agent_running, &mut prev_kind);
         }
         if agent_running {
             render_live_tools(ui, live_tools, theme);
@@ -100,6 +100,7 @@ fn render_entry(
     entry: &OwlyEntry,
     theme: Theme,
     show_thinking: bool,
+    agent_running: bool,
     prev_kind: &mut Option<OwlyEntryKind>,
 ) {
     if should_skip_entry(entry.kind) {
@@ -130,7 +131,12 @@ fn render_entry(
             }
         }
         OwlyEntryKind::Assistant => {
-            render_assistant_message(ui, &entry.inner.content, entry.inner.is_streaming, theme);
+            render_assistant_message(
+                ui,
+                &entry.inner.content,
+                entry.inner.is_streaming && agent_running,
+                theme,
+            );
         }
         OwlyEntryKind::Thinking if show_thinking => {
             let label = if entry.inner.thinking_expanded {

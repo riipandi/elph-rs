@@ -8,6 +8,7 @@ pub mod compaction;
 pub mod datastore;
 pub mod env;
 pub mod event_stream;
+pub mod goals;
 pub mod harness;
 pub mod init;
 pub mod mcp;
@@ -43,6 +44,7 @@ pub use elph_core::logger::{LogRotation, LoggingOptions};
 pub use elph_core::{ensure_dirs, write_file_if_missing, write_json_file, write_private_file};
 pub use env::LocalExecutionEnv;
 pub use event_stream::{AgentEventSink, AgentEventStream};
+pub use goals::{Goal, GoalRuntime, GoalStatus, GoalStore, create_goal_tools};
 pub use harness::utils::TruncationResult;
 pub use harness::{
     AfterProviderResponseEvent, AgentHarness, AgentHarnessError, AgentHarnessErrorCode, AgentHarnessEvent,
@@ -65,6 +67,11 @@ pub use harness::{
     sanitize_binary_output, to_error, truncate_head, truncate_line, truncate_tail,
 };
 pub use init::InitProgress;
+#[cfg(feature = "mcp")]
+pub use mcp::{
+    McpConfig, McpProbeResult, McpServerConfig, McpStdioConfig, McpToolDescriptor, McpToolRegistry, PROBE_TIMEOUT,
+    list_tools, parse_stdio_config, probe_server, probe_stdio_server,
+};
 pub use messages::{
     CustomMessageContent, bash_execution_to_text, create_branch_summary_message, create_compaction_summary_message,
     create_custom_message, default_convert_to_llm, default_convert_to_llm as convert_to_llm, default_convert_to_llm_fn,
@@ -86,13 +93,12 @@ pub use proxy::{ProxyAssistantMessageEvent, ProxyStreamOptions, stream_proxy};
 pub use runtime::{block_on, try_block_on};
 pub use session::id::create_tsid;
 pub use session::{
-    BranchSummaryOptions, CustomMessageEntryBlock, CustomMessageEntryContent, ForkEntriesOptions, ForkPosition,
-    InMemorySessionCreateOptions, InMemorySessionOptions, InMemorySessionRepo, InMemorySessionStorage,
-    JsonlSessionCreateOptions, JsonlSessionListOptions, JsonlSessionMetadata, JsonlSessionRepo,
-    JsonlSessionRepoCreateOptions, JsonlSessionStorage, SESSION_TREE_MIGRATIONS, Session, SessionContext, SessionError,
-    SessionErrorCode, SessionMetadata, SessionModelRef, SessionStorage, SessionTreeEntry, TursoSessionMetadata,
-    TursoSessionStorage, build_session_context, create_session_id, create_timestamp, get_entries_to_fork,
-    load_jsonl_session_metadata, to_session,
+    BranchSummaryOptions, CustomMessageEntryBlock, CustomMessageEntryContent, EVENTS_FILE, ForkEntriesOptions,
+    ForkPosition, InMemorySessionCreateOptions, InMemorySessionOptions, InMemorySessionRepo, InMemorySessionStorage,
+    SESSION_TREE_MIGRATIONS, SUMMARY_FILE, Session, SessionContext, SessionDirCreateOptions, SessionDirListOptions,
+    SessionDirMetadata, SessionDirRepo, SessionDirRepoCreateOptions, SessionDirStorage, SessionError, SessionErrorCode,
+    SessionMetadata, SessionModelRef, SessionStorage, SessionTreeEntry, TursoSessionMetadata, TursoSessionStorage,
+    build_session_context, create_session_id, create_timestamp, get_entries_to_fork, load_session_metadata, to_session,
 };
 pub use skills::{
     LoadSkillsResult, LoadSourcedSkillsResult, SkillDiagnostic, SkillDiagnosticCode, SourcedSkill,
@@ -100,8 +106,8 @@ pub use skills::{
     load_sourced_skills_with_options,
 };
 pub use subagent::{
-    AgentControl, AgentRegistry, SubagentEventForwarder, SubagentInfo, SubagentLimits, SubagentSpawnConfig,
-    SubagentStatus,
+    AgentControl, AgentGraphStore, AgentRegistry, SubagentBootstrap, SubagentEventForwarder, SubagentHarness,
+    SubagentInfo, SubagentLimits, SubagentSpawnConfig, SubagentStatus,
 };
 pub use tools::{WebSearchEngine, WebSearchResult};
 pub use tools::{

@@ -176,7 +176,7 @@ fn list_agents_exec(
     control: Arc<AgentControl>,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<AgentToolResult>> + Send>> {
     Box::pin(async move {
-        let agents = control.list_agents().await;
+        let agents = control.list_agents(None).await;
         let body = serde_json::to_string_pretty(&agents).unwrap_or_else(|_| "[]".into());
         Ok(AgentToolResult::text(body))
     })
