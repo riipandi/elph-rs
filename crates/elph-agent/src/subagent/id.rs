@@ -12,7 +12,6 @@ pub fn generate_agent_name() -> String {
         components: 2,
         separator: "_".to_string(),
         suffix: None,
-        ..Default::default()
     })
     .expect("valid memorable id options");
     format!("agent_{core}")
