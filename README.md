@@ -1,4 +1,6 @@
-# Elph - minimalist AI agent companion
+# Elph
+
+Rust workspace for AI agent applications — coding agent, personal assistant, and documentation tooling.
 
 > [!WARNING]
 > This project is under active development, so you may encounter bugs.<br/>
@@ -6,64 +8,70 @@
 
 ## Quick Start
 
-You will need [`Rust >= 1.96`][rust] installed. Run `make prepare` to install all toolchain dependencies:
-`watchexec`, `tarpaulin`, `cross`, and `rustup` targets for cross-compilation.
-
-Read the [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines on contributing to this project.
+Releases are tagged per app (`elph-v*`, `eclaw-v*`, `owly-v*`).
+See [GitHub Releases](https://github.com/riipandi/elph/releases).
 
 ### Installation
 
-Install using the [install](./install.sh) script:
+**Pre-built binaries** (Linux and macOS, x86_64 and arm64):
 
 ```sh
-curl -fsSL https://elph.space/install.sh | bash
+curl -fsSL https://elph.space/elph/install.sh | bash
+curl -fsSL https://elph.space/eclaw/install.sh | bash
+curl -fsSL https://elph.space/owly/install.sh | bash
 ```
 
-Or use `cargo install` (requires Rust 1.96+):
+Pin a version or install the latest pre-release:
+
+```sh
+curl -fsSL https://elph.space/elph/install.sh | bash -s -- --version 0.0.26
+curl -fsSL https://elph.space/elph/install.sh | bash -s -- --canary
+```
+
+Install scripts resolve the **latest release per application** from GitHub (not the repo-wide
+`Latest` badge).
+
+**From crates.io** (requires [Rust >= 1.96][rust]):
 
 ```sh
 cargo install --locked elph
+cargo install --locked eclaw
+cargo install --locked owly
 ```
 
-### Up and Running
+**From source:**
 
 ```sh
-# Clone the repository
-git clone REPOSITORY_URL
+cargo install --path elph
+cargo install --path eclaw
+cargo install --path owly
+```
+
+Per-app setup and usage: see each package README linked above.
+
+## Development
+
+Requires [Rust >= 1.96][rust]. Clone the repo, run `make prepare`, then `make help` for targets.
+
+```sh
+git clone https://github.com/riipandi/elph.git
 cd elph
-
-# Install required toolchain
 make prepare
-
-# Install dependencies
-make check
-
-# Run the application
-make run
+make check && make test && make lint
 ```
 
-### Publishing
+Publish crates: `make publish` (see `make help`)
 
-Publish all crates to crates.io (order matters: core → ai → agent → tui → elph):
+## Contributing
 
-```sh
-make publish
-```
+We welcome contributions to make Elph even better!
 
-Or publish individually:
+- Read our **[Contributing Guidelines](./CONTRIBUTING.md)** for detailed guidelines
+- Fork the repository and create a feature branch
+- Submit a pull request with a clear title and description
+- Join the discussion on [GitHub Issues](https://github.com/riipandi/elph/issues)
 
-```sh
-cargo publish -p elph-core
-cargo publish -p elph-ai
-cargo publish -p elph-agent
-cargo publish -p elph-swarm
-cargo publish -p elph-tui
-cargo publish -p eclaw
-cargo publish -p elph
-cargo publish -p owly
-```
-
-**Note:** crates.io is immutable — once published, a version cannot be overwritten or deleted.
+Join the flow. Amplify your AI-powered workflow with Elph! 🚀
 
 ## Documentation
 

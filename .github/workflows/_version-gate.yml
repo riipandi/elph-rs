@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Version Gate
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: Application to check (elph, eclaw, or owly)
+        required: true
+        type: string
+    outputs:
+      should_continue:
+        description: Whether downstream jobs should run
+        value: ${{ jobs.gate.outputs.should_continue }}
+      cargo_version:
+        description: Version from Cargo.toml
+        value: ${{ jobs.gate.outputs.cargo_version }}
+      latest_release:
+        description: Latest stable GitHub release version, or none
+        value: ${{ jobs.gate.outputs.latest_release }}
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Version gate (${{ inputs.app }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      should_continue: ${{ steps.check.outputs.should_continue }}
+      cargo_version: ${{ steps.check.outputs.cargo_version }}
+      latest_release: ${{ steps.check.outputs.latest_release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare Cargo.toml with latest GitHub release
+        id: check
+        env:
+          APP: ${{ inputs.app }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/ci-check-app-version.sh

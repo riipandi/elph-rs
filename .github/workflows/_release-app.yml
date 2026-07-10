@@ -17,16 +17,25 @@ env:
   CI: true
 
 jobs:
+  version-gate:
+    uses: ./.github/workflows/_version-gate.yml
+    with:
+      app: ${{ inputs.app }}
+
   quality-gate:
     name: Quality gate (${{ inputs.app }})
+    needs: version-gate
+    if: needs.version-gate.outputs.should_continue == 'true'
     uses: ./.github/workflows/_ci-app.yml
     with:
       app: ${{ inputs.app }}
       sharedKeyPrefix: release
+      skipVersionGate: true
 
   build-linux:
     name: Build Linux (${{ inputs.app }})
-    needs: quality-gate
+    needs: [version-gate, quality-gate]
+    if: needs.version-gate.outputs.should_continue == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -49,6 +58,10 @@ jobs:
         env:
           APP: ${{ inputs.app }}
 
+      - name: Show sccache statistics
+        if: always()
+        uses: ./.github/show-sccache-stats
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -60,7 +73,8 @@ jobs:
 
   build-macos:
     name: Build macOS (${{ inputs.app }})
-    needs: quality-gate
+    needs: [version-gate, quality-gate]
+    if: needs.version-gate.outputs.should_continue == 'true'
     runs-on: macos-14
     timeout-minutes: 90
     steps:
@@ -76,6 +90,10 @@ jobs:
         env:
           APP: ${{ inputs.app }}
 
+      - name: Show sccache statistics
+        if: always()
+        uses: ./.github/show-sccache-stats
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -87,7 +105,8 @@ jobs:
 
   build-windows:
     name: Build Windows (${{ inputs.app }})
-    needs: quality-gate
+    needs: [version-gate, quality-gate]
+    if: needs.version-gate.outputs.should_continue == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -110,6 +129,10 @@ jobs:
         env:
           APP: ${{ inputs.app }}
 
+      - name: Show sccache statistics
+        if: always()
+        uses: ./.github/show-sccache-stats
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -121,7 +144,8 @@ jobs:
 
   publish:
     name: Publish (${{ inputs.app }})
-    needs: [build-linux, build-macos, build-windows]
+    needs: [version-gate, build-linux, build-macos, build-windows]
+    if: needs.version-gate.outputs.should_continue == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -182,6 +206,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
+          make_latest: false
           generate_release_notes: true
           files: |
             release/archives/${{ inputs.app }}-*

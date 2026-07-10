@@ -62,13 +62,13 @@ fn write_completions(shell: Shell, cmd: &mut clap::Command, bin_name: &str, writ
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap_complete::Generator;
 
     #[test]
     fn bash_completion_includes_subcommands_and_ext_alias() {
-        let cmd = Cli::command();
+        let mut cmd = Cli::command();
+        let bin_name = cmd.get_name().to_string();
         let mut script = Vec::new();
-        Shell::Bash.generate(&cmd, &mut script);
+        generate(Shell::Bash, &mut cmd, bin_name, &mut script);
 
         let script = String::from_utf8(script).expect("utf8");
         assert!(script.contains("elph"), "expected bin name in script:\n{script}");

@@ -195,12 +195,12 @@ async fn poll_device_auth(device_auth: &DeviceAuthResponse) -> anyhow::Result<De
                     }
                 };
 
-                if let Some(refresh_token) = json.get("refresh_token").and_then(|v| v.as_str()) {
-                    if !refresh_token.is_empty() {
-                        return DeviceCodePollResult::Complete(DevicePollSuccess {
-                            refresh_token: refresh_token.to_string(),
-                        });
-                    }
+                if let Some(refresh_token) = json.get("refresh_token").and_then(|v| v.as_str())
+                    && !refresh_token.is_empty()
+                {
+                    return DeviceCodePollResult::Complete(DevicePollSuccess {
+                        refresh_token: refresh_token.to_string(),
+                    });
                 }
 
                 let error = json.get("error").and_then(|v| v.as_str()).unwrap_or_default();
