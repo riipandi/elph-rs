@@ -1,5 +1,10 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 
+# git tag --delete eclaw-v0.0.1
+# git push origin --delete tag eclaw-v0.0.1
+# git tag eclaw-v0.0.1 -m "version bump"
+# git push origin eclaw-v0.0.1
+
 name: Release Eclaw
 
 on:
