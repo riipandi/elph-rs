@@ -41,7 +41,7 @@ mod tests {
     #[test]
     fn reads_branch_and_diff_stats() {
         let dir = tempfile::tempdir().expect("tempdir");
-        run_git(dir.path(), &["init"]);
+        run_git(dir.path(), &["init", "-b", "main"]);
         run_git(dir.path(), &["config", "user.email", "test@example.com"]);
         run_git(dir.path(), &["config", "user.name", "Test"]);
         std::fs::write(dir.path().join("file.txt"), "hello\n").expect("write");
@@ -50,10 +50,7 @@ mod tests {
 
         std::fs::write(dir.path().join("file.txt"), "hello\nworld\n").expect("write");
 
-        assert_eq!(
-            read_branch(dir.path()),
-            Some("main".to_string()).or(Some("master".to_string()))
-        );
+        assert_eq!(read_branch(dir.path()), Some("main".to_string()));
         let (add, del) = read_diff_stats(dir.path());
         assert!(add > 0 || del > 0);
     }
