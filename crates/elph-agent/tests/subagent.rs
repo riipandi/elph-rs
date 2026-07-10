@@ -8,6 +8,7 @@ use elph_agent::{
     SubagentBootstrap, SubagentLimits, SubagentSpawnConfig, SubagentStatus, create_read_only_tools,
 };
 use elph_agent::{Migration, ensure_database};
+use elph_ai::{FauxResponseStep, StopReason, faux_assistant_message, faux_text};
 
 const GRAPH_MIGRATION: &[Migration] = &[Migration {
     version: 7,
@@ -28,6 +29,10 @@ async fn spawn_and_list_subagents_with_session_dir() {
     let temp = tempfile::TempDir::new().expect("tempdir");
     let env = Arc::new(LocalExecutionEnv::new(temp.path()));
     let (faux, models) = common::new_faux();
+    faux.set_responses(vec![FauxResponseStep::Static(faux_assistant_message(
+        vec![faux_text("Review complete.")],
+        Some(StopReason::Stop),
+    ))]);
     let stream_fn = common::faux_stream_fn(&faux);
     let tools = create_read_only_tools(env.clone());
 
