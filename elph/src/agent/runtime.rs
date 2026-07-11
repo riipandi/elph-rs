@@ -13,7 +13,7 @@ use tracing::{info, warn};
 
 use super::model_registry::resolve_model;
 use super::resource_loader::load_resources;
-use super::session::CodingAgentSession;
+use super::session::{CodingAgentSession, CodingAgentSessionParams};
 use super::session_manager::SessionManager;
 use super::system_prompt::{agents_md_for_cwd, build_system_prompt};
 use super::tool_policy::{agent_mode_from_setting, thinking_level_from_setting, to_agent_thinking};
@@ -123,35 +123,43 @@ pub async fn create_coding_session_with_events(
 
     let harness = Arc::new(harness);
 
-    // Hot-reload MCP tools when servers send tools/list_changed (or resource/prompt variants).
-    {
-        let harness_for_reload = Arc::clone(&harness);
-        let started = mcp_registry.spawn_hot_reload(move |registry| {
-            let harness = Arc::clone(&harness_for_reload);
-            tokio::spawn(async move {
-                if let Err(error) = apply_mcp_tools_to_harness(&harness, &registry).await {
-                    warn!(error = %error, "failed to apply MCP hot-reload tools");
-                } else {
-                    info!("MCP tools hot-reloaded into agent harness");
-                }
-            });
-        });
-        if started {
-            info!("MCP list_changed hot-reload watcher started");
-        }
-    }
-
-    CodingAgentSession::new(
-        harness,
+    let (session, ui_rx) = CodingAgentSession::new(CodingAgentSessionParams {
+        harness: harness.clone(),
         session_manager,
         session_id,
         selection,
         agent_mode,
-        options.settings.show_thinking,
+        show_thinking: options.settings.show_thinking,
         goal_runtime,
-        Some(Arc::clone(&mcp_registry)),
-    )
-    .await
+        mcp_registry: Some(Arc::clone(&mcp_registry)),
+    })
+    .await?;
+
+    // Catalog hot-reload + progress → TUI status (after ui channel exists).
+    {
+        let harness_for_reload = Arc::clone(&session.harness());
+        let ui_tx = session.ui_event_sender();
+        let started = mcp_registry.spawn_event_loop(
+            move |registry| {
+                let harness = Arc::clone(&harness_for_reload);
+                tokio::spawn(async move {
+                    if let Err(error) = apply_mcp_tools_to_harness(&harness, &registry).await {
+                        warn!(error = %error, "failed to apply MCP hot-reload tools");
+                    } else {
+                        info!("MCP tools hot-reloaded into agent harness");
+                    }
+                });
+            },
+            move |status| {
+                let _ = ui_tx.send(super::events::AgentUiEvent::Status(status));
+            },
+        );
+        if started {
+            info!("MCP event loop (list_changed + progress) started");
+        }
+    }
+
+    Ok((session, ui_rx))
 }
 
 async fn apply_mcp_tools_to_harness(

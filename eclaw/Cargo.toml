@@ -37,3 +37,6 @@ tracing.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 tower.workspace = true
+
+[lints.rust]
+linker_messages = "allow"

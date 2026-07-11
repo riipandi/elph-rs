@@ -217,6 +217,29 @@ pub struct McpOAuthClientMeta {
     pub redirect_port: Option<u16>,
 }
 
+/// How to resolve competing credentials (env/inline bearer vs `auth.json` OAuth).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum McpAuthConflictPolicy {
+    /// Fail if both static bearer (authToken / authTokenEnv) and auth.json OAuth exist.
+    #[default]
+    Error,
+    /// Prefer authToken / authTokenEnv over auth.json (CI overrides).
+    PreferEnv,
+    /// Prefer OAuth tokens in auth.json over static bearer.
+    PreferOauth,
+}
+
+impl McpAuthConflictPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::PreferEnv => "preferEnv",
+            Self::PreferOauth => "preferOauth",
+        }
+    }
+}
+
 /// Streamable HTTP or legacy SSE MCP server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -259,9 +282,16 @@ pub struct McpHttpConfig {
     /// Fixed loopback redirect port for OAuth (default: ephemeral OS port).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth_redirect_port: Option<u16>,
+    /// Conflict policy when both static bearer and auth.json OAuth are present.
+    #[serde(default, skip_serializing_if = "is_default_auth_conflict")]
+    pub auth_conflict: McpAuthConflictPolicy,
     /// Optional per-server tool policy overlay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy: Option<McpPolicyConfig>,
+}
+
+fn is_default_auth_conflict(p: &McpAuthConflictPolicy) -> bool {
+    *p == McpAuthConflictPolicy::Error
 }
 
 impl McpHttpConfig {
@@ -280,6 +310,7 @@ impl McpHttpConfig {
             oauth_client_secret: None,
             oauth_client_metadata_url: None,
             oauth_redirect_port: None,
+            auth_conflict: McpAuthConflictPolicy::Error,
             policy: None,
         }
     }

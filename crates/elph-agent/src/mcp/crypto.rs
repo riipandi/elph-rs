@@ -118,6 +118,18 @@ pub async fn decrypt_async(key: Arc<Aes256Key>, encoded: String) -> Result<Vec<u
         .context("join decrypt")?
 }
 
+/// Encrypt a UTF-8 string → `enc:…` ciphertext string.
+pub async fn encrypt_string_async(key: Arc<Aes256Key>, plaintext: impl Into<String>) -> Result<String> {
+    let plaintext = plaintext.into();
+    encrypt_async(key, plaintext.into_bytes()).await
+}
+
+/// Decrypt an `enc:…` string back to UTF-8 plaintext.
+pub async fn decrypt_string_async(key: Arc<Aes256Key>, encoded: impl Into<String>) -> Result<String> {
+    let bytes = decrypt_async(key, encoded.into()).await?;
+    String::from_utf8(bytes).context("decrypted payload is not valid UTF-8")
+}
+
 /// Encrypt JSON-serializable value to an `enc:` string.
 pub async fn encrypt_json_async<T: serde::Serialize + Send + 'static>(key: Arc<Aes256Key>, value: T) -> Result<String> {
     let plaintext = serde_json::to_vec(&value).context("serialize for encrypt")?;
@@ -131,6 +143,17 @@ pub async fn decrypt_json_async<T: serde::de::DeserializeOwned + Send + 'static>
 ) -> Result<T> {
     let plain = decrypt_async(key, encoded).await?;
     serde_json::from_slice(&plain).context("deserialize decrypted payload")
+}
+
+/// Synchronous encrypt (for tests / non-async call sites). Prefer [`encrypt_string_async`].
+pub fn encrypt_string_sync(key: &Aes256Key, plaintext: &str) -> Result<String> {
+    encrypt_sync(key, plaintext.as_bytes())
+}
+
+/// Synchronous decrypt (for tests / non-async call sites). Prefer [`decrypt_string_async`].
+pub fn decrypt_string_sync(key: &Aes256Key, encoded: &str) -> Result<String> {
+    let bytes = decrypt_sync(key, encoded)?;
+    String::from_utf8(bytes).context("decrypted payload is not valid UTF-8")
 }
 
 fn encrypt_sync(key: &Aes256Key, plaintext: &[u8]) -> Result<String> {
@@ -218,6 +241,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn encrypt_string_roundtrip_unicode() {
+        let key = Arc::new(Aes256Key::generate());
+        let plain = "hello 🔐 — café — 日本語";
+        let enc = encrypt_string_async(Arc::clone(&key), plain).await.unwrap();
+        assert!(is_encrypted_value(&enc));
+        assert!(enc.starts_with(ENC_PREFIX));
+        // Ciphertext must not contain plaintext.
+        assert!(!enc.contains("hello"));
+        assert!(!enc.contains("café"));
+        let out = decrypt_string_async(key, enc).await.unwrap();
+        assert_eq!(out, plain);
+    }
+
+    #[tokio::test]
+    async fn encrypt_string_empty_and_long() {
+        let key = Arc::new(Aes256Key::generate());
+        let empty = encrypt_string_async(Arc::clone(&key), "").await.unwrap();
+        assert_eq!(decrypt_string_async(Arc::clone(&key), empty).await.unwrap(), "");
+
+        let long = "あ".repeat(10_000);
+        let enc = encrypt_string_async(Arc::clone(&key), long.clone()).await.unwrap();
+        assert_eq!(decrypt_string_async(key, enc).await.unwrap(), long);
+    }
+
+    #[tokio::test]
+    async fn encrypt_string_is_nondeterministic() {
+        // Same plaintext + key must produce different ciphertexts (random nonce).
+        let key = Arc::new(Aes256Key::generate());
+        let plain = "same secret";
+        let a = encrypt_string_async(Arc::clone(&key), plain).await.unwrap();
+        let b = encrypt_string_async(Arc::clone(&key), plain).await.unwrap();
+        assert_ne!(a, b);
+        assert_eq!(decrypt_string_async(Arc::clone(&key), a).await.unwrap(), plain);
+        assert_eq!(decrypt_string_async(key, b).await.unwrap(), plain);
+    }
+
+    #[tokio::test]
+    async fn wrong_key_fails_decrypt() {
+        let k1 = Arc::new(Aes256Key::generate());
+        let k2 = Arc::new(Aes256Key::generate());
+        let enc = encrypt_string_async(k1, "top secret").await.unwrap();
+        let err = decrypt_string_async(k2, enc).await.unwrap_err();
+        assert!(
+            err.to_string().to_ascii_lowercase().contains("decrypt")
+                || err.to_string().to_ascii_lowercase().contains("aes"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn sync_string_helpers_roundtrip() {
+        let key = Aes256Key::generate();
+        let enc = encrypt_string_sync(&key, "sync-path").unwrap();
+        assert!(is_encrypted_value(&enc));
+        assert_eq!(decrypt_string_sync(&key, &enc).unwrap(), "sync-path");
+    }
+
+    #[test]
+    fn decrypt_rejects_missing_prefix_and_garbage() {
+        let key = Aes256Key::generate();
+        assert!(decrypt_string_sync(&key, "not-encrypted").is_err());
+        assert!(decrypt_string_sync(&key, "enc:!!!not-base64!!!").is_err());
+        assert!(decrypt_string_sync(&key, "enc:").is_err());
+        assert!(decrypt_string_sync(&key, "enc:YQ").is_err()); // too short after decode
+    }
+
+    #[test]
+    fn is_encrypted_value_prefix() {
+        assert!(is_encrypted_value("enc:abc"));
+        assert!(!is_encrypted_value("enc"));
+        assert!(!is_encrypted_value("ENC:abc"));
+        assert!(!is_encrypted_value("plain"));
+    }
+
+    #[tokio::test]
     async fn load_or_create_persists_key() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("auth.key");
@@ -228,10 +326,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn key_file_enables_string_roundtrip_across_process_simulation() {
+        let dir = tempdir().unwrap();
+        let key_path = dir.path().join("secrets.key");
+        let key = Aes256Key::load_or_create(&key_path).await.unwrap();
+        let enc = encrypt_string_async(Arc::new(key), "persisted-secret").await.unwrap();
+
+        // Simulate new process: reload key from disk, decrypt.
+        let reloaded = Aes256Key::load(&key_path).await.unwrap();
+        let plain = decrypt_string_async(Arc::new(reloaded), enc).await.unwrap();
+        assert_eq!(plain, "persisted-secret");
+    }
+
+    #[tokio::test]
     async fn json_roundtrip() {
         let key = Arc::new(Aes256Key::generate());
         let value = serde_json::json!({"clientId": "abc", "n": 1});
         let enc = encrypt_json_async(Arc::clone(&key), value.clone()).await.unwrap();
+        assert!(is_encrypted_value(&enc));
         let back: serde_json::Value = decrypt_json_async(key, enc).await.unwrap();
         assert_eq!(back, value);
     }
@@ -240,5 +352,13 @@ mod tests {
     fn default_key_path_from_auth_json() {
         let p = PathBuf::from("/home/u/.elph/auth.json");
         assert_eq!(default_auth_key_path(&p), PathBuf::from("/home/u/.elph/auth.key"));
+    }
+
+    #[test]
+    fn debug_redacts_key_bytes() {
+        let key = Aes256Key::generate();
+        let s = format!("{key:?}");
+        assert_eq!(s, "Aes256Key([REDACTED])");
+        assert!(!s.contains(&format!("{:?}", key.as_bytes())));
     }
 }

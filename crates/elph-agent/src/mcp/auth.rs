@@ -104,25 +104,17 @@ pub fn auth_store_path(config_dir: &Path) -> PathBuf {
     AuthStorePathBuilder::new().base_dir(config_dir).build()
 }
 
-/// Prefer [`auth_store_path`]. Thin alias for older call sites.
-#[deprecated(note = "use auth_store_path(config_dir) — single auth.json, not a mcp-auth directory")]
-pub fn mcp_auth_dir(config_dir: &Path) -> PathBuf {
-    auth_store_path(config_dir)
-}
-
 // ---------------------------------------------------------------------------
 // On-disk format (multi-server, encrypted entries)
 // ---------------------------------------------------------------------------
 
 /// Root document of `auth.json` as stored on disk.
 ///
-/// Each MCP server entry is either:
-/// - an encrypted string: `"enc:…"` (AES-256-GCM, preferred)
-/// - a plain object (legacy / migration only — re-encrypted on next save)
+/// Each MCP server entry is an AES-256-GCM string with the `enc:` prefix.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthStoreFile {
-    /// Map of MCP server name → encrypted string or plain JSON object.
+    /// Map of MCP server name → encrypted credential string (`enc:…`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub mcp: BTreeMap<String, Value>,
 }
@@ -297,16 +289,9 @@ async fn decode_entry(key: Arc<Aes256Key>, value: &Value) -> Result<Option<Store
             "credential string must start with {ENC_PREFIX}, got prefix {:?}",
             s.chars().take(8).collect::<String>()
         ))),
-        Value::Object(_) => {
-            // Legacy plaintext object — accept and let next save re-encrypt.
-            let creds: StoredCredentials = serde_json::from_value(value.clone())
-                .map_err(|e| AuthError::InternalError(format!("parse plain credentials: {e}")))?;
-            Ok(Some(creds))
-        }
         Value::Null => Ok(None),
         other => Err(AuthError::InternalError(format!(
-            "unexpected credential entry type: {}",
-            other
+            "unexpected credential entry type (expected enc: string): {other}"
         ))),
     }
 }
@@ -396,15 +381,19 @@ impl CredentialStore for FileCredentialStore {
 
     async fn clear(&self) -> Result<(), AuthError> {
         *self.cache.write().await = None;
-        self.write_entry(None).await?;
+        // Remove this server's entry and optionally delete an empty store under one lock
+        // so a concurrent save for another server cannot be lost to a late remove_file.
         let _guard = lock_auth_store(&self.path)
             .await
             .map_err(|e| AuthError::InternalError(format!("lock auth store: {e}")))?;
-        if let Ok(file) = AuthStoreFile::load_from_path(&self.path).await
-            && file.mcp.is_empty()
-            && self.path.exists()
-        {
-            let _ = tokio::fs::remove_file(&self.path).await;
+        let mut file = AuthStoreFile::load_from_path(&self.path).await?;
+        file.mcp.remove(&self.server_key);
+        if file.mcp.is_empty() {
+            if self.path.exists() {
+                let _ = tokio::fs::remove_file(&self.path).await;
+            }
+        } else {
+            file.save_to_path_unlocked(&self.path).await?;
         }
         Ok(())
     }
@@ -414,7 +403,7 @@ impl CredentialStore for FileCredentialStore {
 // Public helpers
 // ---------------------------------------------------------------------------
 
-/// True when `auth.json` contains an entry for `server_name` (encrypted or plain).
+/// True when `auth.json` contains an entry for `server_name`.
 pub fn has_stored_credentials(auth_store_path: &Path, server_name: &str) -> bool {
     // Sync probe for CLI; best-effort read without decrypt.
     if !auth_store_path.exists() {
@@ -450,12 +439,46 @@ pub struct McpOAuthFlowResult {
     pub client_id: String,
 }
 
-/// Run the OAuth 2.1 authorization-code + PKCE flow for an MCP HTTP server URL.
+/// Options for [`run_oauth_flow`] (scopes, client metadata, redirect).
+#[derive(Debug, Clone, Default)]
+pub struct McpOAuthFlowOptions {
+    pub scopes: Vec<String>,
+    pub client_name: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub client_metadata_url: Option<String>,
+    pub redirect_port: Option<u16>,
+    pub open_browser: bool,
+}
+
+impl McpOAuthFlowOptions {
+    pub fn from_server_meta(meta: &super::config::McpOAuthClientMeta) -> Self {
+        Self {
+            scopes: meta.scopes.clone(),
+            client_name: meta.client_name.clone(),
+            client_id: meta.client_id.clone(),
+            client_secret: meta.client_secret.clone(),
+            client_metadata_url: meta.client_metadata_url.clone(),
+            redirect_port: meta.redirect_port,
+            open_browser: true,
+        }
+    }
+
+    pub fn with_scopes_override(mut self, scopes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        let list: Vec<String> = scopes.into_iter().map(Into::into).collect();
+        if !list.is_empty() {
+            self.scopes = list;
+        }
+        self
+    }
+}
+
+/// Run the OAuth 2.1 authorization-code + PKCE flow for an MCP HTTP/SSE server URL.
 pub async fn run_oauth_flow(
     server_name: &str,
     server_url: &str,
     auth_store_path: &Path,
-    scopes: &[&str],
+    options: McpOAuthFlowOptions,
 ) -> Result<McpOAuthFlowResult> {
     let store = FileCredentialStore::new(auth_store_path, server_name);
 
@@ -470,35 +493,81 @@ pub async fn run_oauth_flow(
         .map_err(|e| anyhow::anyhow!("discover OAuth metadata: {e}"))?;
     manager.set_metadata(metadata);
 
-    let listener = TcpListener::bind("127.0.0.1:0")
+    let bind_addr = match options.redirect_port {
+        Some(port) => format!("127.0.0.1:{port}"),
+        None => "127.0.0.1:0".to_string(),
+    };
+    let listener = TcpListener::bind(&bind_addr)
         .await
-        .context("bind OAuth callback listener")?;
+        .with_context(|| format!("bind OAuth callback listener on {bind_addr}"))?;
     let port = listener.local_addr()?.port();
     let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    let scope_refs: Vec<&str> = options.scopes.iter().map(String::as_str).collect();
+    let client_name = options.client_name.as_deref().unwrap_or("Elph MCP Client");
 
-    let session = AuthorizationSession::new(manager, scopes, &redirect_uri, Some("Elph MCP Client"), None)
+    let client_id = if let Some(client_id) = options.client_id.as_deref() {
+        use rmcp::transport::auth::OAuthClientConfig;
+        let mut cfg = OAuthClientConfig::new(client_id, &redirect_uri);
+        if let Some(secret) = &options.client_secret {
+            cfg = cfg.with_client_secret(secret);
+        }
+        if !options.scopes.is_empty() {
+            cfg = cfg.with_scopes(options.scopes.clone());
+        }
+        manager
+            .configure_client(cfg)
+            .map_err(|e| anyhow::anyhow!("configure OAuth client: {e}"))?;
+        let auth_url = manager
+            .get_authorization_url(&scope_refs)
+            .await
+            .map_err(|e| anyhow::anyhow!("build authorize URL: {e}"))?;
+        info!(%server_name, %auth_url, "opening browser for MCP OAuth");
+        println!("Open this URL to authorize MCP server '{server_name}':\n  {auth_url}\n");
+        if options.open_browser
+            && let Err(error) = open_browser(&auth_url)
+        {
+            warn!(%error, "failed to open browser; paste the URL manually");
+        }
+        let callback_url = wait_for_oauth_callback(listener)
+            .await
+            .context("wait for OAuth callback")?;
+        let (code, state, iss) = parse_oauth_callback(&callback_url)?;
+        let _token = manager
+            .exchange_code_for_token_with_issuer(&code, &state, iss.as_deref())
+            .await
+            .map_err(|e| anyhow::anyhow!("OAuth token exchange failed: {e}"))?;
+        client_id.to_string()
+    } else {
+        let session = AuthorizationSession::new(
+            manager,
+            &scope_refs,
+            &redirect_uri,
+            Some(client_name),
+            options.client_metadata_url.as_deref(),
+        )
         .await
         .map_err(|e| anyhow::anyhow!("start OAuth session: {e}"))?;
-
-    let auth_url = session.get_authorization_url().to_string();
-    info!(%server_name, %auth_url, "opening browser for MCP OAuth");
-    println!("Open this URL to authorize MCP server '{server_name}':\n  {auth_url}\n");
-    if let Err(error) = open_browser(&auth_url) {
-        warn!(%error, "failed to open browser; paste the URL manually");
-    }
-
-    let callback_url = wait_for_oauth_callback(listener)
-        .await
-        .context("wait for OAuth callback")?;
-    let _token = session
-        .handle_callback_url(&callback_url)
-        .await
-        .map_err(|e| anyhow::anyhow!("OAuth token exchange failed: {e}"))?;
-
-    let (client_id, _) = session
-        .get_credentials()
-        .await
-        .map_err(|e| anyhow::anyhow!("read OAuth credentials: {e}"))?;
+        let auth_url = session.get_authorization_url().to_string();
+        info!(%server_name, %auth_url, "opening browser for MCP OAuth");
+        println!("Open this URL to authorize MCP server '{server_name}':\n  {auth_url}\n");
+        if options.open_browser
+            && let Err(error) = open_browser(&auth_url)
+        {
+            warn!(%error, "failed to open browser; paste the URL manually");
+        }
+        let callback_url = wait_for_oauth_callback(listener)
+            .await
+            .context("wait for OAuth callback")?;
+        let _token = session
+            .handle_callback_url(&callback_url)
+            .await
+            .map_err(|e| anyhow::anyhow!("OAuth token exchange failed: {e}"))?;
+        let (client_id, _) = session
+            .get_credentials()
+            .await
+            .map_err(|e| anyhow::anyhow!("read OAuth credentials: {e}"))?;
+        client_id
+    };
 
     println!(
         "Authorized MCP server '{server_name}'. Credentials saved (encrypted) to {}.",
@@ -510,6 +579,46 @@ pub async fn run_oauth_flow(
         credentials_path: auth_store_path.to_path_buf(),
         client_id,
     })
+}
+
+/// Scopes-only convenience wrapper.
+pub async fn run_oauth_flow_with_scopes(
+    server_name: &str,
+    server_url: &str,
+    auth_store_path: &Path,
+    scopes: &[&str],
+) -> Result<McpOAuthFlowResult> {
+    run_oauth_flow(
+        server_name,
+        server_url,
+        auth_store_path,
+        McpOAuthFlowOptions {
+            scopes: scopes.iter().map(|s| (*s).to_string()).collect(),
+            open_browser: true,
+            ..Default::default()
+        },
+    )
+    .await
+}
+
+fn parse_oauth_callback(callback_url: &str) -> Result<(String, String, Option<String>)> {
+    let url = url::Url::parse(callback_url).context("parse OAuth callback URL")?;
+    let mut code = None;
+    let mut state = None;
+    let mut iss = None;
+    for (k, v) in url.query_pairs() {
+        match k.as_ref() {
+            "code" => code = Some(v.into_owned()),
+            "state" => state = Some(v.into_owned()),
+            "iss" => iss = Some(v.into_owned()),
+            _ => {}
+        }
+    }
+    Ok((
+        code.context("OAuth callback missing code")?,
+        state.context("OAuth callback missing state")?,
+        iss,
+    ))
 }
 
 /// Build an [`AuthorizationManager`] with file-backed credentials for an existing session.
@@ -531,6 +640,22 @@ pub async fn authorization_manager_from_store(
         .await
         .map_err(|e| anyhow::anyhow!("load OAuth credentials: {e}"))?;
     if ready { Ok(Some(manager)) } else { Ok(None) }
+}
+
+/// Resolve a (possibly refreshed) OAuth access token for a server.
+pub async fn resolve_oauth_access_token(
+    server_url: &str,
+    auth_store_path: &Path,
+    server_name: &str,
+) -> Result<Option<String>> {
+    let Some(manager) = authorization_manager_from_store(server_url, auth_store_path, server_name).await? else {
+        return Ok(None);
+    };
+    let token = manager
+        .get_access_token()
+        .await
+        .map_err(|e| anyhow::anyhow!("OAuth access token for \"{server_name}\": {e}"))?;
+    Ok(Some(token))
 }
 
 fn open_browser(url: &str) -> Result<()> {
@@ -655,31 +780,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn migrates_plain_entry_on_resave() {
+    async fn concurrent_saves_do_not_lose_entries() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("auth.json");
-        // Seed legacy plaintext object
-        let plain = serde_json::json!({
-            "mcp": {
-                "legacy": {
-                    "client_id": "old-client",
-                    "granted_scopes": [],
-                    "token_received_at": 1
-                }
-            }
-        });
-        tokio::fs::write(&path, serde_json::to_vec_pretty(&plain).unwrap())
-            .await
-            .unwrap();
+        let key = Aes256Key::generate();
 
-        let store = FileCredentialStore::new(&path, "legacy");
-        let loaded = store.load().await.unwrap().unwrap();
-        assert_eq!(loaded.client_id, "old-client");
-        store.save(loaded).await.unwrap();
+        let mut handles = Vec::new();
+        for i in 0..12 {
+            let path = path.clone();
+            let key = key.clone();
+            handles.push(tokio::spawn(async move {
+                let store = FileCredentialStore::with_key(&path, format!("server-{i}"), key);
+                let creds = StoredCredentials::new(format!("client-{i}"), None, vec![], Some(i as u64));
+                store.save(creds).await.unwrap();
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
 
-        let raw = tokio::fs::read_to_string(&path).await.unwrap();
-        assert!(raw.contains(ENC_PREFIX));
-        assert!(!raw.contains("old-client"));
+        let file = AuthStoreFile::load_from_path(&path).await.unwrap();
+        assert_eq!(
+            file.mcp.len(),
+            12,
+            "lost entries under concurrent save: {:?}",
+            file.mcp.keys()
+        );
+        for i in 0..12 {
+            let store = FileCredentialStore::with_key(&path, format!("server-{i}"), key.clone());
+            let loaded = store.load().await.unwrap().expect("entry present");
+            assert_eq!(loaded.client_id, format!("client-{i}"));
+        }
     }
 
     #[test]

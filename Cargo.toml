@@ -10,6 +10,7 @@ rust-version = "1.97"
 edition = "2024"
 
 [workspace.dependencies]
+aes-gcm = "0.10.3"
 agent-client-protocol = "1.2"
 anyhow = "1.0.103"
 aws-config = "1.9.0"
@@ -17,18 +18,10 @@ aws-sdk-bedrockruntime = "1.136.0"
 aws-smithy-runtime-api = "1.13.0"
 aws-smithy-types = "1.6.1"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
-aes-gcm = "0.10.3"
 base64 = "0.22.1"
 bytes = "1.12.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
-clap = { version = "4.6.1", default-features = false, features = [
-  "color",
-  "derive",
-  "error-context",
-  "help",
-  "std",
-  "usage",
-] }
+clap = { version = "4.6.1", features = ["derive", "usage"] }
 clap_complete = "4.6.7"
 crossbeam-channel = "0.5.16"
 crossterm = { version = "0.28.1", default-features = false, features = ["bracketed-paste", "events"] }
@@ -40,8 +33,8 @@ elph-core = { path = "crates/elph-core", version = "0.0.15" }
 elph-tui = { path = "crates/elph-tui", version = "0.0.26" }
 eventsource-stream = "0.2.3"
 fastembed = { version = "5.17.2" }
-fs4 = "0.13.1"
 fff-search = "0.9.6"
+fs4 = "0.13.1"
 futures = "0.3.32"
 futures-util = "0.3.32"
 git2 = { version = "0.21.0", features = ["cred", "https", "ssh"] }
@@ -60,7 +53,6 @@ rand = "0.10.2"
 rayon = "1.12.0"
 regex = "1.12.4"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls", "stream"] }
-# Pin: 2.2.0 breaks against sse-stream 0.2.3 (from_bytes_stream rename).
 rmcp = { version = "=2.1.0", features = [
   "auth",
   "client",
@@ -87,20 +79,20 @@ tokio = { version = "1.52.3", default-features = false, features = ["macros", "r
 tokio-rustls = "0.26.4"
 tokio-tungstenite = { version = "0.29.0", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 tokio-util = "0.7.18"
+toml = "0.8.19"
 tower = { version = "0.5.3", features = ["util"] }
 tower-http = { version = "0.7.0", default-features = false, features = ["catch-panic"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "json", "std"] }
 tsid = "0.3.4"
-toml = "0.8.19"
 turso = { version = "0.6.1", default-features = false }
-wasmtime = { version = "28.0.0", default-features = false, features = ["component-model", "async", "cranelift", "std"] }
 unicode-segmentation = "1.12.0"
 unicode-width = "0.2.2"
 url = "2.5.8"
 urlencoding = "2.1.3"
 walkdir = "2.5.0"
+wasmtime = { version = "28.0.0", default-features = false, features = ["component-model", "async", "cranelift", "std"] }
 webpki-roots = "1.0.8"
 yaml-front-matter = "0.1.0"
 zstd = "0.13.3"

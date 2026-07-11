@@ -27,6 +27,9 @@ use super::config::{McpConfig, McpLoadOptions, McpServerConfig};
 use super::events::McpServerEvent;
 use super::policy::{McpPolicyConfig, mcp_tool_requires_approval};
 use super::session::McpSessionPool;
+use super::truncate::{
+    DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS, truncate_json_value, truncate_tool_content,
+};
 
 /// A discovered MCP tool ready for exposure to the model.
 #[derive(Debug, Clone)]
@@ -401,18 +404,20 @@ impl McpToolRegistry {
             | McpServerEvent::ResourceListChanged { server }
             | McpServerEvent::PromptListChanged { server }
             | McpServerEvent::ResourceUpdated { server, .. } => server.as_str(),
+            McpServerEvent::Progress { .. } => return Ok(0),
         };
         info!(%server, ?event, "MCP catalog change; refreshing server");
         self.refresh_server(server).await
     }
 
-    /// Spawn a background task that refreshes catalogs on list_changed notifications.
+    /// Spawn a background task for catalog changes and progress notifications.
     ///
-    /// `on_refresh` is invoked after a successful refresh so the product can call
-    /// `harness.set_tools` with rebuilt agent tools.
-    pub fn spawn_hot_reload<F>(self: &Arc<Self>, mut on_refresh: F) -> bool
+    /// - Catalog events (`tools/list_changed`, etc.) refresh the server then call `on_refresh`.
+    /// - Progress events call `on_progress` with a short status line for the UI.
+    pub fn spawn_event_loop<F, P>(self: &Arc<Self>, mut on_refresh: F, mut on_progress: P) -> bool
     where
         F: FnMut(Arc<McpToolRegistry>) + Send + 'static,
+        P: FnMut(String) + Send + 'static,
     {
         let Some(mut rx) = self.take_event_receiver() else {
             return false;
@@ -420,15 +425,38 @@ impl McpToolRegistry {
         let registry = Arc::clone(self);
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
-                match registry.handle_event(&event).await {
-                    Ok(_) => on_refresh(Arc::clone(&registry)),
-                    Err(error) => {
-                        warn!(error = %error, "MCP hot reload failed");
+                match &event {
+                    McpServerEvent::Progress {
+                        server,
+                        progress,
+                        total,
+                        message,
+                    } => {
+                        let line = format_progress_status(server, *progress, *total, message.as_deref());
+                        info!(%server, %progress, ?total, "MCP progress");
+                        on_progress(line);
                     }
+                    McpServerEvent::ToolListChanged { .. }
+                    | McpServerEvent::ResourceListChanged { .. }
+                    | McpServerEvent::PromptListChanged { .. }
+                    | McpServerEvent::ResourceUpdated { .. } => match registry.handle_event(&event).await {
+                        Ok(_) => on_refresh(Arc::clone(&registry)),
+                        Err(error) => {
+                            warn!(error = %error, "MCP hot reload failed");
+                        }
+                    },
                 }
             }
         });
         true
+    }
+
+    /// Spawn catalog hot-reload only (progress goes to tracing).
+    pub fn spawn_hot_reload<F>(self: &Arc<Self>, on_refresh: F) -> bool
+    where
+        F: FnMut(Arc<McpToolRegistry>) + Send + 'static,
+    {
+        self.spawn_event_loop(on_refresh, |_msg| {})
     }
 
     /// Convert discovered MCP tools (+ resource/prompt bridge tools) into harness [`AgentTool`]s.
@@ -795,6 +823,17 @@ fn debug_ignore_capability(server: &str, kind: &str, error: &anyhow::Error) {
     tracing::debug!(server = %server, %kind, error = %error, "MCP capability not available");
 }
 
+fn format_progress_status(server: &str, progress: f64, total: Option<f64>, message: Option<&str>) -> String {
+    let pct = match total {
+        Some(t) if t > 0.0 => format!(" ({:.0}%)", (progress / t * 100.0).clamp(0.0, 100.0)),
+        _ => String::new(),
+    };
+    match message {
+        Some(m) if !m.is_empty() => format!("MCP:{server}{pct} — {m}"),
+        _ => format!("MCP:{server}{pct} progress={progress}"),
+    }
+}
+
 fn descriptor_from_mcp(server_name: &str, tool: &McpTool) -> McpToolDescriptor {
     let tool_name = tool.name.to_string();
     let exposed_name = expose_tool_name(server_name, &tool_name);
@@ -869,6 +908,11 @@ fn sanitize_identifier(value: &str) -> String {
 }
 
 pub fn mcp_result_to_agent(result: CallToolResult) -> AgentToolResult {
+    mcp_result_to_agent_with_limit(result, DEFAULT_MAX_TOOL_RESULT_CHARS)
+}
+
+/// Convert an MCP tool result, truncating each text block to `max_chars`.
+pub fn mcp_result_to_agent_with_limit(result: CallToolResult, max_chars: usize) -> AgentToolResult {
     let is_error = result.is_error.unwrap_or(false);
     let mut content = Vec::new();
 
@@ -893,9 +937,13 @@ pub fn mcp_result_to_agent(result: CallToolResult) -> AgentToolResult {
 
     if content.is_empty() {
         if let Some(structured) = &result.structured_content {
-            content.push(ToolResultContent::Text(elph_ai::TextContent::new(
-                structured.to_string(),
-            )));
+            // Prefer structured.result string when present (DeepWiki style).
+            let body = structured
+                .get("result")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| structured.to_string());
+            content.push(ToolResultContent::Text(elph_ai::TextContent::new(body)));
         } else if is_error {
             content.push(ToolResultContent::Text(elph_ai::TextContent::new(
                 "MCP tool returned an error with no content",
@@ -906,6 +954,8 @@ pub fn mcp_result_to_agent(result: CallToolResult) -> AgentToolResult {
             )));
         }
     }
+
+    let truncated = truncate_tool_content(&mut content, max_chars);
 
     let text_joined = content
         .iter()
@@ -931,10 +981,16 @@ pub fn mcp_result_to_agent(result: CallToolResult) -> AgentToolResult {
         }
     };
 
+    // Keep details lean: flag only + truncated structured preview (no full duplicate body).
+    let structured_preview = result
+        .structured_content
+        .as_ref()
+        .map(|v| truncate_json_value(v, DEFAULT_MAX_STRUCTURED_DETAIL_CHARS));
     agent_result.details = json!({
         "mcp": true,
-        "structured_content": result.structured_content,
         "is_error": is_error,
+        "truncated": truncated,
+        "structured_content": structured_preview,
     });
     agent_result
 }
@@ -958,11 +1014,13 @@ fn resource_contents_to_agent(contents: Vec<ResourceContents>) -> AgentToolResul
             }
         }
     }
-    if parts.is_empty() {
+    let mut result = if parts.is_empty() {
         AgentToolResult::text("Resource returned no contents")
     } else {
         AgentToolResult::text(parts.join("\n---\n"))
-    }
+    };
+    let _ = truncate_tool_content(&mut result.content, DEFAULT_MAX_TOOL_RESULT_CHARS);
+    result
 }
 
 #[cfg(test)]
@@ -996,5 +1054,24 @@ mod tests {
             .join("\n");
         assert!(text.contains("boom"));
         assert_eq!(agent.details.get("is_error"), Some(&json!(true)));
+    }
+
+    #[test]
+    fn truncates_large_tool_result() {
+        let huge = "x".repeat(50_000);
+        let result = CallToolResult::success(vec![ContentBlock::text(huge)]);
+        let agent = mcp_result_to_agent_with_limit(result, 100);
+        let text = agent
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                ToolResultContent::Text(t) => Some(t.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        assert!(text.contains("truncated"));
+        assert!(text.chars().count() < 50_000);
+        assert_eq!(agent.details.get("truncated"), Some(&json!(true)));
     }
 }

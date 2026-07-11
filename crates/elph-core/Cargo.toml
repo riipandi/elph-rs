@@ -39,3 +39,6 @@ turso.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[lints.rust]
+linker_messages = "allow"

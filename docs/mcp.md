@@ -14,6 +14,37 @@ Schema: [`schemas/mcp-schema.json`](../schemas/mcp-schema.json).
 Runtime loads **home**, then merges **project** on top (same server name → project wins).
 Policy maps are merged the same way as per-server policy overlays.
 
+Tool results are truncated (~32k chars per text block) before they enter the agent context.
+OAuth tokens live in encrypted `auth.json` (`enc:…`); CLI never prints secrets.
+SSE remotes can use OAuth the same way as Streamable HTTP.
+
+### Credential conflict: env vs `auth.json`
+
+If both a static bearer (`authToken` / `authTokenEnv`) **and** an OAuth entry in `auth.json`
+exist for the same server, connection fails unless you set `authConflict`:
+
+| `authConflict` | Behavior |
+|----------------|----------|
+| `error` (default) | Fail with a clear message |
+| `preferEnv` | Use env/inline bearer; warn that auth.json is ignored |
+| `preferOauth` | Use auth.json OAuth (refreshable); warn that env is ignored |
+
+```json
+{
+  "servers": {
+    "api": {
+      "type": "http",
+      "url": "https://example.com/mcp",
+      "authTokenEnv": "MCP_TOKEN",
+      "oauth": true,
+      "authConflict": "preferEnv"
+    }
+  }
+}
+```
+
+`elph mcp doctor` reports `auth=… CONFLICT(policy=…)` without printing secret values.
+
 ```bash
 # Project-only DeepWiki (does not touch home config)
 elph mcp add --project deepwiki '{"type":"http","url":"https://mcp.deepwiki.com/mcp"}'

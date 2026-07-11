@@ -136,8 +136,16 @@ name = "mcp_deepwiki"
 path = "examples/mcp_deepwiki.rs"
 required-features = ["mcp"]
 
+[[example]]
+name = "encrypt_string"
+path = "examples/encrypt_string.rs"
+required-features = ["mcp"]
+
 [dev-dependencies]
 elph-ai = { workspace = true }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tsid.workspace = true
+
+[lints.rust]
+linker_messages = "allow"

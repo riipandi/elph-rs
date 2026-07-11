@@ -1,4 +1,4 @@
-//! MCP server notification events (list_changed, etc.).
+//! MCP server notification events (list_changed, progress, etc.).
 
 use std::sync::Arc;
 
@@ -8,16 +8,31 @@ use rmcp::service::{NotificationContext, RoleClient};
 use tokio::sync::mpsc;
 use tracing::debug;
 
-/// Events emitted when an MCP server notifies the client of catalog changes.
+/// Events emitted when an MCP server notifies the client.
 #[derive(Debug, Clone)]
 pub enum McpServerEvent {
-    ToolListChanged { server: String },
-    ResourceListChanged { server: String },
-    PromptListChanged { server: String },
-    ResourceUpdated { server: String, uri: String },
+    ToolListChanged {
+        server: String,
+    },
+    ResourceListChanged {
+        server: String,
+    },
+    PromptListChanged {
+        server: String,
+    },
+    ResourceUpdated {
+        server: String,
+        uri: String,
+    },
+    Progress {
+        server: String,
+        progress: f64,
+        total: Option<f64>,
+        message: Option<String>,
+    },
 }
 
-/// Client-side handler that forwards list_changed notifications to a channel.
+/// Client-side handler that forwards notifications to a channel.
 #[derive(Clone)]
 pub struct McpClientService {
     server_name: String,
@@ -111,10 +126,28 @@ impl ClientHandler for McpClientService {
 
     fn on_progress(
         &self,
-        _params: ProgressNotificationParam,
+        params: ProgressNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) -> impl std::future::Future<Output = ()> + Send + '_ {
-        std::future::ready(())
+        let server = self.server_name.clone();
+        let events = self.events.clone();
+        async move {
+            debug!(
+                %server,
+                progress = params.progress,
+                ?params.total,
+                ?params.message,
+                "MCP progress"
+            );
+            if let Some(tx) = events {
+                let _ = tx.send(McpServerEvent::Progress {
+                    server,
+                    progress: params.progress,
+                    total: params.total,
+                    message: params.message,
+                });
+            }
+        }
     }
 }
 
@@ -129,7 +162,6 @@ impl McpEventBus {
         Self::default()
     }
 
-    /// Install a sender (typically once at registry load).
     pub fn set_sender(&self, tx: mpsc::UnboundedSender<McpServerEvent>) {
         *self.inner.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx);
     }

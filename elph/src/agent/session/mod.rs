@@ -16,6 +16,18 @@ use super::model_registry::ModelSelection;
 use super::session_manager::SessionManager;
 use super::tool_policy::{AgentModePolicy, to_agent_thinking};
 
+/// Constructor inputs for [`CodingAgentSession::new`] (avoids a long positional arg list).
+pub struct CodingAgentSessionParams {
+    pub harness: Arc<AgentHarness<SessionDirStorage>>,
+    pub session_manager: SessionManager,
+    pub session_id: String,
+    pub selection: ModelSelection,
+    pub agent_mode: AgentMode,
+    pub show_thinking: bool,
+    pub goal_runtime: Arc<GoalRuntime>,
+    pub mcp_registry: Option<Arc<McpToolRegistry>>,
+}
+
 pub struct CodingAgentSession {
     harness: Arc<AgentHarness<SessionDirStorage>>,
     session_manager: SessionManager,
@@ -29,16 +41,17 @@ pub struct CodingAgentSession {
 }
 
 impl CodingAgentSession {
-    pub async fn new(
-        harness: Arc<AgentHarness<SessionDirStorage>>,
-        session_manager: SessionManager,
-        session_id: String,
-        selection: ModelSelection,
-        agent_mode: AgentMode,
-        show_thinking: bool,
-        goal_runtime: Arc<GoalRuntime>,
-        mcp_registry: Option<Arc<McpToolRegistry>>,
-    ) -> Result<(Self, mpsc::UnboundedReceiver<AgentUiEvent>)> {
+    pub async fn new(params: CodingAgentSessionParams) -> Result<(Self, mpsc::UnboundedReceiver<AgentUiEvent>)> {
+        let CodingAgentSessionParams {
+            harness,
+            session_manager,
+            session_id,
+            selection,
+            agent_mode,
+            show_thinking,
+            goal_runtime,
+            mcp_registry,
+        } = params;
         let (ui_tx, ui_rx) = mpsc::unbounded_channel();
         let mut policy = AgentModePolicy::new(agent_mode);
         if let Some(reg) = mcp_registry.clone() {
@@ -62,6 +75,10 @@ impl CodingAgentSession {
 
     pub fn mcp_registry(&self) -> Option<Arc<McpToolRegistry>> {
         self.mcp_registry.clone()
+    }
+
+    pub fn ui_event_sender(&self) -> mpsc::UnboundedSender<AgentUiEvent> {
+        self.ui_tx.clone()
     }
 
     pub fn harness(&self) -> Arc<AgentHarness<SessionDirStorage>> {

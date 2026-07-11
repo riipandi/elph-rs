@@ -17,6 +17,8 @@
 #[cfg(feature = "mcp")]
 mod auth;
 #[cfg(feature = "mcp")]
+mod auth_resolve;
+#[cfg(feature = "mcp")]
 mod client;
 #[cfg(feature = "mcp")]
 mod config;
@@ -35,17 +37,18 @@ mod sse;
 #[cfg(feature = "mcp")]
 mod store_lock;
 #[cfg(feature = "mcp")]
+mod truncate;
+#[cfg(feature = "mcp")]
 mod validate;
 
 #[cfg(feature = "mcp")]
-#[allow(deprecated)]
-pub use auth::mcp_auth_dir;
-#[cfg(feature = "mcp")]
 pub use auth::{
     AuthStoreFile, AuthStorePathBuilder, DEFAULT_AUTH_FILE_NAME, DEFAULT_OAUTH_SCOPES, FileCredentialStore,
-    FileCredentialStoreBuilder, McpOAuthFlowResult, auth_store_path, clear_credentials, has_stored_credentials,
-    run_oauth_flow,
+    FileCredentialStoreBuilder, McpOAuthFlowOptions, McpOAuthFlowResult, auth_store_path, clear_credentials,
+    has_stored_credentials, resolve_oauth_access_token, run_oauth_flow, run_oauth_flow_with_scopes,
 };
+#[cfg(feature = "mcp")]
+pub use auth_resolve::{McpAuthSource, McpAuthSourceReport, ResolvedMcpAuth, resolve_remote_auth};
 #[cfg(feature = "mcp")]
 pub use client::{
     McpClient, McpConnectContext, McpProbeResult, PROBE_TIMEOUT, call_stdio_tool, call_tool_for_server, connect,
@@ -54,12 +57,14 @@ pub use client::{
 };
 #[cfg(feature = "mcp")]
 pub use config::{
-    DEFAULT_OPERATION_TIMEOUT_SECS, McpConfig, McpHttpConfig, McpLoadOptions, McpServerConfig, McpStdioConfig,
+    DEFAULT_OPERATION_TIMEOUT_SECS, McpAuthConflictPolicy, McpConfig, McpHttpConfig, McpLoadOptions,
+    McpOAuthClientMeta, McpServerConfig, McpStdioConfig,
 };
 #[cfg(feature = "mcp")]
 pub use crypto::{
-    Aes256Key, DEFAULT_AUTH_KEY_FILE_NAME, ENC_PREFIX, decrypt_async, decrypt_json_async, default_auth_key_path,
-    encrypt_async, encrypt_json_async, is_encrypted_value,
+    Aes256Key, DEFAULT_AUTH_KEY_FILE_NAME, ENC_PREFIX, decrypt_async, decrypt_json_async, decrypt_string_async,
+    decrypt_string_sync, default_auth_key_path, encrypt_async, encrypt_json_async, encrypt_string_async,
+    encrypt_string_sync, is_encrypted_value,
 };
 #[cfg(feature = "mcp")]
 pub use events::{McpClientService, McpEventBus, McpServerEvent};
@@ -68,10 +73,12 @@ pub use policy::{McpPolicyAction, McpPolicyConfig, mcp_tool_requires_approval, p
 #[cfg(feature = "mcp")]
 pub use registry::{
     McpLoadReport, McpPromptDescriptor, McpResourceDescriptor, McpServerLoadReport, McpToolDescriptor, McpToolRegistry,
-    expose_tool_name, mcp_result_to_agent, parse_exposed_tool_name,
+    expose_tool_name, mcp_result_to_agent, mcp_result_to_agent_with_limit, parse_exposed_tool_name,
 };
 #[cfg(feature = "mcp")]
 pub use session::{McpServerSession, McpSessionPool};
+#[cfg(feature = "mcp")]
+pub use truncate::{DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS, truncate_chars};
 #[cfg(feature = "mcp")]
 pub use validate::{
     McpConfigValidationError, parse_and_validate_mcp_config, parse_and_validate_mcp_config_async,

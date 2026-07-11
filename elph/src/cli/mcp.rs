@@ -1,12 +1,12 @@
 use clap::{Parser, Subcommand};
 
 use super::help;
-use elph_core::utils::path::AppPaths;
-
 use crate::platform::mcp as mcp_runtime;
 use crate::platform::mcp::{McpConfigScope, McpServerSource};
 use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode, Paths, Settings, ensure_home_blocking};
-use elph_agent::{McpServerConfig, clear_credentials, has_stored_credentials, probe_server_with_auth, run_oauth_flow};
+use elph_agent::{McpAuthSourceReport, McpOAuthFlowOptions, McpServerConfig};
+use elph_agent::{clear_credentials, has_stored_credentials, probe_server_with_auth, run_oauth_flow};
+use elph_core::utils::path::AppPaths;
 
 #[derive(Parser, Default)]
 #[command(
@@ -304,11 +304,12 @@ fn handle_auth(paths: &Paths, name: &str, scopes: &[String]) -> ExitCode {
         return EXIT_ERROR;
     };
 
-    let scope_refs: Vec<&str> = if scopes.is_empty() {
-        server.oauth_scopes().iter().map(String::as_str).collect()
-    } else {
-        scopes.iter().map(String::as_str).collect()
-    };
+    let mut options = server
+        .oauth_meta()
+        .map(|meta| McpOAuthFlowOptions::from_server_meta(&meta))
+        .unwrap_or_default();
+    options = options.with_scopes_override(scopes.iter().cloned());
+    options.open_browser = true;
 
     let auth_store_path = paths.auth_store_path();
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -316,7 +317,7 @@ fn handle_auth(paths: &Paths, name: &str, scopes: &[String]) -> ExitCode {
         .build()
         .expect("tokio runtime");
 
-    match rt.block_on(run_oauth_flow(name, url, &auth_store_path, &scope_refs)) {
+    match rt.block_on(run_oauth_flow(name, url, &auth_store_path, options)) {
         Ok(result) => {
             println!(
                 "OAuth complete for '{name}' (client_id={}). Stored at {}.",
@@ -342,13 +343,50 @@ fn handle_doctor(paths: &Paths) -> ExitCode {
     };
     let _ = settings;
 
-    let config = match mcp_runtime::load_config(paths) {
+    let home = match mcp_runtime::load_layer(paths, McpConfigScope::Home) {
         Ok(c) => c,
         Err(error) => {
             eprintln!("{error}");
             return EXIT_ERROR;
         }
     };
+    let project = match mcp_runtime::load_layer(paths, McpConfigScope::Project) {
+        Ok(c) => c,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_ERROR;
+        }
+    };
+    let config = home.merge_with(&project);
+    let sources = mcp_runtime::server_sources(paths).unwrap_or_default();
+
+    println!("── MCP doctor ──");
+    println!("Home:    {}", paths.mcp_config_path().display());
+    println!(
+        "         {} server(s){}",
+        home.server_count(),
+        if paths.mcp_config_path().exists() {
+            ""
+        } else {
+            " (missing)"
+        }
+    );
+    println!("Project: {}", paths.project_mcp_config_path().display());
+    println!(
+        "         {} server(s){}",
+        project.server_count(),
+        if paths.project_mcp_config_path().exists() {
+            ""
+        } else {
+            " (missing)"
+        }
+    );
+    println!(
+        "Merged:  {} server(s) enabled={} policy_rules={}",
+        config.server_count(),
+        config.enabled_count(),
+        config.policy.allow.len() + config.policy.deny.len() + config.policy.require_approval.len()
+    );
 
     if config.servers.is_empty() {
         println!("No MCP servers configured.");
@@ -356,27 +394,53 @@ fn handle_doctor(paths: &Paths) -> ExitCode {
     }
 
     let auth_store_path = paths.auth_store_path();
+    println!("OAuth store: {} (never printed)", auth_store_path.display());
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("tokio runtime");
 
     let mut ok = true;
+    println!();
+    println!("── Probe (merged) ──");
     for (name, server) in &config.servers {
+        let source = sources
+            .get(name)
+            .map(|s| match s {
+                McpServerSource::Home => "home",
+                McpServerSource::Project => "project",
+                McpServerSource::ProjectOverHome => "project>home",
+            })
+            .unwrap_or("?");
         if server.is_disabled() {
-            println!("{name}: skipped [disabled]");
+            println!("{name}: skipped [disabled] [{source}]");
+            continue;
+        }
+        let auth_report = server
+            .http_config()
+            .map(|c| McpAuthSourceReport::probe(c, name, Some(&auth_store_path)));
+        if let Some(rep) = &auth_report
+            && rep.conflict
+            && matches!(rep.policy, elph_agent::McpAuthConflictPolicy::Error)
+        {
+            println!(
+                "{name}: conflict [auth] [{source}] — {} (set authConflict preferEnv|preferOauth)",
+                rep.status_label()
+            );
+            ok = false;
             continue;
         }
         let result = rt.block_on(probe_server_with_auth(name, server, Some(&auth_store_path)));
         let status = if result.ok { "ok" } else { "fail" };
-        let oauth = if has_stored_credentials(&auth_store_path, name) {
-            " oauth=yes"
-        } else if server.wants_oauth() {
-            " oauth=missing"
-        } else {
-            ""
-        };
-        println!("{name}: {status} [{}]{oauth} — {}", result.transport, result.message);
+        let auth = auth_report
+            .as_ref()
+            .map(|r| format!(" auth={}", r.status_label()))
+            .unwrap_or_default();
+        // Never print tokens/headers — only transport + status.
+        println!(
+            "{name}: {status} [{}] [{source}]{auth} — {}",
+            result.transport, result.message
+        );
         if !result.ok {
             ok = false;
         }
@@ -385,7 +449,6 @@ fn handle_doctor(paths: &Paths) -> ExitCode {
     if let Ok(cache) = mcp_runtime::project_mcp_cache_dir(paths) {
         println!("Project MCP cache: {}", cache.display());
     }
-    println!("OAuth credentials: {}", auth_store_path.display());
 
     if ok { EXIT_SUCCESS } else { EXIT_ERROR }
 }

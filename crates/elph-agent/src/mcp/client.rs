@@ -22,7 +22,8 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tracing::{debug, warn};
 
-use super::auth::{authorization_manager_from_store, has_stored_credentials};
+use super::auth::authorization_manager_from_store;
+use super::auth_resolve::{ResolvedMcpAuth, resolve_remote_auth};
 use super::config::{McpHttpConfig, McpServerConfig, McpStdioConfig};
 use super::events::{McpClientService, McpServerEvent};
 use super::sse::SseClientTransport;
@@ -129,61 +130,78 @@ pub async fn connect_http_with_context(config: &McpHttpConfig, ctx: &McpConnectC
         transport_config = transport_config.custom_headers(headers);
     }
 
-    let use_oauth = config.oauth
-        || ctx
-            .auth_store_path
-            .as_ref()
-            .is_some_and(|path| !ctx.server_name.is_empty() && has_stored_credentials(path, &ctx.server_name));
+    if config.oauth && ctx.auth_store_path.is_none() {
+        bail!(
+            "MCP server \"{}\" requires OAuth but no auth store path was configured",
+            ctx.server_name
+        );
+    }
 
-    if use_oauth {
-        if let Some(store_path) = &ctx.auth_store_path {
-            if let Some(manager) = authorization_manager_from_store(&config.url, store_path, &ctx.server_name).await? {
-                debug!(url = %config.url, server = %ctx.server_name, "connecting MCP HTTP with OAuth");
-                let http = reqwest::Client::builder()
-                    .pool_max_idle_per_host(0)
-                    .redirect(reqwest::redirect::Policy::none())
-                    .build()
-                    .context("build OAuth HTTP client")?;
-                let auth_client = AuthClient::new(http, manager);
-                // Prefer OAuth; still allow static bearer override if set.
-                if let Some(token) = config.resolve_auth_token() {
-                    transport_config = transport_config.auth_header(token);
-                }
-                let transport = StreamableHttpClientTransport::with_client(auth_client, transport_config);
-                let client = handler
-                    .serve(transport)
-                    .await
-                    .context("initialize MCP HTTP OAuth client")?;
-                return Ok(client);
-            }
-            if config.oauth {
-                bail!(
-                    "MCP server \"{}\" requires OAuth; run `mcp auth {}` first",
-                    ctx.server_name,
-                    ctx.server_name
-                );
-            }
-        } else if config.oauth {
-            bail!(
-                "MCP server \"{}\" requires OAuth but no auth store path was configured",
-                ctx.server_name
-            );
+    let resolved = resolve_remote_auth(config, &ctx.server_name, ctx.auth_store_path.as_deref()).await?;
+    debug!(
+        url = %config.url,
+        server = %ctx.server_name,
+        auth = resolved.source_label(),
+        "connecting MCP HTTP"
+    );
+
+    match resolved {
+        ResolvedMcpAuth::Oauth { .. } => {
+            let store_path = ctx
+                .auth_store_path
+                .as_ref()
+                .context("oauth resolved without auth store path")?;
+            let manager = authorization_manager_from_store(&config.url, store_path, &ctx.server_name)
+                .await?
+                .context("oauth credentials missing after resolve")?;
+            let http = reqwest::Client::builder()
+                .pool_max_idle_per_host(0)
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .context("build OAuth HTTP client")?;
+            // AuthClient injects refreshed Bearer; do not also set static auth_header.
+            let auth_client = AuthClient::new(http, manager);
+            let transport = StreamableHttpClientTransport::with_client(auth_client, transport_config);
+            let client = handler
+                .serve(transport)
+                .await
+                .context("initialize MCP HTTP OAuth client")?;
+            Ok(client)
+        }
+        ResolvedMcpAuth::StaticBearer { token, source } => {
+            debug!(?source, "MCP HTTP using static bearer");
+            transport_config = transport_config.auth_header(token);
+            let transport = StreamableHttpClientTransport::from_config(transport_config);
+            let client = handler.serve(transport).await.context("initialize MCP HTTP client")?;
+            Ok(client)
+        }
+        ResolvedMcpAuth::None => {
+            let transport = StreamableHttpClientTransport::from_config(transport_config);
+            let client = handler.serve(transport).await.context("initialize MCP HTTP client")?;
+            Ok(client)
         }
     }
-
-    if let Some(token) = config.resolve_auth_token() {
-        transport_config = transport_config.auth_header(token);
-    }
-
-    debug!(url = %config.url, "connecting MCP streamable HTTP server");
-    let transport = StreamableHttpClientTransport::from_config(transport_config);
-    let client = handler.serve(transport).await.context("initialize MCP HTTP client")?;
-    Ok(client)
 }
 
 pub async fn connect_sse_with_context(config: &McpHttpConfig, ctx: &McpConnectContext) -> Result<McpClient> {
-    debug!(url = %config.url, "connecting MCP legacy SSE server");
-    let transport = SseClientTransport::connect(config)
+    debug!(url = %config.url, "connecting MCP SSE server");
+
+    if config.oauth && ctx.auth_store_path.is_none() {
+        bail!(
+            "MCP server \"{}\" requires OAuth but no auth store path was configured",
+            ctx.server_name
+        );
+    }
+
+    let resolved = resolve_remote_auth(config, &ctx.server_name, ctx.auth_store_path.as_deref()).await?;
+    debug!(
+        server = %ctx.server_name,
+        auth = resolved.source_label(),
+        "MCP SSE auth resolved"
+    );
+    let bearer = resolved.bearer_token().map(str::to_string);
+
+    let transport = SseClientTransport::connect_with_bearer(config, bearer)
         .await
         .with_context(|| format!("connect SSE MCP at {}", config.url))?;
     let handler = McpClientService::new(&ctx.server_name, ctx.events.clone());

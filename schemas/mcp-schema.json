@@ -141,12 +141,18 @@
                     "minLength": 1,
                     "description": "Environment variable holding a bearer token."
                 },
+                "authConflict": {
+                    "type": "string",
+                    "enum": ["error", "preferEnv", "preferOauth"],
+                    "default": "error",
+                    "description": "When both authToken/authTokenEnv and auth.json OAuth exist: error (fail), preferEnv (use env/inline), or preferOauth (use auth.json)."
+                },
                 "timeoutMs": { "$ref": "#/definitions/timeoutMs" },
                 "disabled": { "$ref": "#/definitions/disabled" },
                 "oauth": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Prefer OAuth credentials from `elph mcp auth <name>`."
+                    "description": "Require OAuth credentials from `elph mcp auth <name>` (auth.json)."
                 },
                 "oauthScopes": {
                     "type": "array",
@@ -180,6 +186,11 @@
                 },
                 "authToken": { "type": "string", "minLength": 1 },
                 "authTokenEnv": { "type": "string", "minLength": 1 },
+                "authConflict": {
+                    "type": "string",
+                    "enum": ["error", "preferEnv", "preferOauth"],
+                    "default": "error"
+                },
                 "timeoutMs": { "$ref": "#/definitions/timeoutMs" },
                 "disabled": { "$ref": "#/definitions/disabled" },
                 "oauth": {

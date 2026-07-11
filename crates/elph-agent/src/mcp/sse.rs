@@ -45,20 +45,33 @@ pub struct SseClientTransport {
 }
 
 impl SseClientTransport {
-    /// Connect to a legacy SSE MCP endpoint described by `config`.
+    /// Connect to an SSE MCP endpoint described by `config` (static bearer only).
+    #[allow(dead_code)]
     pub async fn connect(config: &McpHttpConfig) -> Result<Self, SseTransportError> {
+        Self::connect_with_bearer(config, None).await
+    }
+
+    /// Connect with an optional bearer override (e.g. OAuth access token).
+    ///
+    /// Priority: `bearer_override` → `config.resolve_auth_token()`.
+    pub async fn connect_with_bearer(
+        config: &McpHttpConfig,
+        bearer_override: Option<String>,
+    ) -> Result<Self, SseTransportError> {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(0)
             .build()
             .map_err(|e| SseTransportError::Http(e.to_string()))?;
 
+        let auth_token = bearer_override.or_else(|| config.resolve_auth_token());
+
         let mut request = client
             .get(&config.url)
             .header(http::header::ACCEPT, "text/event-stream")
             .header(http::header::CACHE_CONTROL, "no-cache");
 
-        if let Some(token) = config.resolve_auth_token() {
+        if let Some(token) = &auth_token {
             request = request.bearer_auth(token);
         }
         for (key, value) in &config.headers {
@@ -79,7 +92,6 @@ impl SseClientTransport {
 
         let base_url = config.url.clone();
         let headers = config.headers.clone();
-        let auth_token = config.resolve_auth_token();
 
         let (endpoint_tx, endpoint_rx) = oneshot::channel::<String>();
         let endpoint_tx = Arc::new(Mutex::new(Some(endpoint_tx)));
@@ -165,7 +177,7 @@ impl SseClientTransport {
             .map_err(|_| SseTransportError::EndpointTimeout)?
             .map_err(|_| SseTransportError::NoEndpoint)?;
 
-        let message_url = resolve_endpoint_url(&base_url, &endpoint_path).map_err(|e| SseTransportError::Http(e))?;
+        let message_url = resolve_endpoint_url(&base_url, &endpoint_path).map_err(SseTransportError::Http)?;
         debug!(%message_url, "SSE message endpoint ready");
 
         // POST sender task
@@ -235,17 +247,15 @@ impl Transport<RoleClient> for SseClientTransport {
         }
     }
 
-    fn receive(&mut self) -> impl std::future::Future<Output = Option<RxJsonRpcMessage<RoleClient>>> + Send {
-        async { self.inbound.recv().await }
+    async fn receive(&mut self) -> Option<RxJsonRpcMessage<RoleClient>> {
+        self.inbound.recv().await
     }
 
-    fn close(&mut self) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
-        async {
-            if let Some(tx) = self.shutdown.take() {
-                let _ = tx.send(());
-            }
-            Ok(())
+    async fn close(&mut self) -> Result<(), Self::Error> {
+        if let Some(tx) = self.shutdown.take() {
+            let _ = tx.send(());
         }
+        Ok(())
     }
 }
 

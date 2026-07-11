@@ -38,3 +38,6 @@ tokio = { workspace = true, features = ["macros"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 libc.workspace = true
+
+[lints.rust]
+linker_messages = "allow"

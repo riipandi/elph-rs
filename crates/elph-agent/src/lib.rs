@@ -69,24 +69,24 @@ pub use harness::{
 };
 pub use init::InitProgress;
 #[cfg(feature = "mcp")]
-#[allow(deprecated)]
-pub use mcp::mcp_auth_dir;
-#[cfg(feature = "mcp")]
 pub use mcp::{
     Aes256Key, AuthStoreFile, AuthStorePathBuilder, DEFAULT_AUTH_FILE_NAME, DEFAULT_AUTH_KEY_FILE_NAME,
-    DEFAULT_OAUTH_SCOPES, DEFAULT_OPERATION_TIMEOUT_SECS, ENC_PREFIX, FileCredentialStore, FileCredentialStoreBuilder,
-    McpClient, McpClientService, McpConfig, McpConfigValidationError, McpConnectContext, McpEventBus, McpHttpConfig,
-    McpLoadOptions, McpLoadReport, McpOAuthFlowResult, McpPolicyAction, McpPolicyConfig, McpProbeResult,
-    McpPromptDescriptor, McpResourceDescriptor, McpServerConfig, McpServerEvent, McpServerLoadReport, McpServerSession,
-    McpSessionPool, McpStdioConfig, McpToolDescriptor, McpToolRegistry, PROBE_TIMEOUT, auth_store_path,
-    call_stdio_tool, call_tool_for_server, clear_credentials, connect, connect_http, connect_stdio,
-    connect_with_context, decrypt_async, decrypt_json_async, default_auth_key_path, encrypt_async, encrypt_json_async,
-    expose_tool_name, has_stored_credentials, is_encrypted_value, list_tools, list_tools_for_server,
-    mcp_result_to_agent, mcp_tool_requires_approval, parse_and_validate_mcp_config,
-    parse_and_validate_mcp_config_async, parse_and_validate_server_config_json, parse_exposed_tool_name,
-    parse_stdio_config, pattern_matches, probe_server, probe_server_with_auth, probe_stdio_server, run_oauth_flow,
-    shutdown_client, validate_mcp_config, validate_mcp_config_semantic, validate_mcp_config_value,
-    validate_server_config,
+    DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS, DEFAULT_OAUTH_SCOPES,
+    DEFAULT_OPERATION_TIMEOUT_SECS, ENC_PREFIX, FileCredentialStore, FileCredentialStoreBuilder, McpAuthConflictPolicy,
+    McpAuthSource, McpAuthSourceReport, McpClient, McpClientService, McpConfig, McpConfigValidationError,
+    McpConnectContext, McpEventBus, McpHttpConfig, McpLoadOptions, McpLoadReport, McpOAuthClientMeta,
+    McpOAuthFlowOptions, McpOAuthFlowResult, McpPolicyAction, McpPolicyConfig, McpProbeResult, McpPromptDescriptor,
+    McpResourceDescriptor, McpServerConfig, McpServerEvent, McpServerLoadReport, McpServerSession, McpSessionPool,
+    McpStdioConfig, McpToolDescriptor, McpToolRegistry, PROBE_TIMEOUT, auth_store_path, call_stdio_tool,
+    call_tool_for_server, clear_credentials, connect, connect_http, connect_stdio, connect_with_context, decrypt_async,
+    decrypt_json_async, decrypt_string_async, decrypt_string_sync, default_auth_key_path, encrypt_async,
+    encrypt_json_async, encrypt_string_async, encrypt_string_sync, expose_tool_name, has_stored_credentials,
+    is_encrypted_value, list_tools, list_tools_for_server, mcp_result_to_agent, mcp_result_to_agent_with_limit,
+    mcp_tool_requires_approval, parse_and_validate_mcp_config, parse_and_validate_mcp_config_async,
+    parse_and_validate_server_config_json, parse_exposed_tool_name, parse_stdio_config, pattern_matches, probe_server,
+    probe_server_with_auth, probe_stdio_server, resolve_oauth_access_token, resolve_remote_auth, run_oauth_flow,
+    run_oauth_flow_with_scopes, shutdown_client, truncate_chars, validate_mcp_config, validate_mcp_config_semantic,
+    validate_mcp_config_value, validate_server_config,
 };
 pub use messages::{
     CustomMessageContent, bash_execution_to_text, create_branch_summary_message, create_compaction_summary_message,

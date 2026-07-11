@@ -1416,6 +1416,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
+ "strsim",
 ]
 
 [[package]]

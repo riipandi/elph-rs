@@ -1,6 +1,6 @@
 ---
 title: "Configuration"
-last_updated: 2026-07-09T18:00:00Z
+last_updated: 2026-07-28T10:00:00Z
 category: operations
 tags:
     - configuration
@@ -74,7 +74,7 @@ Set the appropriate environment variable for your chosen provider:
 | MiniMax               | `MINIMAX_API_KEY`                |
 | Ant Ling              | `ANT_LING_API_KEY`               |
 
-**Source:** [`owly/src/constants.rs`](../owly/src/constants.rs) — `provider_config()` function.
+**Source:** [`owly/src/constants/providers.rs`](../owly/src/constants/providers.rs) — `provider_config()` function.
 
 ---
 
@@ -130,7 +130,7 @@ When no provider is explicitly configured, Owly auto-detects based on available 
 
 Previously, auto-detection only checked if the variable was defined (`is_ok()`). Now it also verifies the value is not empty, preventing false matches from exported but unset variables.
 
-**Source:** [`owly/src/constants.rs`](../owly/src/constants.rs) — `resolve_configured_provider()`.
+**Source:** [`owly/src/constants/resolve.rs`](../owly/src/constants/resolve.rs) — `resolve_configured_provider()`.
 
 ---
 

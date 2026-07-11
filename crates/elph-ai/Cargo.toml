@@ -88,3 +88,6 @@ path = "examples/auth_custom.rs"
 indicatif.workspace = true
 parking_lot.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints.rust]
+linker_messages = "allow"

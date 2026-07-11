@@ -183,7 +183,7 @@ coverage: ## Run tests with coverage (requires cargo-llvm-cov)
 	@$(CARGO) llvm-cov nextest --no-cfg-coverage 2>&1
 
 stats: ## Show sccache stats and code line count
-	@tokei .
+	@tokei . -e "*.json" -e "*.md"
 	@if [ -n "$(SCCACHE_BIN)" ]; then \
 	  echo ""; \
 	  printf '\033[33msccache stats:\033[0m\n'; \

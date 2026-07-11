@@ -94,6 +94,76 @@ tools.extend(registry.create_agent_tools());
 
 Elph app wiring: `elph/src/agent/runtime.rs` loads `mcp.json` and extends the tool list.
 
+## String encryption (`enc:`)
+
+AES-256-GCM helpers for at-rest secrets (MCP OAuth tokens in `auth.json`, or any string you store on disk).
+
+### Format
+
+```
+enc: + URL-safe base64 (no pad) of (nonce 12 bytes || ciphertext+tag)
+```
+
+- Prefix: `ENC_PREFIX` (`"enc:"`)
+- Key file: 32 raw bytes (default next to auth store: `auth.json` → `auth.key`, mode `0600` on Unix)
+- Crypto work runs on `tokio::task::spawn_blocking` so the async runtime is not blocked
+- Encryption is **non-deterministic** (random nonce each call)
+
+### API
+
+| Function | Role |
+| --- | --- |
+| `Aes256Key::generate` / `load` / `load_or_create` / `save` | Key lifecycle |
+| `default_auth_key_path` | `auth.json` → `auth.key` |
+| `is_encrypted_value` | Detect `enc:` prefix |
+| `encrypt_string_async` / `decrypt_string_async` | UTF-8 string round-trip |
+| `encrypt_string_sync` / `decrypt_string_sync` | Sync helpers (tests / non-async) |
+| `encrypt_json_async` / `decrypt_json_async` | Serde JSON blob |
+| `encrypt_async` / `decrypt_async` | Raw bytes |
+
+```rust
+use std::sync::Arc;
+use elph_agent::{
+    Aes256Key, encrypt_string_async, decrypt_string_async, is_encrypted_value,
+};
+
+let key = Arc::new(Aes256Key::load_or_create("secrets.key").await?);
+let cipher = encrypt_string_async(Arc::clone(&key), "my-secret-token").await?;
+assert!(is_encrypted_value(&cipher)); // starts with "enc:"
+let plain = decrypt_string_async(key, cipher).await?;
+assert_eq!(plain, "my-secret-token");
+```
+
+### Example CLI
+
+```bash
+# Interactive demo (round-trip + nonce + JSON)
+cargo run -p elph-agent --features mcp --example encrypt_string -- demo
+
+# Encrypt / decrypt with a key file
+cargo run -p elph-agent --features mcp --example encrypt_string -- \
+  encrypt --key /tmp/elph.key --text "hello secret"
+
+cargo run -p elph-agent --features mcp --example encrypt_string -- \
+  decrypt --key /tmp/elph.key --cipher 'enc:…'
+
+# JSON object
+cargo run -p elph-agent --features mcp --example encrypt_string -- \
+  encrypt-json --key /tmp/elph.key --json '{"token":"abc"}'
+```
+
+### Tests
+
+```bash
+# Unit tests (in crypto.rs)
+cargo test -p elph-agent --features mcp --lib mcp::crypto
+
+# Integration tests
+cargo test -p elph-agent --features mcp --test encrypt_string
+```
+
+Covers: unicode/empty/long strings, nonce uniqueness, wrong key, tamper detection, key reload from disk, JSON blobs, sync API.
+
 ## Limitations
 
 - MCP **server** role (hosting tools for other clients) is out of scope.
