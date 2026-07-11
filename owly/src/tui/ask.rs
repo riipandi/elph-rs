@@ -114,6 +114,11 @@ pub fn render_ask_modal(ui: &mut Context, pending: &PendingAsk, theme: Theme) ->
 
     let modal_width = (ui.width().saturating_mul(70) / 100).clamp(24, ui.width());
     let title = format!("{} — {}", pending.tool_name, pending.question);
+    let hint = match &pending.kind {
+        AskUserKind::Confirm { .. } => "↑/↓ choose · Enter confirm · Esc cancel",
+        AskUserKind::Select { .. } => "↑/↓ choose · Enter confirm · Esc cancel",
+        AskUserKind::Text { .. } => "",
+    };
 
     let _ = ui.modal(|ui| {
         let _ = ui
@@ -124,6 +129,9 @@ pub fn render_ask_modal(ui: &mut Context, pending: &PendingAsk, theme: Theme) ->
             .col(|ui| {
                 let _ = ui.text(&title).bold();
                 let _ = ui.list(&mut list);
+                if !hint.is_empty() {
+                    let _ = ui.text(hint).fg(theme.dim_text()).dim();
+                }
             });
     });
 

@@ -16,6 +16,8 @@ pub(super) fn write_help(writer: &mut ShellWriter<'_>) {
     writer.line("  /history [n]       List recent checkpoints (default 10)");
     writer.line("  /restore <#|id>    Rewind session to a checkpoint");
     writer.line("  /clear             Start a fresh checkpoint thread");
+    writer.line("  /name              Show current session title");
+    writer.line("  /name <title>      Set session title");
     writer.line("  /help              Show this help");
     writer.line("  /exit              Quit");
     writer.blank();

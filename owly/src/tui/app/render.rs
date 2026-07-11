@@ -1,4 +1,6 @@
 use elph_tui::{BannerInfo, FooterInfo, render_inline_shell, simple_banner_lines};
+
+use crate::tui::tool_display::truncate_chars;
 use slt::Context;
 
 use super::OwlyApp;
@@ -26,7 +28,7 @@ pub fn render_owly_app(ui: &mut Context, app: &mut OwlyApp) {
     let directory = directory_display(app.context.cwd());
     let model_name = app.model.clone();
     let provider_name = app.provider.clone();
-    let session_id = app.session_label.clone();
+    let session_id = truncate_chars(&app.session_label, 48);
     let model = if model_name.is_empty() {
         None
     } else {

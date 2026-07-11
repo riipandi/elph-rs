@@ -27,6 +27,7 @@ pub fn owly_builtin_commands() -> Vec<SlashCommand> {
         SlashCommand::new("history", "List recent checkpoints"),
         SlashCommand::new("restore", "Restore checkpoint (# or id)"),
         SlashCommand::new("clear", "Reset thread"),
+        SlashCommand::new("name", "Show or set session title"),
         SlashCommand::new("exit", "Quit"),
         SlashCommand::new("quit", "Quit"),
     ]

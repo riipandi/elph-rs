@@ -31,6 +31,10 @@ impl ActivityState {
         Self::new("Responding")
     }
 
+    pub fn awaiting_input() -> Self {
+        Self::new("Waiting for your answer")
+    }
+
     pub fn running_tool(name: &str, args: &str) -> Self {
         let detail = if args.is_empty() {
             name.to_string()
@@ -71,7 +75,7 @@ pub fn render_activity(ui: &mut Context, state: &ActivityState, theme: Theme, sp
             } else {
                 let _ = ui.spacer();
                 let _ = ui
-                    .text("Enter queue · Ctrl+Enter steer · Ctrl+C cancel")
+                    .text("Enter queue · Ctrl+Enter follow-up · Ctrl+C cancel")
                     .fg(theme.dim_text())
                     .dim();
             }
@@ -84,7 +88,7 @@ pub fn render_activity(ui: &mut Context, state: &ActivityState, theme: Theme, sp
             } else {
                 let _ = ui.spacer();
                 let _ = ui
-                    .text("Enter queue · Ctrl+Enter steer · Ctrl+C cancel")
+                    .text("Enter queue · Ctrl+Enter follow-up · Ctrl+C cancel")
                     .fg(theme.dim_text())
                     .dim();
             }

@@ -33,6 +33,8 @@ pub struct PromptOpts {
     pub queued_count: usize,
     /// Show agent mode in the prompt bottom border (disabled for simple shells).
     pub show_mode: bool,
+    /// When false, the textarea ignores keystrokes (e.g. while a modal owns input).
+    pub input_enabled: bool,
 }
 
 impl Default for PromptOpts {
@@ -42,6 +44,7 @@ impl Default for PromptOpts {
             composer: false,
             queued_count: 0,
             show_mode: true,
+            input_enabled: true,
         }
     }
 }
@@ -229,7 +232,9 @@ pub fn render_prompt(ui: &mut Context, state: &mut PromptState, theme: Theme, op
                     });
                     let _ = ui.container().grow(1).col(|ui| {
                         let _ = ui.register_focusable_named("prompt");
-                        consume_prompt_textarea_keys(ui, &mut state.textarea, true);
+                        if opts.input_enabled {
+                            consume_prompt_textarea_keys(ui, &mut state.textarea, true);
+                        }
                         let _ = ui.textarea(&mut state.textarea, visible_rows);
                     });
                 });

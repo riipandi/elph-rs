@@ -70,7 +70,7 @@ pub async fn handle_user_input(
     }
     if matches!(lower.as_str(), "/name" | "name") {
         let title = session.display_name().await?.unwrap_or_else(|| "(unnamed)".to_string());
-        writer.line(&format!("Session name: {title}"));
+        writer.line(format!("Session name: {title}"));
         return Ok(HandleInputResult {
             should_exit: false,
             lines,
@@ -91,7 +91,7 @@ pub async fn handle_user_input(
                     title: session.display_name().await?.unwrap_or_default(),
                 });
             }
-            writer.line(&format!("Session name set to: {name}"));
+            writer.line(format!("Session name set to: {name}"));
         }
         return Ok(HandleInputResult {
             should_exit: false,

@@ -116,6 +116,13 @@ impl OwlyApp {
             }
             crate::ui_events::AskUserKind::Text { .. } => 0,
         };
+        if let crate::ui_events::AskUserKind::Select { options, .. } = &kind
+            && options.is_empty()
+        {
+            let _ = response_tx.send(crate::ui_events::AskUserResponse::Cancelled);
+            return;
+        }
+
         let pending = PendingAsk {
             _tool_call_id: tool_call_id,
             tool_name,
@@ -130,43 +137,66 @@ impl OwlyApp {
         {
             self.prompt.textarea.set_value(default);
         }
+        self.activity = ActivityState::awaiting_input();
         self.pending_ask = Some(pending);
     }
 
-    pub(super) fn clear_pending_ask(&mut self) {
-        self.pending_ask = None;
+    pub(super) fn cancel_pending_ask(&mut self) {
+        if let Some(pending) = self.pending_ask.take() {
+            pending.finish_cancelled();
+        }
+    }
+
+    fn apply_ui_event(&mut self, event: AgentUiEvent) {
+        if let AgentUiEvent::SessionTitleUpdated { title } = &event {
+            self.session_label = title.clone();
+            return;
+        }
+        if let AgentUiEvent::AskUserRequired {
+            tool_call_id,
+            tool_name,
+            question,
+            kind,
+            response_tx,
+        } = event
+        {
+            self.open_ask_prompt(tool_call_id, tool_name, question, kind, response_tx);
+            return;
+        }
+
+        if let AgentUiEvent::ToolStart { name, args_summary, .. } = &event {
+            self.activity = ActivityState::running_tool(name, args_summary);
+        }
+        if let AgentUiEvent::TextDelta(_) = &event
+            && self.running
+            && self.live_tools.is_empty()
+        {
+            self.activity = ActivityState::responding();
+        }
+
+        if matches!(event, AgentUiEvent::RunCompleted { .. }) && self.running {
+            self.activity.clear();
+        }
+
+        let tool_finished = matches!(event, AgentUiEvent::ToolEnd { .. });
+
+        let mut applier =
+            super::transcript::TranscriptApplier::new(&mut self.entries, &mut self.live_tools, self.show_thinking);
+        applier.apply(event);
+
+        if tool_finished && self.running && self.live_tools.is_empty() {
+            self.activity = ActivityState::working();
+        }
     }
 
     pub(super) fn handle_message(&mut self, message: events::AppMessage) {
         match message {
-            events::AppMessage::UiEvent(event) => {
-                if let AgentUiEvent::SessionTitleUpdated { title } = &event {
-                    self.session_label = title.clone();
-                    return;
-                }
-                if let AgentUiEvent::AskUserRequired {
-                    tool_call_id,
-                    tool_name,
-                    question,
-                    kind,
-                    response_tx,
-                } = event
-                {
-                    self.open_ask_prompt(tool_call_id, tool_name, question, kind, response_tx);
-                    return;
-                }
-                let mut applier = super::transcript::TranscriptApplier::new(
-                    &mut self.entries,
-                    &mut self.live_tools,
-                    self.show_thinking,
-                );
-                applier.apply(event);
-            }
+            events::AppMessage::UiEvent(event) => self.apply_ui_event(event),
             events::AppMessage::DispatchDone { lines, should_exit } => {
                 self.running = false;
                 self.activity.clear();
                 self.live_tools.clear();
-                self.clear_pending_ask();
+                self.cancel_pending_ask();
                 super::transcript::append_shell_lines(&mut self.entries, &lines);
                 if should_exit {
                     self.should_exit = true;
@@ -178,7 +208,7 @@ impl OwlyApp {
                 self.running = false;
                 self.activity.clear();
                 self.live_tools.clear();
-                self.clear_pending_ask();
+                self.cancel_pending_ask();
                 elph_tui::push_capped(
                     &mut self.entries,
                     OwlyEntry::assistant(format!("Error: {err}")),

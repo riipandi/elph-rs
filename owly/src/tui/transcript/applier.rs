@@ -163,7 +163,9 @@ impl<'a> TranscriptApplier<'a> {
         }
         self.live_tools.clear();
         self.tool_indexes.clear();
-        let _ = elapsed_secs;
+        if elapsed_secs > 0.0 {
+            self.push_capped(OwlyEntry::hint(format!("Completed in {elapsed_secs:.1}s")));
+        }
     }
 }
 
@@ -269,14 +271,16 @@ mod tests {
     }
 
     #[test]
-    fn run_completed_clears_streaming_flag() {
+    fn run_completed_clears_streaming_flag_and_adds_hint() {
         let mut entries = vec![OwlyEntry::assistant_streaming("Hi")];
         let mut live_tools = vec![ToolExecutionState::new("x", "bash").with_status(ToolExecutionStatus::Running)];
         let mut applier = applier(&mut entries, &mut live_tools);
         applier.apply(AgentUiEvent::RunCompleted { elapsed_secs: 1.2 });
         assert!(!entries[0].inner.is_streaming);
         assert!(live_tools.is_empty());
-        assert_eq!(entries.len(), 1);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[1].kind, OwlyEntryKind::Hint);
+        assert!(entries[1].inner.content.contains("1.2"));
     }
 
     #[test]
