@@ -70,8 +70,11 @@ pub use harness::{
 pub use init::InitProgress;
 #[cfg(feature = "mcp")]
 pub use mcp::{
-    McpConfig, McpProbeResult, McpServerConfig, McpStdioConfig, McpToolDescriptor, McpToolRegistry, PROBE_TIMEOUT,
-    list_tools, parse_stdio_config, probe_server, probe_stdio_server,
+    DEFAULT_OPERATION_TIMEOUT_SECS, McpClient, McpConfig, McpHttpConfig, McpLoadOptions, McpLoadReport, McpProbeResult,
+    McpServerConfig, McpServerLoadReport, McpServerSession, McpSessionPool, McpStdioConfig, McpToolDescriptor,
+    McpToolRegistry, PROBE_TIMEOUT, call_stdio_tool, call_tool_for_server, connect, connect_http, connect_stdio,
+    expose_tool_name, list_tools, list_tools_for_server, mcp_result_to_agent, parse_exposed_tool_name,
+    parse_stdio_config, probe_server, probe_stdio_server, shutdown_client, validate_server_config,
 };
 pub use messages::{
     CustomMessageContent, bash_execution_to_text, create_branch_summary_message, create_compaction_summary_message,

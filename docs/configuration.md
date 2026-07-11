@@ -80,7 +80,7 @@ Settings and providers accept standard JSON and JSONC (`//`, `/* */`, trailing c
 
 ## `settings.json`
 
-Schema: [schemas/config-schema.json](../schemas/config-schema.json).
+Schema: [schemas/elph-schema.json](../schemas/elph-schema.json).
 
 ### Layered settings
 

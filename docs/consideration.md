@@ -73,7 +73,7 @@ Blocking wizards only outside the active TUI session (raw-mode conflict).
 
 ## Configuration
 
-Schema: [schemas/elph-config-schema.json](../schemas/elph-config-schema.json).
+Schema: [schemas/elph-schema.json](../schemas/elph-schema.json).
 
 **Merge order:** defaults → home → project → env → CLI.
 

@@ -99,10 +99,9 @@ cargo add elph-ai
 Build a `Models` collection of providers and stream through it. The quickest start registers every built-in provider; apps that only need a subset can register individual provider factories instead (see [Provider Factories](#provider-factories)).
 
 ```rust
-use elph_ai::{
-    AssistantContentBlock, AssistantMessageEvent, Context, Message, SimpleStreamOptions, Tool, UserContent,
-    ThinkingLevel, builtin_models, get_builtin_model,
-};
+use elph_ai::{AssistantContentBlock, AssistantMessageEvent, Context, Message};
+use elph_ai::{SimpleStreamOptions, Tool, UserContent, ThinkingLevel};
+use elph_ai::{builtin_models, get_builtin_model};
 use serde_json::json;
 
 #[tokio::main]
@@ -119,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
             "properties": {
                 "timezone": {
                     "type": "string",
-                    "description": "Optional timezone (e.g., America/New_York)"
+                    "description": "Optional timezone (e.g., Asia/Jakarta)"
                 }
             }
         }),

@@ -50,7 +50,23 @@ pub async fn create_coding_session_with_events(
 
     let mcp_config = crate::platform::mcp::load_config(options.paths)?;
     let mcp_registry = match McpToolRegistry::load(mcp_config).await {
-        Ok(registry) => Arc::new(registry),
+        Ok(registry) => {
+            let report = registry.load_report();
+            if report.servers_failed > 0 {
+                warn!(
+                    ok = report.servers_ok,
+                    failed = report.servers_failed,
+                    tools = report.tools_loaded,
+                    "MCP discovery finished with server failures"
+                );
+                for server in &report.servers {
+                    if !server.ok {
+                        warn!(server = %server.name, error = %server.message, "MCP server unavailable");
+                    }
+                }
+            }
+            Arc::new(registry)
+        }
         Err(error) => {
             warn!("MCP tool discovery failed: {error}");
             Arc::new(McpToolRegistry::empty())

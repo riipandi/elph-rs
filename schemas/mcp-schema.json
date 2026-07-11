@@ -1,0 +1,176 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://github.com/riipandi/elph/schemas/mcp-schema.json",
+    "title": "Elph MCP configuration",
+    "description": "MCP server definitions for Elph, typically stored at ~/.elph/mcp.json. Maps named servers to stdio (local process) or streamable HTTP endpoints. Matches elph_agent::mcp::McpConfig.",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "servers": {
+            "type": "object",
+            "description": "Named MCP server definitions. Keys are stable server ids used for tool namespacing and CLI management.",
+            "default": {},
+            "propertyNames": {
+                "type": "string",
+                "minLength": 1
+            },
+            "additionalProperties": {
+                "$ref": "#/definitions/mcpServer"
+            }
+        }
+    },
+    "definitions": {
+        "timeoutMs": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Per-operation timeout in milliseconds for list-tools and call-tool. Defaults to 60000 when omitted."
+        },
+        "disabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, the server is skipped during discovery and tool calls."
+        },
+        "mcpServer": {
+            "description": "One MCP server endpoint. Discriminated by the `type` field.",
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/stdioServer"
+                },
+                {
+                    "$ref": "#/definitions/httpServer"
+                }
+            ]
+        },
+        "stdioServer": {
+            "type": "object",
+            "description": "Local process speaking MCP over stdio.",
+            "additionalProperties": false,
+            "required": ["type", "command"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "const": "stdio",
+                    "description": "Transport: spawn a child process and communicate over stdin/stdout."
+                },
+                "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Executable to spawn (absolute path or PATH lookup)."
+                },
+                "args": {
+                    "type": "array",
+                    "description": "Command-line arguments passed to the executable.",
+                    "default": [],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "env": {
+                    "type": "object",
+                    "description": "Extra environment variables for the child process (merged over the parent environment).",
+                    "default": {},
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "cwd": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Optional working directory for the child process."
+                },
+                "timeoutMs": {
+                    "$ref": "#/definitions/timeoutMs"
+                },
+                "disabled": {
+                    "$ref": "#/definitions/disabled"
+                }
+            },
+            "examples": [
+                {
+                    "type": "stdio",
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+                }
+            ]
+        },
+        "httpServer": {
+            "type": "object",
+            "description": "Remote MCP server over streamable HTTP. `type` accepts `http`, `streamableHttp`, or `streamable-http` (serde aliases).",
+            "additionalProperties": false,
+            "required": ["type", "url"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["http", "streamableHttp", "streamable-http"],
+                    "description": "Transport: streamable HTTP MCP endpoint. Preferred spelling is `http`; aliases match common MCP config conventions."
+                },
+                "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "format": "uri",
+                    "description": "Base URL of the MCP HTTP endpoint (e.g. https://host/mcp)."
+                },
+                "headers": {
+                    "type": "object",
+                    "description": "Extra HTTP headers sent with every request.",
+                    "default": {},
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "authToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Bearer token value without the `Bearer ` prefix. Prefer authTokenEnv for secrets so tokens are not stored in the config file."
+                },
+                "authTokenEnv": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Name of an environment variable that holds a bearer token. Used when authToken is unset or empty."
+                },
+                "timeoutMs": {
+                    "$ref": "#/definitions/timeoutMs"
+                },
+                "disabled": {
+                    "$ref": "#/definitions/disabled"
+                }
+            },
+            "examples": [
+                {
+                    "type": "http",
+                    "url": "https://example.com/mcp",
+                    "authTokenEnv": "MCP_TOKEN"
+                },
+                {
+                    "type": "streamableHttp",
+                    "url": "http://localhost:8080/mcp"
+                }
+            ]
+        }
+    },
+    "examples": [
+        {
+            "servers": {
+                "filesystem": {
+                    "type": "stdio",
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+                },
+                "remote": {
+                    "type": "http",
+                    "url": "https://example.com/mcp",
+                    "authTokenEnv": "MCP_TOKEN",
+                    "headers": {
+                        "X-Client": "elph"
+                    },
+                    "timeoutMs": 30000
+                },
+                "offline": {
+                    "type": "stdio",
+                    "command": "true",
+                    "disabled": true
+                }
+            }
+        }
+    ]
+}

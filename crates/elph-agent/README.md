@@ -54,6 +54,29 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+## MCP tools
+
+With the `mcp` feature (default), load remote MCP servers and expose them as agent tools:
+
+```rust
+use elph_agent::{McpConfig, McpServerConfig, McpToolRegistry};
+use std::sync::Arc;
+
+let mut config = McpConfig::default();
+config.servers.insert(
+    "fs".into(),
+    McpServerConfig::stdio("npx", vec![
+        "-y".into(),
+        "@modelcontextprotocol/server-filesystem".into(),
+        "/tmp".into(),
+    ]),
+);
+let registry = Arc::new(McpToolRegistry::load(config).await?);
+let mcp_tools = registry.create_agent_tools(); // names: mcp_fs__...
+```
+
+Supports **stdio** and **streamable HTTP**, connection pooling with reconnect, and fail-open discovery. Details: [docs/mcp.md](./docs/mcp.md).
+
 For deterministic tests, use the `faux` provider from `elph-ai`:
 
 ```rust

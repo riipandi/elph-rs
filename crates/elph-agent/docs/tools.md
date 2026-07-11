@@ -36,9 +36,11 @@ Filesystem tools resolve paths through `ExecutionEnv::absolute_path` and perform
 
 ## Cargo features
 
-| Feature   | Default | Description                                            |
-| --------- | ------- | ------------------------------------------------------ |
-| `obscura` | yes     | Enable Obscura headless-browser fallback for web tools |
+| Feature      | Default | Description                                                  |
+| ------------ | ------- | ------------------------------------------------------------ |
+| `mcp`        | yes     | MCP client (stdio + streamable HTTP); see [mcp.md](./mcp.md) |
+| `extensions` | yes     | WASM extension host                                          |
+| `obscura`    | yes     | Enable Obscura headless-browser fallback for web tools       |
 
 ```bash
 # Faster builds — HTTP-only web tools
@@ -207,10 +209,10 @@ Tool execution accepts an optional `CancellationToken`. `grep` and `find` bridge
 | Tool            | Description                               |
 | --------------- | ----------------------------------------- |
 | `spawn_agent`   | Start a subagent (`task_name`, `message`) |
-| `send_message`  | Queue a message without running a turn      |
-| `followup_task` | Send a message and run a subagent turn      |
+| `send_message`  | Queue a message without running a turn    |
+| `followup_task` | Send a message and run a subagent turn    |
 | `wait_agent`    | Block until the subagent is idle          |
-| `list_agents`   | List id, task name, and status              |
+| `list_agents`   | List id, task name, and status            |
 
 Blocked in `CollaborationMode::Plan`. See [agent-harness.md](./agent-harness.md#collaboration-mode-and-plan-confirmation).
 
@@ -233,12 +235,12 @@ Provider-level OpenCode streaming lives in `elph-ai` as `opencode_big_pickle` (n
 
 ## Tests
 
-| Test file                              | Coverage                          |
-| -------------------------------------- | --------------------------------- |
-| `crates/elph-agent/tests/tools_fff.rs` | `grep`, `find`                    |
-| `crates/elph-agent/tests/web_tools.rs` | `web_search` ranking, `web_fetch` |
-| `crates/elph-agent/tests/plan_mode.rs` | Plan mode policy and harness events  |
-| `crates/elph-agent/tests/subagent.rs`  | Subagent spawn and list              |
+| Test file                              | Coverage                            |
+| -------------------------------------- | ----------------------------------- |
+| `crates/elph-agent/tests/tools_fff.rs` | `grep`, `find`                      |
+| `crates/elph-agent/tests/web_tools.rs` | `web_search` ranking, `web_fetch`   |
+| `crates/elph-agent/tests/plan_mode.rs` | Plan mode policy and harness events |
+| `crates/elph-agent/tests/subagent.rs`  | Subagent spawn and list             |
 
 ```bash
 cargo test -p elph-agent --test tools_fff

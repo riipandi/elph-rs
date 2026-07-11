@@ -30,6 +30,7 @@ elph-ai.workspace = true
 elph-core.workspace = true
 fff-search.workspace = true
 futures.workspace = true
+http.workspace = true
 ignore.workspace = true
 indicatif.workspace = true
 memorable-ids.workspace = true

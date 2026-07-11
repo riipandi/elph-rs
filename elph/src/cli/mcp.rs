@@ -161,7 +161,7 @@ fn handle_doctor(paths: &Paths) -> ExitCode {
     for (name, server) in &config.servers {
         let result = rt.block_on(probe_server(name, server));
         let status = if result.ok { "ok" } else { "fail" };
-        println!("{name}: {status} — {}", result.message);
+        println!("{name}: {status} [{}] — {}", result.transport, result.message);
         if !result.ok {
             ok = false;
         }

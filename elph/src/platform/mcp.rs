@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use elph_agent::{McpConfig, McpServerConfig, write_json_file};
+// McpConfig used when parsing multi-server JSON for `mcp add`.
 use elph_core::utils::path::AppPaths;
 
 use super::paths::Paths;
@@ -50,7 +51,21 @@ pub fn ensure_project_mcp_cache(paths: &Paths) -> Result<std::path::PathBuf> {
 pub fn parse_server_config(raw: &str) -> Result<McpServerConfig> {
     if Path::new(raw).exists() {
         let content = std::fs::read_to_string(raw).with_context(|| format!("read {raw}"))?;
-        return serde_json::from_str(&content).context("parse MCP config file");
+        return parse_server_config_json(&content);
+    }
+    parse_server_config_json(raw)
+}
+
+fn parse_server_config_json(raw: &str) -> Result<McpServerConfig> {
+    // Accept either a full server object or a root `{ "servers": { "name": ... } }` with one entry.
+    if let Ok(cfg) = serde_json::from_str::<McpServerConfig>(raw) {
+        return Ok(cfg);
+    }
+    if let Ok(wrapper) = serde_json::from_str::<McpConfig>(raw) {
+        if wrapper.servers.len() == 1 {
+            return Ok(wrapper.servers.into_values().next().expect("one server"));
+        }
+        anyhow::bail!("MCP config file must define a single server object when used with `mcp add`");
     }
     serde_json::from_str(raw).context("parse MCP config JSON")
 }
