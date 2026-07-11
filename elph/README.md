@@ -12,7 +12,7 @@ Install using the [install script](../scripts/install-elph.sh):
 curl -fsSL https://elph.space/elph/install.sh | bash
 ```
 
-Or use `cargo install` (requires Rust 1.96+):
+Or use `cargo install` (requires Rust 1.97+):
 
 ```sh
 cargo install --locked elph

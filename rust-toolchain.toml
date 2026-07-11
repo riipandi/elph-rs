@@ -1,14 +1,27 @@
+# rustup target add aarch64-apple-darwin
+# rustup target add x86_64-apple-darwin
+# rustup target add aarch64-unknown-linux-gnu
+# rustup target add x86_64-unknown-linux-gnu
+# rustup target add aarch64-unknown-linux-musl
+# rustup target add x86_64-unknown-linux-musl
+# rustup target add aarch64-pc-windows-msvc
+# rustup target add x86_64-pc-windows-gnu
+# rustup target add wasm32-wasip1
+# rustup target add wasm32-wasip2
+
 [toolchain]
-channel = "1.96.1"
+channel = "1.97.0"
 components = ["clippy", "rustfmt", "rust-analysis", "rust-analyzer"]
 # targets = [
 #   "aarch64-apple-darwin",
 #   "x86_64-apple-darwin",
-#   "x86_64-unknown-linux-gnu",
 #   "aarch64-unknown-linux-gnu",
-#   "x86_64-unknown-linux-musl",
+#   "x86_64-unknown-linux-gnu",
 #   "aarch64-unknown-linux-musl",
+#   "x86_64-unknown-linux-musl",
 #   "x86_64-pc-windows-gnu",
-#   "x86_64-pc-windows-msvc",
 #   "aarch64-pc-windows-msvc",
+#   "x86_64-pc-windows-msvc",
+#   "wasm32-wasip1",
+#   "wasm32-wasip2",
 # ]

@@ -11,7 +11,7 @@ Install using the [install script](../scripts/install-eclaw.sh):
 curl -fsSL https://elph.space/eclaw/install.sh | bash
 ```
 
-Or use `cargo install` (requires Rust 1.96+):
+Or use `cargo install` (requires Rust 1.97+):
 
 ```sh
 cargo install --locked eclaw

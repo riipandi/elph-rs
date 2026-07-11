@@ -6,7 +6,7 @@ exclude = ["extensions/say-hello"]
 [workspace.package]
 homepage = "https://elph.space"
 repository = "https://github.com/riipandi/elph"
-rust-version = "1.96"
+rust-version = "1.97"
 edition = "2024"
 
 [workspace.dependencies]

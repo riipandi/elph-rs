@@ -31,7 +31,7 @@ curl -fsSL https://elph.space/elph/install.sh | bash -s -- --canary
 Install scripts resolve the **latest release per application** from GitHub (not the repo-wide
 `Latest` badge).
 
-**From crates.io** (requires [Rust >= 1.96][rust]):
+**From crates.io** (requires [Rust >= 1.97][rust]):
 
 ```sh
 cargo install --locked elph
@@ -51,7 +51,7 @@ Per-app setup and usage: see each package README linked above.
 
 ## Development
 
-Requires [Rust >= 1.96][rust]. Clone the repo, run `make prepare`, then `make help` for targets.
+Requires [Rust >= 1.97][rust]. Clone the repo, run `make prepare`, then `make help` for targets.
 
 ```sh
 git clone https://github.com/riipandi/elph.git
