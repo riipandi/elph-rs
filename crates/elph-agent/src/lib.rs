@@ -104,6 +104,7 @@ pub use plugins::{
     ExtensionCommand, ExtensionManifest, ExtensionRegistry, ExtensionSlashResult, ExtensionsSettings,
     discover_manifests, extension_roots, global_extensions_dir, load_manifest, project_extensions_dir,
 };
+pub use prompt::session_name::generate_session_name;
 pub use prompt::{
     LoadPromptTemplatesResult, LoadSourcedPromptTemplatesResult, PromptTemplateDiagnostic,
     PromptTemplateDiagnosticCode, SourcedPromptTemplate, SourcedPromptTemplateDiagnostic,

@@ -14,6 +14,7 @@ pub struct LaunchState {
     pub provider: String,
     pub model: String,
     pub session_id: String,
+    pub session_label: String,
     pub pending_setup: bool,
     pub startup_lines: Vec<String>,
     pub initial: Option<String>,
@@ -32,6 +33,7 @@ pub struct LaunchOptions {
     pub restored_count: usize,
     pub recovery: SessionRecovery,
     pub db_path: PathBuf,
+    pub session_label: String,
     pub initial: Option<crate::startup::InitialRun>,
 }
 
@@ -40,6 +42,7 @@ pub fn from_session(opts: LaunchOptions) -> LaunchState {
     let provider = opts.config.provider.clone();
     let model = opts.config.model_id.clone();
     let session_id = opts.session.thread_id().to_string();
+    let session_label = opts.session_label;
     let app_context = AppContext::new(opts.config, opts.cwd, opts.stream, opts.verbose, opts.session);
     let startup_lines = crate::shell::startup_transcript_lines(opts.restored_count, &opts.recovery, &opts.db_path);
     let initial = opts.initial.map(crate::shell::initial_input);
@@ -50,6 +53,7 @@ pub fn from_session(opts: LaunchOptions) -> LaunchState {
         provider,
         model,
         session_id,
+        session_label,
         pending_setup: opts.pending_setup,
         startup_lines,
         initial,

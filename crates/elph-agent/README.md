@@ -637,6 +637,29 @@ ensure_databases(&[DatabaseSpec {
 | `JsonSessionStorage`     | File-backed append-only sessions        |
 | `TursoSessionStorage`    | Durable local sessions with SQL queries |
 
+### Prompt module (`prompt/`)
+
+All prompt constants, filesystem slash-command templates, and built-in formatters live under `elph-agent/src/prompt/`:
+
+| Submodule             | Purpose                                                                           |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `prompt/builtin/`     | Static runtime prompts — plan mode, compaction summarization, auto session naming |
+| `prompt/external/`    | Load `.md` slash-command templates from disk (`load_prompt_templates`)            |
+| `prompt/invoke`       | Argument parsing and `$1` / `$ARGUMENTS` substitution for template invocation     |
+| `prompt/session_name` | `generate_session_name()` — LLM-generated conversation titles                     |
+
+```rust
+use elph_agent::{generate_session_name, load_prompt_templates};
+
+// Auto title from transcript (e.g. after first chat turn)
+if let Some(title) = generate_session_name(&messages, &models, &model).await {
+    println!("Session: {title}");
+}
+
+// Filesystem templates
+let templates = load_prompt_templates(&env, &search_paths).await;
+```
+
 ### Skills and Prompt Templates
 
 Load workspace skills and slash-command templates from disk:

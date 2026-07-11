@@ -1,7 +1,9 @@
 //! Slash-command helpers for the Owly interactive shell.
 
 /// Owly slash command names (without leading `/`).
-pub const OWLY_SLASH_COMMANDS: &[&str] = &["help", "init", "update", "history", "restore", "clear", "exit", "quit"];
+pub const OWLY_SLASH_COMMANDS: &[&str] = &[
+    "help", "init", "update", "history", "restore", "clear", "name", "exit", "quit",
+];
 
 /// Normalize prompt text before dispatch so shell handlers receive `/command` form.
 ///

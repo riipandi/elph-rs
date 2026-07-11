@@ -15,7 +15,9 @@ use crate::env;
 use crate::session::SessionStore;
 use crate::ui_events::AgentUiEvent;
 
-use super::listeners::{create_checkpoint_write_subscriber, create_event_subscriber, create_tui_event_subscriber};
+use super::listeners::{
+    create_checkpoint_write_subscriber, create_event_subscriber, create_tui_event_subscriber, emit_ui,
+};
 use super::model::{progress_spinner, resolve_model_and_auth};
 
 /// Result of a single agent invocation.
@@ -68,7 +70,7 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
     let stream_text = stream || ui_events.is_some();
     let show_thinking = verbose;
 
-    let (model, _models_arc, stream_fn) = resolve_model_and_auth(config, &ui_events).await?;
+    let (model, models_arc, stream_fn) = resolve_model_and_auth(config, &ui_events).await?;
     let env = Arc::new(LocalExecutionEnv::new(cwd));
 
     let (mut agent_tools, base_tool_str) = if command == "chat" {
@@ -114,7 +116,7 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
     let agent = Agent::new(AgentOptions {
         initial_state: Some(PartialAgentState {
             system_prompt: Some(full_system_prompt),
-            model: Some(model),
+            model: Some(model.clone()),
             tools: Some(agent_tools),
             messages: if restored_messages.is_empty() {
                 None
@@ -164,6 +166,20 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
 
     if let Some(session) = session {
         session.save_messages(&state.messages, command).await?;
+        if command == "chat" {
+            match session
+                .try_auto_name(&state.messages, &model, models_arc.as_ref())
+                .await
+            {
+                Ok(Some(title)) => {
+                    emit_ui(&ui_events, AgentUiEvent::SessionTitleUpdated { title });
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    tracing::warn!(error = %err, "auto session naming failed");
+                }
+            }
+        }
     }
 
     let docs_changed = if let Some(before) = docs_snapshot_before.as_ref() {

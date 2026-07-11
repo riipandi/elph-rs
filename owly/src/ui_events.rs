@@ -46,6 +46,8 @@ pub enum AgentUiEvent {
     ToolEnd { id: String, is_error: bool, output: String },
     /// Agent run finished.
     RunCompleted { elapsed_secs: f64 },
+    /// Session display title was set or auto-generated.
+    SessionTitleUpdated { title: String },
     /// Ask tool waiting for user input (TUI prompts or modals).
     AskUserRequired {
         tool_call_id: String,

@@ -6,6 +6,7 @@
 
 pub mod builtin;
 pub mod external;
+pub mod session_name;
 
 mod invoke;
 

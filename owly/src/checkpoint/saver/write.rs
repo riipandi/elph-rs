@@ -102,6 +102,7 @@ impl TursoCheckpointSaver {
         conn.execute("DELETE FROM writes WHERE thread_id = ?", turso::params![thread_id])
             .await
             .map_err(|e| anyhow::anyhow!("delete writes: {e}"))?;
+        self.delete_thread_metadata(thread_id).await?;
         Ok(())
     }
 }

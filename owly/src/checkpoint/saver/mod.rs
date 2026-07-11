@@ -2,6 +2,7 @@
 
 mod migrate;
 mod read;
+mod thread_meta;
 mod write;
 
 use std::path::{Path, PathBuf};

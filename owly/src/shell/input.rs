@@ -57,7 +57,42 @@ pub async fn handle_user_input(
     }
     if lower == "/clear" || lower == "clear" {
         session.reset_thread(cwd).await?;
+        if let Some(tx) = &ui_events {
+            let _ = tx.send(AgentUiEvent::SessionTitleUpdated {
+                title: session.thread_id().to_string(),
+            });
+        }
         writer.line("Session cleared.");
+        return Ok(HandleInputResult {
+            should_exit: false,
+            lines,
+        });
+    }
+    if matches!(lower.as_str(), "/name" | "name") {
+        let title = session.display_name().await?.unwrap_or_else(|| "(unnamed)".to_string());
+        writer.line(&format!("Session name: {title}"));
+        return Ok(HandleInputResult {
+            should_exit: false,
+            lines,
+        });
+    }
+    if lower.starts_with("/name ") || lower.starts_with("name ") {
+        let name = trimmed
+            .strip_prefix("/name")
+            .or_else(|| trimmed.strip_prefix("name"))
+            .map(str::trim)
+            .unwrap_or_default();
+        if name.is_empty() {
+            writer.line("Usage: /name <title>");
+        } else {
+            session.set_display_name(name, false).await?;
+            if let Some(tx) = &ui_events {
+                let _ = tx.send(AgentUiEvent::SessionTitleUpdated {
+                    title: session.display_name().await?.unwrap_or_default(),
+                });
+            }
+            writer.line(&format!("Session name set to: {name}"));
+        }
         return Ok(HandleInputResult {
             should_exit: false,
             lines,

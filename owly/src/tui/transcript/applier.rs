@@ -48,6 +48,7 @@ impl<'a> TranscriptApplier<'a> {
             AgentUiEvent::ToolEnd { id, is_error, output } => self.end_tool(&id, is_error, &output),
             AgentUiEvent::RunCompleted { elapsed_secs } => self.complete_run(elapsed_secs),
             AgentUiEvent::AskUserRequired { .. } => {}
+            AgentUiEvent::SessionTitleUpdated { .. } => {}
             AgentUiEvent::ThinkingDelta(_) => {}
         }
     }

@@ -214,6 +214,46 @@ impl SessionStore {
         self.checkpoint_config = tuple.config;
         Ok(count)
     }
+
+    /// Load the human-readable session title, if set.
+    pub async fn display_name(&self) -> Result<Option<String>> {
+        let meta = self.saver.get_thread_metadata(&self.thread_id).await?;
+        Ok(meta.display_name.filter(|name| !name.trim().is_empty()))
+    }
+
+    /// Set or overwrite the session display name.
+    pub async fn set_display_name(&self, name: &str, auto_named: bool) -> Result<()> {
+        let sanitized = elph_agent::prompt::builtin::session_name::sanitize_session_name(name);
+        if sanitized.is_empty() {
+            anyhow::bail!("session name cannot be empty");
+        }
+        self.saver
+            .set_thread_display_name(&self.thread_id, &sanitized, auto_named)
+            .await?;
+        Ok(())
+    }
+
+    /// Generate and persist a title after the first turn when none exists yet.
+    pub async fn try_auto_name(
+        &self,
+        messages: &[AgentMessage],
+        model: &elph_ai::Model,
+        models: &elph_ai::Models,
+    ) -> Result<Option<String>> {
+        let meta = self.saver.get_thread_metadata(&self.thread_id).await?;
+        if meta.display_name.is_some() || meta.auto_named {
+            return Ok(None);
+        }
+
+        let Some(title) = elph_agent::generate_session_name(messages, models, model).await else {
+            return Ok(None);
+        };
+
+        self.saver
+            .set_thread_display_name(&self.thread_id, &title, true)
+            .await?;
+        Ok(Some(title))
+    }
 }
 
 #[cfg(test)]

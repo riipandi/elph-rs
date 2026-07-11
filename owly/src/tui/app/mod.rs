@@ -44,7 +44,7 @@ pub struct OwlyApp {
     pub submit_tx: mpsc::UnboundedSender<String>,
     pub tip: &'static str,
     pub turn: u32,
-    pub session_id: String,
+    pub session_label: String,
     pub activity: ActivityState,
     pub spinner: SpinnerState,
     pub prompt_queue: PromptQueue,
@@ -61,7 +61,7 @@ impl OwlyApp {
         let startup_entries = super::transcript::lines_to_entries(&launch.startup_lines);
         let setup = SetupWizardState::new(&launch.provider, &launch.model);
 
-        let session_id = launch.session_id.clone();
+        let session_label = launch.session_label.clone();
         Self {
             context: launch.app_context,
             entries: startup_entries,
@@ -83,9 +83,9 @@ impl OwlyApp {
             show_thinking,
             should_exit: false,
             submit_tx: launch.submit_tx,
-            tip: pick_tip(&session_id),
+            tip: pick_tip(&launch.session_id),
             turn: 0,
-            session_id,
+            session_label,
             activity: ActivityState::default(),
             spinner: default_activity_spinner(),
             prompt_queue: PromptQueue::default(),
@@ -140,6 +140,10 @@ impl OwlyApp {
     pub(super) fn handle_message(&mut self, message: events::AppMessage) {
         match message {
             events::AppMessage::UiEvent(event) => {
+                if let AgentUiEvent::SessionTitleUpdated { title } = &event {
+                    self.session_label = title.clone();
+                    return;
+                }
                 if let AgentUiEvent::AskUserRequired {
                     tool_call_id,
                     tool_name,

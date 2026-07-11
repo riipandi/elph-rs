@@ -26,7 +26,7 @@ pub fn render_owly_app(ui: &mut Context, app: &mut OwlyApp) {
     let directory = directory_display(app.context.cwd());
     let model_name = app.model.clone();
     let provider_name = app.provider.clone();
-    let session_id = app.session_id.clone();
+    let session_id = app.session_label.clone();
     let model = if model_name.is_empty() {
         None
     } else {

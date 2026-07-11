@@ -39,6 +39,10 @@ pub async fn run_interactive(
     }
 
     let session = SessionStore::open(cwd).await?;
+    let session_label = session
+        .display_name()
+        .await?
+        .unwrap_or_else(|| session.thread_id().to_string());
     let loaded = session.load_conversation().await?;
     let restored_count = loaded.messages.len();
     let recovery = loaded.recovery;
@@ -54,6 +58,7 @@ pub async fn run_interactive(
         restored_count,
         recovery,
         db_path,
+        session_label,
         initial,
     });
 
