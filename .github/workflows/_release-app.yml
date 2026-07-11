@@ -52,6 +52,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+
       - name: Apply release version from tag
         env:
           APP: ${{ inputs.app }}
@@ -63,19 +64,21 @@ jobs:
         with:
           sharedKey: release-linux
           installNextest: "false"
-          installCross: "true"
-          crossPlatform: linux
-
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v4
-
-      - name: Pull cross-rs images
-        run: make cross-pull
 
       - name: Build Linux release
-        run: make release-linux
+        run: cargo build --release --bin ${{ inputs.app }}
         env:
           APP: ${{ inputs.app }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="${{ inputs.app }}"
+          label="${app}-linux-x86_64"
+          mkdir -p release/archives release/binaries
+          cp "target/release/${app}" "release/binaries/${label}"
+          tar -C target/release -czf "release/archives/${label}.tar.gz" "${app}"
 
       - name: Show sccache statistics
         if: always()
@@ -98,6 +101,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+
       - name: Apply release version from tag
         env:
           APP: ${{ inputs.app }}
@@ -132,11 +136,13 @@ jobs:
     name: Build Windows (${{ inputs.app }})
     needs: [version-gate, quality-gate]
     if: needs.version-gate.outputs.should_continue == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: windows-2024
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+
       - name: Apply release version from tag
+        shell: bash
         env:
           APP: ${{ inputs.app }}
           TARGET_VERSION: ${{ needs.version-gate.outputs.release_version }}
@@ -147,19 +153,20 @@ jobs:
         with:
           sharedKey: release-windows
           installNextest: "false"
-          installCross: "true"
-          crossPlatform: windows
-
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v4
-
-      - name: Pull cross-rs images
-        run: make cross-pull
 
       - name: Build Windows release
-        run: make release-windows
-        env:
-          APP: ${{ inputs.app }}
+        shell: bash
+        run: cargo build --release --bin ${{ inputs.app }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="${{ inputs.app }}"
+          label="${app}-win-x86_64"
+          mkdir -p release/archives release/binaries
+          cp "target/release/${app}.exe" "release/binaries/${label}.exe"
+          cd target/release && zip -q -j "${{ github.workspace }}/release/archives/${label}.zip" "${app}.exe"
 
       - name: Show sccache statistics
         if: always()
