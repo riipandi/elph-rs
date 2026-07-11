@@ -4,6 +4,8 @@
 //!
 //! - **stdio**, **streamable HTTP**, and legacy **SSE** transports
 //! - **OAuth 2.1** (PKCE) for remote servers via `mcp auth`
+//! - **AES-256-GCM** credential encryption (`enc:` prefix) in shared `auth.json`
+//! - **JSON Schema + semantic** config validation
 //! - **Resources** and **prompts** bridge tools
 //! - **Tool policy** (allow / deny / requireApproval)
 //! - **Session pool** — reuse connections across tool calls
@@ -19,6 +21,8 @@ mod client;
 #[cfg(feature = "mcp")]
 mod config;
 #[cfg(feature = "mcp")]
+mod crypto;
+#[cfg(feature = "mcp")]
 mod events;
 #[cfg(feature = "mcp")]
 mod policy;
@@ -28,6 +32,10 @@ mod registry;
 mod session;
 #[cfg(feature = "mcp")]
 mod sse;
+#[cfg(feature = "mcp")]
+mod store_lock;
+#[cfg(feature = "mcp")]
+mod validate;
 
 #[cfg(feature = "mcp")]
 #[allow(deprecated)]
@@ -49,6 +57,11 @@ pub use config::{
     DEFAULT_OPERATION_TIMEOUT_SECS, McpConfig, McpHttpConfig, McpLoadOptions, McpServerConfig, McpStdioConfig,
 };
 #[cfg(feature = "mcp")]
+pub use crypto::{
+    Aes256Key, DEFAULT_AUTH_KEY_FILE_NAME, ENC_PREFIX, decrypt_async, decrypt_json_async, default_auth_key_path,
+    encrypt_async, encrypt_json_async, is_encrypted_value,
+};
+#[cfg(feature = "mcp")]
 pub use events::{McpClientService, McpEventBus, McpServerEvent};
 #[cfg(feature = "mcp")]
 pub use policy::{McpPolicyAction, McpPolicyConfig, mcp_tool_requires_approval, pattern_matches};
@@ -59,3 +72,9 @@ pub use registry::{
 };
 #[cfg(feature = "mcp")]
 pub use session::{McpServerSession, McpSessionPool};
+#[cfg(feature = "mcp")]
+pub use validate::{
+    McpConfigValidationError, parse_and_validate_mcp_config, parse_and_validate_mcp_config_async,
+    parse_and_validate_server_config_json, validate_mcp_config, validate_mcp_config_semantic,
+    validate_mcp_config_value,
+};

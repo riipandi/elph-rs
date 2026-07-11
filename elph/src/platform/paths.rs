@@ -103,6 +103,11 @@ impl Paths {
         elph_agent::project_extensions_dir(&self.project_elph_dir())
     }
 
+    /// Project MCP override: `<project>/.elph/mcp.json` (merged over home `mcp.json`).
+    pub fn project_mcp_config_path(&self) -> PathBuf {
+        self.project_elph_dir().join("mcp.json")
+    }
+
     pub fn project_layout_dirs_for(&self, project_path: &Path) -> Result<Vec<PathBuf>> {
         let key = project_key::from_path(project_path)?;
         let base = self.projects_dir().join(key);

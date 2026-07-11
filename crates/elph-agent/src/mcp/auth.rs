@@ -1,9 +1,11 @@
 //! OAuth 2.1 credential storage and authorization helpers for remote MCP servers.
 //!
 //! Credentials for all MCP servers live in a single JSON file (default name
-//! [`DEFAULT_AUTH_FILE_NAME`] = `auth.json`). The path is **not** hardcoded to
-//! `~/.elph` — hosts (elph, eclaw, owly, …) pass it via
-//! [`AuthStorePathBuilder`] / [`McpLoadOptions::auth_store_path`].
+//! [`DEFAULT_AUTH_FILE_NAME`] = `auth.json`). Values are stored as AES-256-GCM
+//! ciphertext with the [`crate::mcp::crypto::ENC_PREFIX`] (`enc:`) prefix.
+//!
+//! The path is **not** hardcoded to `~/.elph` — hosts (elph, eclaw, owly, …) pass
+//! it via [`AuthStorePathBuilder`] / [`McpLoadOptions::auth_store_path`](super::config::McpLoadOptions).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -15,10 +17,16 @@ use rmcp::transport::auth::{
     AuthError, AuthorizationManager, AuthorizationSession, CredentialStore, StoredCredentials,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
+
+use super::crypto::{
+    Aes256Key, ENC_PREFIX, decrypt_json_async, default_auth_key_path, encrypt_json_async, is_encrypted_value,
+};
+use super::store_lock::{atomic_write_private, lock_auth_store};
 
 /// Default OAuth scopes when the server does not advertise any.
 pub const DEFAULT_OAUTH_SCOPES: &[&str] = &[];
@@ -38,30 +46,15 @@ pub const DEFAULT_AUTH_FILE_NAME: &str = "auth.json";
 /// use std::path::PathBuf;
 /// use elph_agent::AuthStorePathBuilder;
 ///
-/// // Host app config dir + default `auth.json`
 /// let path = AuthStorePathBuilder::new()
 ///     .base_dir("/home/user/.elph")
 ///     .build();
 /// assert_eq!(path, PathBuf::from("/home/user/.elph/auth.json"));
-///
-/// // Custom filename for another product
-/// let path = AuthStorePathBuilder::new()
-///     .base_dir("/home/user/.owly")
-///     .file_name("credentials.json")
-///     .build();
-/// assert_eq!(path, PathBuf::from("/home/user/.owly/credentials.json"));
-///
-/// // Explicit full path wins
-/// let path = AuthStorePathBuilder::new()
-///     .path("/var/lib/eclaw/auth.json")
-///     .build();
-/// assert_eq!(path, PathBuf::from("/var/lib/eclaw/auth.json"));
 /// ```
 #[derive(Debug, Clone)]
 pub struct AuthStorePathBuilder {
     base_dir: Option<PathBuf>,
     file_name: String,
-    /// When set, overrides `base_dir` / `file_name`.
     path: Option<PathBuf>,
 }
 
@@ -80,27 +73,21 @@ impl AuthStorePathBuilder {
         }
     }
 
-    /// Directory that will contain the auth file (e.g. `~/.elph`, `~/.owly`).
     pub fn base_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.base_dir = Some(dir.into());
         self
     }
 
-    /// Filename inside [`base_dir`](Self::base_dir). Default: [`DEFAULT_AUTH_FILE_NAME`].
     pub fn file_name(mut self, name: impl Into<String>) -> Self {
         self.file_name = name.into();
         self
     }
 
-    /// Full path to the store file. Overrides `base_dir` + `file_name`.
     pub fn path(mut self, path: impl Into<PathBuf>) -> Self {
         self.path = Some(path.into());
         self
     }
 
-    /// Resolve the store path.
-    ///
-    /// Priority: explicit [`path`](Self::path) → `base_dir/file_name` → `./file_name`.
     pub fn build(self) -> PathBuf {
         if let Some(path) = self.path {
             return path;
@@ -124,69 +111,110 @@ pub fn mcp_auth_dir(config_dir: &Path) -> PathBuf {
 }
 
 // ---------------------------------------------------------------------------
-// On-disk format (multi-server)
+// On-disk format (multi-server, encrypted entries)
 // ---------------------------------------------------------------------------
 
-/// Root document of `auth.json`.
+/// Root document of `auth.json` as stored on disk.
 ///
-/// Other products may add sibling keys later; MCP credentials live under `mcp`.
+/// Each MCP server entry is either:
+/// - an encrypted string: `"enc:…"` (AES-256-GCM, preferred)
+/// - a plain object (legacy / migration only — re-encrypted on next save)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthStoreFile {
-    /// Map of MCP server name → OAuth credentials.
+    /// Map of MCP server name → encrypted string or plain JSON object.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub mcp: BTreeMap<String, StoredCredentials>,
+    pub mcp: BTreeMap<String, Value>,
 }
 
 impl AuthStoreFile {
-    pub fn load_from_path(path: &Path) -> Result<Self, AuthError> {
+    pub async fn load_from_path(path: &Path) -> Result<Self, AuthError> {
         if !path.exists() {
             return Ok(Self::default());
         }
-        let bytes = std::fs::read(path).map_err(|e| AuthError::InternalError(format!("read auth store: {e}")))?;
+        let bytes = tokio::fs::read(path)
+            .await
+            .map_err(|e| AuthError::InternalError(format!("read auth store: {e}")))?;
         if bytes.is_empty() {
             return Ok(Self::default());
         }
         serde_json::from_slice(&bytes).map_err(|e| AuthError::InternalError(format!("parse auth store: {e}")))
     }
 
-    pub fn save_to_path(&self, path: &Path) -> Result<(), AuthError> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| AuthError::InternalError(format!("create auth store dir: {e}")))?;
-        }
+    /// Save without taking the store lock (caller must hold [`lock_auth_store`]).
+    pub async fn save_to_path_unlocked(&self, path: &Path) -> Result<(), AuthError> {
         let bytes = serde_json::to_vec_pretty(self)
             .map_err(|e| AuthError::InternalError(format!("serialize auth store: {e}")))?;
-        write_private_bytes_sync(path, &bytes).map_err(|e| AuthError::InternalError(e.to_string()))?;
+        atomic_write_private(path, &bytes)
+            .await
+            .map_err(|e| AuthError::InternalError(e.to_string()))?;
         Ok(())
+    }
+
+    /// Lock the store, then atomic-write.
+    pub async fn save_to_path(&self, path: &Path) -> Result<(), AuthError> {
+        let _guard = lock_auth_store(path)
+            .await
+            .map_err(|e| AuthError::InternalError(format!("lock auth store: {e}")))?;
+        self.save_to_path_unlocked(path).await
+    }
+
+    pub fn contains_server(&self, server_name: &str) -> bool {
+        self.mcp.contains_key(server_name)
     }
 }
 
 // ---------------------------------------------------------------------------
-// Per-server CredentialStore backed by shared auth.json
+// Per-server CredentialStore backed by shared encrypted auth.json
 // ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+enum CryptoSource {
+    /// Load or create key at this path on first use.
+    AutoKeyFile(PathBuf),
+    /// Explicit key provided by host.
+    Key(Arc<Aes256Key>),
+}
 
 /// File-backed [`CredentialStore`] for **one** MCP server key inside a shared `auth.json`.
 ///
-/// Multiple instances may share the same path; each holds a different `server_key`.
+/// On-disk values are AES-256-GCM encrypted strings with the `enc:` prefix.
 #[derive(Clone)]
 pub struct FileCredentialStore {
     path: PathBuf,
     server_key: String,
+    crypto: CryptoSource,
+    key_cache: Arc<RwLock<Option<Arc<Aes256Key>>>>,
     cache: Arc<RwLock<Option<StoredCredentials>>>,
 }
 
 impl FileCredentialStore {
     /// Create a store for `server_key` inside the shared file at `path`.
+    ///
+    /// Encryption key is loaded/created at [`default_auth_key_path`](path) (`auth.key`).
     pub fn new(path: impl Into<PathBuf>, server_key: impl Into<String>) -> Self {
+        let path = path.into();
+        let key_path = default_auth_key_path(&path);
         Self {
-            path: path.into(),
+            path,
             server_key: server_key.into(),
+            crypto: CryptoSource::AutoKeyFile(key_path),
+            key_cache: Arc::new(RwLock::new(None)),
             cache: Arc::new(RwLock::new(None)),
         }
     }
 
-    /// Builder-style constructor using [`AuthStorePathBuilder`].
+    /// Use an explicit AES key (hosts / tests).
+    pub fn with_key(path: impl Into<PathBuf>, server_key: impl Into<String>, key: Aes256Key) -> Self {
+        Self {
+            path: path.into(),
+            server_key: server_key.into(),
+            crypto: CryptoSource::Key(Arc::new(key)),
+            key_cache: Arc::new(RwLock::new(None)),
+            cache: Arc::new(RwLock::new(None)),
+        }
+    }
+
     pub fn builder() -> FileCredentialStoreBuilder {
         FileCredentialStoreBuilder::new()
     }
@@ -199,23 +227,87 @@ impl FileCredentialStore {
         &self.server_key
     }
 
-    async fn load_entry(&self) -> Result<Option<StoredCredentials>, AuthError> {
-        let file = AuthStoreFile::load_from_path(&self.path)?;
-        Ok(file.mcp.get(&self.server_key).cloned())
+    async fn resolve_key(&self) -> Result<Arc<Aes256Key>, AuthError> {
+        {
+            let cache = self.key_cache.read().await;
+            if let Some(k) = cache.as_ref() {
+                return Ok(Arc::clone(k));
+            }
+        }
+        let key = match &self.crypto {
+            CryptoSource::Key(k) => Arc::clone(k),
+            CryptoSource::AutoKeyFile(key_path) => {
+                let loaded = Aes256Key::load_or_create(key_path.clone())
+                    .await
+                    .map_err(|e| AuthError::InternalError(format!("auth key: {e}")))?;
+                Arc::new(loaded)
+            }
+        };
+        *self.key_cache.write().await = Some(Arc::clone(&key));
+        Ok(key)
     }
 
+    async fn load_entry(&self) -> Result<Option<StoredCredentials>, AuthError> {
+        // Shared lock so we don't read a half-written file during refresh.
+        let _guard = lock_auth_store(&self.path)
+            .await
+            .map_err(|e| AuthError::InternalError(format!("lock auth store: {e}")))?;
+        let file = AuthStoreFile::load_from_path(&self.path).await?;
+        let Some(value) = file.mcp.get(&self.server_key) else {
+            return Ok(None);
+        };
+        let key = self.resolve_key().await?;
+        decode_entry(key, value).await
+    }
+
+    /// Load-merge-save under exclusive lock (safe for concurrent token refresh).
     async fn write_entry(&self, credentials: Option<StoredCredentials>) -> Result<(), AuthError> {
-        let mut file = AuthStoreFile::load_from_path(&self.path)?;
+        let _guard = lock_auth_store(&self.path)
+            .await
+            .map_err(|e| AuthError::InternalError(format!("lock auth store: {e}")))?;
+        // Re-read under lock so concurrent writers (other servers / refresh) are not lost.
+        let mut file = AuthStoreFile::load_from_path(&self.path).await?;
         match credentials {
             Some(creds) => {
-                file.mcp.insert(self.server_key.clone(), creds);
+                let key = self.resolve_key().await?;
+                let enc = encrypt_json_async(key, creds)
+                    .await
+                    .map_err(|e| AuthError::InternalError(format!("encrypt credentials: {e}")))?;
+                debug_assert!(is_encrypted_value(&enc));
+                file.mcp.insert(self.server_key.clone(), Value::String(enc));
             }
             None => {
                 file.mcp.remove(&self.server_key);
             }
         }
-        file.save_to_path(&self.path)?;
+        file.save_to_path_unlocked(&self.path).await?;
         Ok(())
+    }
+}
+
+async fn decode_entry(key: Arc<Aes256Key>, value: &Value) -> Result<Option<StoredCredentials>, AuthError> {
+    match value {
+        Value::String(s) if is_encrypted_value(s) => {
+            let creds: StoredCredentials = decrypt_json_async(key, s.clone())
+                .await
+                .map_err(|e| AuthError::InternalError(format!("decrypt credentials: {e}")))?;
+            Ok(Some(creds))
+        }
+        Value::String(s) => Err(AuthError::InternalError(format!(
+            "credential string must start with {ENC_PREFIX}, got prefix {:?}",
+            s.chars().take(8).collect::<String>()
+        ))),
+        Value::Object(_) => {
+            // Legacy plaintext object — accept and let next save re-encrypt.
+            let creds: StoredCredentials = serde_json::from_value(value.clone())
+                .map_err(|e| AuthError::InternalError(format!("parse plain credentials: {e}")))?;
+            Ok(Some(creds))
+        }
+        Value::Null => Ok(None),
+        other => Err(AuthError::InternalError(format!(
+            "unexpected credential entry type: {}",
+            other
+        ))),
     }
 }
 
@@ -224,6 +316,8 @@ impl FileCredentialStore {
 pub struct FileCredentialStoreBuilder {
     path_builder: AuthStorePathBuilder,
     server_key: Option<String>,
+    key: Option<Aes256Key>,
+    key_path: Option<PathBuf>,
 }
 
 impl FileCredentialStoreBuilder {
@@ -251,12 +345,32 @@ impl FileCredentialStoreBuilder {
         self
     }
 
+    /// Explicit AES-256 key material.
+    pub fn encryption_key(mut self, key: Aes256Key) -> Self {
+        self.key = Some(key);
+        self
+    }
+
+    /// Override path of the key file (default: sibling `auth.key`).
+    pub fn key_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.key_path = Some(path.into());
+        self
+    }
+
     pub fn build(self) -> Result<FileCredentialStore> {
         let server_key = self
             .server_key
             .filter(|s| !s.trim().is_empty())
             .context("FileCredentialStore requires a non-empty server_key")?;
-        Ok(FileCredentialStore::new(self.path_builder.build(), server_key))
+        let path = self.path_builder.build();
+        if let Some(key) = self.key {
+            return Ok(FileCredentialStore::with_key(path, server_key, key));
+        }
+        let mut store = FileCredentialStore::new(path, server_key);
+        if let Some(key_path) = self.key_path {
+            store.crypto = CryptoSource::AutoKeyFile(key_path);
+        }
+        Ok(store)
     }
 }
 
@@ -283,37 +397,36 @@ impl CredentialStore for FileCredentialStore {
     async fn clear(&self) -> Result<(), AuthError> {
         *self.cache.write().await = None;
         self.write_entry(None).await?;
-        // Drop empty store file to avoid leaving a useless empty JSON behind.
-        if let Ok(file) = AuthStoreFile::load_from_path(&self.path)
+        let _guard = lock_auth_store(&self.path)
+            .await
+            .map_err(|e| AuthError::InternalError(format!("lock auth store: {e}")))?;
+        if let Ok(file) = AuthStoreFile::load_from_path(&self.path).await
             && file.mcp.is_empty()
             && self.path.exists()
         {
-            let _ = std::fs::remove_file(&self.path);
+            let _ = tokio::fs::remove_file(&self.path).await;
         }
         Ok(())
     }
-}
-
-fn write_private_bytes_sync(path: &Path, bytes: &[u8]) -> Result<()> {
-    std::fs::write(path, bytes).with_context(|| format!("write {}", path.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(path, perms).with_context(|| format!("chmod credentials {}", path.display()))?;
-    }
-    Ok(())
 }
 
 // ---------------------------------------------------------------------------
 // Public helpers
 // ---------------------------------------------------------------------------
 
-/// True when `auth.json` contains credentials for `server_name`.
+/// True when `auth.json` contains an entry for `server_name` (encrypted or plain).
 pub fn has_stored_credentials(auth_store_path: &Path, server_name: &str) -> bool {
-    AuthStoreFile::load_from_path(auth_store_path)
-        .map(|f| f.mcp.contains_key(server_name))
-        .unwrap_or(false)
+    // Sync probe for CLI; best-effort read without decrypt.
+    if !auth_store_path.exists() {
+        return false;
+    }
+    let Ok(bytes) = std::fs::read(auth_store_path) else {
+        return false;
+    };
+    let Ok(file) = serde_json::from_slice::<AuthStoreFile>(&bytes) else {
+        return false;
+    };
+    file.contains_server(server_name)
 }
 
 /// Remove stored OAuth credentials for a server from the shared store.
@@ -333,14 +446,11 @@ pub async fn clear_credentials(auth_store_path: &Path, server_name: &str) -> Res
 #[derive(Debug)]
 pub struct McpOAuthFlowResult {
     pub server_name: String,
-    /// Path to the shared auth store file (`auth.json`).
     pub credentials_path: PathBuf,
     pub client_id: String,
 }
 
 /// Run the OAuth 2.1 authorization-code + PKCE flow for an MCP HTTP server URL.
-///
-/// `auth_store_path` is the full path to the shared credentials file (e.g. `~/.elph/auth.json`).
 pub async fn run_oauth_flow(
     server_name: &str,
     server_url: &str,
@@ -391,7 +501,7 @@ pub async fn run_oauth_flow(
         .map_err(|e| anyhow::anyhow!("read OAuth credentials: {e}"))?;
 
     println!(
-        "Authorized MCP server '{server_name}'. Credentials saved to {}.",
+        "Authorized MCP server '{server_name}'. Credentials saved (encrypted) to {}.",
         auth_store_path.display()
     );
 
@@ -509,7 +619,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn multi_server_store_roundtrip() {
+    async fn multi_server_store_encrypted_roundtrip() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("auth.json");
 
@@ -521,6 +631,11 @@ mod tests {
 
         let creds_b = StoredCredentials::new("client-b".into(), None, vec![], Some(2));
         b.save(creds_b.clone()).await.unwrap();
+
+        // On disk: entries must be enc: strings
+        let raw = tokio::fs::read_to_string(&path).await.unwrap();
+        assert!(raw.contains(ENC_PREFIX), "expected encrypted payload: {raw}");
+        assert!(!raw.contains("client-a"), "client id must not appear in plaintext");
 
         assert!(has_stored_credentials(&path, "server-a"));
         assert!(has_stored_credentials(&path, "server-b"));
@@ -537,6 +652,34 @@ mod tests {
 
         b.clear().await.unwrap();
         assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn migrates_plain_entry_on_resave() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("auth.json");
+        // Seed legacy plaintext object
+        let plain = serde_json::json!({
+            "mcp": {
+                "legacy": {
+                    "client_id": "old-client",
+                    "granted_scopes": [],
+                    "token_received_at": 1
+                }
+            }
+        });
+        tokio::fs::write(&path, serde_json::to_vec_pretty(&plain).unwrap())
+            .await
+            .unwrap();
+
+        let store = FileCredentialStore::new(&path, "legacy");
+        let loaded = store.load().await.unwrap().unwrap();
+        assert_eq!(loaded.client_id, "old-client");
+        store.save(loaded).await.unwrap();
+
+        let raw = tokio::fs::read_to_string(&path).await.unwrap();
+        assert!(raw.contains(ENC_PREFIX));
+        assert!(!raw.contains("old-client"));
     }
 
     #[test]

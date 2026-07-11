@@ -2389,17 +2389,21 @@ dependencies = [
 name = "elph-agent"
 version = "0.0.27"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "bytes",
  "crossbeam-channel",
  "elph-ai",
  "elph-core",
  "fff-search",
+ "fs4",
  "futures",
  "http 1.4.2",
  "ignore",
  "indicatif",
+ "jsonschema",
  "memorable-ids",
  "obscura",
  "parking_lot",
@@ -2896,6 +2900,16 @@ checksum = "e076045bb43dac435333ed5f04caf35c7463631d0dae2deb2638d94dd0a5b872"
 dependencies = [
  "lazy_static",
  "num",
+]
+
+[[package]]
+name = "fs4"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8640e34b88f7652208ce9e88b1a37a2ae95227d84abec377ccd3c5cfeb141ed4"
+dependencies = [
+ "rustix 1.1.4",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

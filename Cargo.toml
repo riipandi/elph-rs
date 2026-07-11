@@ -17,6 +17,7 @@ aws-sdk-bedrockruntime = "1.136.0"
 aws-smithy-runtime-api = "1.13.0"
 aws-smithy-types = "1.6.1"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
+aes-gcm = "0.10.3"
 base64 = "0.22.1"
 bytes = "1.12.1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
@@ -39,6 +40,7 @@ elph-core = { path = "crates/elph-core", version = "0.0.15" }
 elph-tui = { path = "crates/elph-tui", version = "0.0.26" }
 eventsource-stream = "0.2.3"
 fastembed = { version = "5.17.2" }
+fs4 = "0.13.1"
 fff-search = "0.9.6"
 futures = "0.3.32"
 futures-util = "0.3.32"

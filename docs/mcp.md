@@ -4,7 +4,25 @@ Elph connects to [Model Context Protocol](https://modelcontextprotocol.io/) serv
 
 ## Config
 
-File: `~/.elph/mcp.json` (schema: [`schemas/mcp-schema.json`](../schemas/mcp-schema.json)).
+Schema: [`schemas/mcp-schema.json`](../schemas/mcp-schema.json).
+
+| Layer | Path | Role |
+|-------|------|------|
+| **Home** | `~/.elph/mcp.json` | Global servers; default for `elph mcp add` |
+| **Project** | `<project>/.elph/mcp.json` | Overrides / extra servers for this repo |
+
+Runtime loads **home**, then merges **project** on top (same server name → project wins).
+Policy maps are merged the same way as per-server policy overlays.
+
+```bash
+# Project-only DeepWiki (does not touch home config)
+elph mcp add --project deepwiki '{"type":"http","url":"https://mcp.deepwiki.com/mcp"}'
+
+elph mcp list                 # merged view with [home] / [project] tags
+elph mcp list --project       # project layer only
+elph mcp remove --project deepwiki
+elph mcp remove --all name    # both layers
+```
 
 ```json
 {
@@ -52,8 +70,21 @@ elph mcp logout remote
 
 Credentials: shared file `~/.elph/auth.json` (keyed by server name under `mcp`, mode `0600` on Unix).
 
+Each server entry is **AES-256-GCM** encrypted with prefix `enc:` (URL-safe base64 of
+`nonce || ciphertext`). The 32-byte key lives next to the store as `auth.key` (also `0600`),
+or can be supplied via `FileCredentialStore::with_key` / builder. Crypto runs on
+`spawn_blocking` so the async runtime is not blocked.
+
+Legacy plaintext objects are still readable and re-encrypted on the next save.
+
 The library does not hardcode this path — hosts pass it via `AuthStorePathBuilder` /
 `McpLoadOptions.auth_store_path` (default filename `auth.json`).
+
+### Config validation
+
+`mcp.json` is validated on load against `schemas/mcp-schema.json` plus semantic checks
+(empty command, invalid URL scheme, empty policy patterns). Invalid files fail with a
+clear multi-error message instead of being half-applied.
 
 ## CLI
 
@@ -99,3 +130,49 @@ options.auth_store_path = Some(paths.auth_store_path());
 let registry = McpToolRegistry::load_with_options(config, options).await?;
 let tools = registry.create_agent_tools();
 ```
+
+## Example: DeepWiki (public, no auth)
+
+DeepWiki is a free remote MCP server for public GitHub documentation
+([docs](https://docs.devin.ai/work-with-devin/deepwiki-mcp)).
+
+**Endpoint (Streamable HTTP):** `https://mcp.deepwiki.com/mcp`  
+(SSE `/sse` is deprecated.)
+
+### `~/.elph/mcp.json`
+
+```json
+{
+  "servers": {
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "timeoutMs": 120000
+    }
+  }
+}
+```
+
+### Run the example
+
+```bash
+cargo run -p elph-agent --features mcp --example mcp_deepwiki
+
+# Structure for another repo
+cargo run -p elph-agent --features mcp --example mcp_deepwiki -- \
+  --repo rust-lang/rust --tool read_wiki_structure
+
+# Ask a grounded question
+cargo run -p elph-agent --features mcp --example mcp_deepwiki -- \
+  --tool ask_question \
+  --repo modelcontextprotocol/rust-sdk \
+  --question "How does Streamable HTTP transport work?"
+```
+
+### Live integration tests
+
+```bash
+ELPH_MCP_LIVE=1 cargo test -p elph-agent --features mcp --test mcp_deepwiki -- --nocapture
+```
+
+Without `ELPH_MCP_LIVE=1` the network tests are skipped (safe for CI).

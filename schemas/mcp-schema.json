@@ -2,7 +2,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://github.com/riipandi/elph/schemas/mcp-schema.json",
     "title": "Elph MCP configuration",
-    "description": "MCP server definitions for Elph, typically stored at ~/.elph/mcp.json. Supports stdio, streamable HTTP, and legacy SSE transports; global/per-server tool policy; and OAuth for remote servers. Matches elph_agent::mcp::McpConfig.",
+    "description": "MCP server definitions for Elph. Home: ~/.elph/mcp.json; project override: <project>/.elph/mcp.json (merged on load, project wins). Supports stdio, streamable HTTP, and legacy SSE; policy; OAuth. Matches elph_agent::mcp::McpConfig.",
     "type": "object",
     "additionalProperties": false,
     "properties": {
@@ -218,6 +218,11 @@
                     "type": "sse",
                     "url": "http://localhost:3000/sse",
                     "authTokenEnv": "MCP_TOKEN"
+                },
+                "deepwiki": {
+                    "type": "http",
+                    "url": "https://mcp.deepwiki.com/mcp",
+                    "timeoutMs": 120000
                 }
             }
         }

@@ -18,7 +18,11 @@ use super::policy::McpPolicyConfig;
 /// Default per-operation timeout when a server does not override it.
 pub const DEFAULT_OPERATION_TIMEOUT_SECS: u64 = 60;
 
-/// Root MCP configuration (typically `~/.elph/mcp.json`).
+/// Root MCP configuration.
+///
+/// Typical locations:
+/// - **Home / global:** `~/.elph/mcp.json` (host config dir)
+/// - **Project override:** `<project>/.elph/mcp.json` (merged on top of home)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
@@ -40,7 +44,7 @@ impl McpConfig {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.servers.is_empty()
+        self.servers.is_empty() && self.policy.is_empty()
     }
 
     pub fn server_count(&self) -> usize {
@@ -57,6 +61,21 @@ impl McpConfig {
             Some(server_policy) if !server_policy.is_empty() => self.policy.merge(server_policy),
             _ => self.policy.clone(),
         }
+    }
+
+    /// Merge `overlay` on top of this config (project over home).
+    ///
+    /// - **Servers:** overlay entries replace same-name base entries entirely.
+    /// - **Policy:** overlay rules are prepended via [`McpPolicyConfig::merge`].
+    pub fn merge_with(&self, overlay: &McpConfig) -> McpConfig {
+        let mut out = self.clone();
+        if !overlay.policy.is_empty() {
+            out.policy = self.policy.merge(&overlay.policy);
+        }
+        for (name, server) in &overlay.servers {
+            out.servers.insert(name.clone(), server.clone());
+        }
+        out
     }
 }
 
@@ -89,31 +108,16 @@ impl McpServerConfig {
     }
 
     pub fn http(url: impl Into<String>) -> Self {
-        Self::Http(McpHttpConfig {
-            url: url.into(),
-            headers: BTreeMap::new(),
-            auth_token: None,
-            auth_token_env: None,
-            timeout_ms: None,
-            disabled: false,
-            oauth: false,
-            oauth_scopes: Vec::new(),
-            policy: None,
-        })
+        Self::Http(McpHttpConfig::new(url))
     }
 
     pub fn sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpHttpConfig {
-            url: url.into(),
-            headers: BTreeMap::new(),
-            auth_token: None,
-            auth_token_env: None,
-            timeout_ms: None,
-            disabled: false,
-            oauth: false,
-            oauth_scopes: Vec::new(),
-            policy: None,
-        })
+        Self::Sse(McpHttpConfig::new(url))
+    }
+
+    /// OAuth client metadata for remote servers (`http` / `sse`).
+    pub fn oauth_meta(&self) -> Option<McpOAuthClientMeta> {
+        self.http_config().map(|c| c.oauth_meta())
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -202,6 +206,17 @@ pub struct McpStdioConfig {
     pub policy: Option<McpPolicyConfig>,
 }
 
+/// OAuth client metadata used by `mcp auth` and token-aware transports.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct McpOAuthClientMeta {
+    pub scopes: Vec<String>,
+    pub client_name: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub client_metadata_url: Option<String>,
+    pub redirect_port: Option<u16>,
+}
+
 /// Streamable HTTP or legacy SSE MCP server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -229,12 +244,57 @@ pub struct McpHttpConfig {
     /// Optional OAuth scopes requested during `mcp auth`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub oauth_scopes: Vec<String>,
+    /// OAuth client display name (dynamic registration).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_client_name: Option<String>,
+    /// Pre-registered OAuth client id (skips dynamic registration when set).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_client_id: Option<String>,
+    /// Optional client secret for confidential clients.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_client_secret: Option<String>,
+    /// SEP-991 URL-based client id / client metadata document URL (https).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_client_metadata_url: Option<String>,
+    /// Fixed loopback redirect port for OAuth (default: ephemeral OS port).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_redirect_port: Option<u16>,
     /// Optional per-server tool policy overlay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy: Option<McpPolicyConfig>,
 }
 
 impl McpHttpConfig {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            headers: BTreeMap::new(),
+            auth_token: None,
+            auth_token_env: None,
+            timeout_ms: None,
+            disabled: false,
+            oauth: false,
+            oauth_scopes: Vec::new(),
+            oauth_client_name: None,
+            oauth_client_id: None,
+            oauth_client_secret: None,
+            oauth_client_metadata_url: None,
+            oauth_redirect_port: None,
+            policy: None,
+        }
+    }
+
+    pub fn oauth_meta(&self) -> McpOAuthClientMeta {
+        McpOAuthClientMeta {
+            scopes: self.oauth_scopes.clone(),
+            client_name: self.oauth_client_name.clone(),
+            client_id: self.oauth_client_id.clone(),
+            client_secret: self.oauth_client_secret.clone(),
+            client_metadata_url: self.oauth_client_metadata_url.clone(),
+            redirect_port: self.oauth_redirect_port,
+        }
+    }
+
     /// Resolve bearer token from inline value or environment.
     pub fn resolve_auth_token(&self) -> Option<String> {
         if let Some(token) = &self.auth_token
@@ -352,5 +412,44 @@ mod tests {
         let json = r#"{"type":"streamableHttp","url":"http://localhost:8080/mcp"}"#;
         let cfg: McpServerConfig = serde_json::from_str(json).expect("parse");
         assert!(matches!(cfg, McpServerConfig::Http(_)));
+    }
+
+    #[test]
+    fn merge_with_project_overrides_server_and_policy() {
+        let home: McpConfig = serde_json::from_str(
+            r#"{
+            "policy": { "default": "requireApproval", "allow": ["mcp_home__*"] },
+            "servers": {
+                "shared": { "type": "http", "url": "https://home.example/mcp" },
+                "home_only": { "type": "stdio", "command": "true" }
+            }
+        }"#,
+        )
+        .unwrap();
+        let project: McpConfig = serde_json::from_str(
+            r#"{
+            "policy": { "deny": ["mcp_danger__*"] },
+            "servers": {
+                "shared": { "type": "http", "url": "https://project.example/mcp", "disabled": true },
+                "project_only": { "type": "stdio", "command": "npx" }
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let merged = home.merge_with(&project);
+        assert_eq!(merged.server_count(), 3);
+        assert!(merged.servers.contains_key("home_only"));
+        assert!(merged.servers.contains_key("project_only"));
+        match merged.servers.get("shared") {
+            Some(McpServerConfig::Http(c)) => {
+                assert_eq!(c.url, "https://project.example/mcp");
+                assert!(c.disabled);
+            }
+            other => panic!("expected http shared, got {other:?}"),
+        }
+        // Project deny prepended; home allow retained.
+        assert!(merged.policy.deny.iter().any(|p| p == "mcp_danger__*"));
+        assert!(merged.policy.allow.iter().any(|p| p == "mcp_home__*"));
     }
 }

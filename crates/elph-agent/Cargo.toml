@@ -23,17 +23,21 @@ obscura = ["dep:obscura"]
 # obscura is git-only (h4ckf0r0day/obscura); workspace [patch.crates-io] redirects 0.1 → tag v0.1.9.
 
 [dependencies]
+aes-gcm.workspace = true
 anyhow.workspace = true
 async-trait = "0.1"
+base64.workspace = true
 bytes.workspace = true
 crossbeam-channel.workspace = true
 elph-ai.workspace = true
 elph-core.workspace = true
 fff-search.workspace = true
+fs4.workspace = true
 futures.workspace = true
 http.workspace = true
 ignore.workspace = true
 indicatif.workspace = true
+jsonschema.workspace = true
 memorable-ids.workspace = true
 obscura = { workspace = true, optional = true }
 parking_lot.workspace = true
@@ -126,6 +130,11 @@ path = "examples/agent_skills.rs"
 [[example]]
 name = "agent_skill_math"
 path = "examples/agent_skill_math.rs"
+
+[[example]]
+name = "mcp_deepwiki"
+path = "examples/mcp_deepwiki.rs"
+required-features = ["mcp"]
 
 [dev-dependencies]
 elph-ai = { workspace = true }

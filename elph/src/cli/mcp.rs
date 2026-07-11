@@ -4,13 +4,14 @@ use super::help;
 use elph_core::utils::path::AppPaths;
 
 use crate::platform::mcp as mcp_runtime;
+use crate::platform::mcp::{McpConfigScope, McpServerSource};
 use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode, Paths, Settings, ensure_home_blocking};
 use elph_agent::{McpServerConfig, clear_credentials, has_stored_credentials, probe_server_with_auth, run_oauth_flow};
 
 #[derive(Parser, Default)]
 #[command(
     name = "mcp",
-    about = "Manage MCP server configurations",
+    about = "Manage MCP server configurations (home + project layers)",
     color = clap::ColorChoice::Auto
 )]
 pub struct McpArgs {
@@ -20,8 +21,15 @@ pub struct McpArgs {
 
 #[derive(Subcommand)]
 pub enum McpCommands {
-    /// List configured MCP servers
-    List,
+    /// List configured MCP servers (merged home + project)
+    List {
+        /// Show only the project layer (`<project>/.elph/mcp.json`)
+        #[arg(long)]
+        project: bool,
+        /// Show only the home layer (`~/.elph/mcp.json`)
+        #[arg(long)]
+        home: bool,
+    },
     /// Add or update an MCP server configuration
     Add {
         /// Name of the MCP server
@@ -29,11 +37,20 @@ pub enum McpCommands {
         /// MCP server configuration (JSON string or file path)
         #[arg(value_name = "CONFIG")]
         config: Option<String>,
+        /// Write to `<project>/.elph/mcp.json` instead of home
+        #[arg(long)]
+        project: bool,
     },
     /// Remove an MCP server configuration
     Remove {
         /// Name of the MCP server to remove
         name: String,
+        /// Remove from project layer only
+        #[arg(long)]
+        project: bool,
+        /// Also try the other layer if not found in the primary scope
+        #[arg(long)]
+        all: bool,
     },
     /// Diagnose MCP server configuration and connectivity
     Doctor,
@@ -66,48 +83,26 @@ pub fn handle(args: &McpArgs) -> ExitCode {
     };
 
     match cmd {
-        McpCommands::List => match mcp_runtime::load_config(&paths) {
-            Ok(config) => {
-                if config.servers.is_empty() {
-                    println!("No MCP servers configured.");
-                    println!("Config: {}", paths.mcp_config_path().display());
-                } else {
-                    let auth_store_path = paths.auth_store_path();
-                    for (name, server) in &config.servers {
-                        let disabled = if server.is_disabled() { " [disabled]" } else { "" };
-                        let oauth = if has_stored_credentials(&auth_store_path, name) {
-                            " [oauth:authorized]"
-                        } else if server.wants_oauth() {
-                            " [oauth:needed]"
-                        } else {
-                            ""
-                        };
-                        println!("{name}: type={}{disabled}{oauth}", server.kind_label());
-                        if let Some(url) = server.remote_url() {
-                            println!("  url: {url}");
-                        }
-                        if let McpServerConfig::Stdio(c) = server {
-                            println!("  command: {} {:?}", c.command, c.args);
-                        }
-                    }
-                }
-                EXIT_SUCCESS
-            }
-            Err(error) => {
-                eprintln!("{error}");
-                EXIT_ERROR
-            }
-        },
-        McpCommands::Add { name, config } => {
+        McpCommands::List { project, home } => handle_list(&paths, *project, *home),
+        McpCommands::Add { name, config, project } => {
             let Some(raw) = config else {
                 help::unimplemented("MCP add — interactive config entry not yet implemented");
                 return EXIT_SUCCESS;
             };
+            let scope = if *project {
+                McpConfigScope::Project
+            } else {
+                McpConfigScope::Home
+            };
             match mcp_runtime::parse_server_config(raw) {
-                Ok(server) => match mcp_runtime::upsert_server(&paths, name, server) {
+                Ok(server) => match mcp_runtime::upsert_server_in(&paths, scope, name, server) {
                     Ok(()) => {
                         let _ = mcp_runtime::ensure_project_mcp_cache(&paths);
-                        println!("Saved MCP server '{name}' to {}", paths.mcp_config_path().display());
+                        println!(
+                            "Saved MCP server '{name}' to {} ({})",
+                            mcp_runtime::config_path(&paths, scope).display(),
+                            scope.label()
+                        );
                         EXIT_SUCCESS
                     }
                     Err(error) => {
@@ -121,26 +116,74 @@ pub fn handle(args: &McpArgs) -> ExitCode {
                 }
             }
         }
-        McpCommands::Remove { name } => match mcp_runtime::remove_server(&paths, name) {
-            Ok(true) => {
-                let auth_store_path = paths.auth_store_path();
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("tokio runtime");
-                let _ = rt.block_on(clear_credentials(&auth_store_path, name));
-                println!("Removed MCP server '{name}'.");
-                EXIT_SUCCESS
+        McpCommands::Remove { name, project, all } => {
+            let primary = if *project {
+                McpConfigScope::Project
+            } else {
+                McpConfigScope::Home
+            };
+            let mut removed_any = false;
+            match mcp_runtime::remove_server_in(&paths, primary, name) {
+                Ok(true) => {
+                    println!(
+                        "Removed MCP server '{name}' from {} ({})",
+                        mcp_runtime::config_path(&paths, primary).display(),
+                        primary.label()
+                    );
+                    removed_any = true;
+                }
+                Ok(false) if *all => {}
+                Ok(false) => {
+                    eprintln!(
+                        "MCP server '{name}' not found in {} layer. Try --project or --all.",
+                        primary.label()
+                    );
+                    return EXIT_ERROR;
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    return EXIT_ERROR;
+                }
             }
-            Ok(false) => {
+            if *all {
+                let other = match primary {
+                    McpConfigScope::Home => McpConfigScope::Project,
+                    McpConfigScope::Project => McpConfigScope::Home,
+                };
+                match mcp_runtime::remove_server_in(&paths, other, name) {
+                    Ok(true) => {
+                        println!(
+                            "Removed MCP server '{name}' from {} ({})",
+                            mcp_runtime::config_path(&paths, other).display(),
+                            other.label()
+                        );
+                        removed_any = true;
+                    }
+                    Ok(false) => {}
+                    Err(error) => {
+                        eprintln!("{error}");
+                        return EXIT_ERROR;
+                    }
+                }
+            }
+            if removed_any {
+                // Only clear OAuth if the name is gone from the merged view.
+                if let Ok(merged) = mcp_runtime::load_config(&paths)
+                    && !merged.servers.contains_key(name)
+                {
+                    let auth_store_path = paths.auth_store_path();
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("tokio runtime");
+                    let _ = rt.block_on(clear_credentials(&auth_store_path, name));
+                }
+                EXIT_SUCCESS
+            } else {
                 eprintln!("MCP server '{name}' not found.");
                 EXIT_ERROR
             }
-            Err(error) => {
-                eprintln!("{error}");
-                EXIT_ERROR
-            }
-        },
+        }
         McpCommands::Doctor => handle_doctor(&paths),
         McpCommands::Auth { name, scopes } => handle_auth(&paths, name, scopes),
         McpCommands::Logout { name } => {
@@ -165,6 +208,83 @@ pub fn handle(args: &McpArgs) -> ExitCode {
             }
         }
     }
+}
+
+fn handle_list(paths: &Paths, project_only: bool, home_only: bool) -> ExitCode {
+    if project_only && home_only {
+        eprintln!("Use only one of --project or --home.");
+        return EXIT_ERROR;
+    }
+
+    let (config, sources) = if project_only {
+        match mcp_runtime::load_layer(paths, McpConfigScope::Project) {
+            Ok(c) => (c, None),
+            Err(e) => {
+                eprintln!("{e}");
+                return EXIT_ERROR;
+            }
+        }
+    } else if home_only {
+        match mcp_runtime::load_layer(paths, McpConfigScope::Home) {
+            Ok(c) => (c, None),
+            Err(e) => {
+                eprintln!("{e}");
+                return EXIT_ERROR;
+            }
+        }
+    } else {
+        match (mcp_runtime::load_config(paths), mcp_runtime::server_sources(paths)) {
+            (Ok(c), Ok(s)) => (c, Some(s)),
+            (Err(e), _) | (_, Err(e)) => {
+                eprintln!("{e}");
+                return EXIT_ERROR;
+            }
+        }
+    };
+
+    println!("Home:    {}", paths.mcp_config_path().display());
+    println!("Project: {}", paths.project_mcp_config_path().display());
+    if project_only {
+        println!("Layer:   project only");
+    } else if home_only {
+        println!("Layer:   home only");
+    } else {
+        println!("Layer:   merged (project overrides home)");
+    }
+
+    if config.servers.is_empty() {
+        println!("No MCP servers configured.");
+        return EXIT_SUCCESS;
+    }
+
+    let auth_store_path = paths.auth_store_path();
+    for (name, server) in &config.servers {
+        let disabled = if server.is_disabled() { " [disabled]" } else { "" };
+        let oauth = if has_stored_credentials(&auth_store_path, name) {
+            " [oauth:authorized]"
+        } else if server.wants_oauth() {
+            " [oauth:needed]"
+        } else {
+            ""
+        };
+        let source = sources
+            .as_ref()
+            .and_then(|m| m.get(name))
+            .map(|s| match s {
+                McpServerSource::Home => " [home]",
+                McpServerSource::Project => " [project]",
+                McpServerSource::ProjectOverHome => " [project>home]",
+            })
+            .unwrap_or("");
+        println!("{name}: type={}{disabled}{oauth}{source}", server.kind_label());
+        if let Some(url) = server.remote_url() {
+            println!("  url: {url}");
+        }
+        if let McpServerConfig::Stdio(c) = server {
+            println!("  command: {} {:?}", c.command, c.args);
+        }
+    }
+    EXIT_SUCCESS
 }
 
 fn handle_auth(paths: &Paths, name: &str, scopes: &[String]) -> ExitCode {
