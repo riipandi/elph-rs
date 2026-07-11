@@ -1,6 +1,6 @@
 //! Web tools demo — search and fetch with real API calls.
 //!
-//! Uses OpenCode big-pickle with web_search and web_fetch tools.
+//! Uses OpenCode big-pickle with websearch and webfetch tools.
 //!
 //! ```bash
 //! export OPENCODE_API_KEY="your-key"
@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("Provider: OpenCode Zen");
     println!("Model:    {} ({})", model.name, model.id);
-    println!("Tools:    web_search, web_fetch, read, bash, edit, write, grep, find, ls");
+    println!("Tools:    websearch, webfetch, read, bash, edit, write, grep, find, ls");
     println!();
 
     let setup = progress_spinner("Resolving auth...");
@@ -82,8 +82,8 @@ async fn main() -> anyhow::Result<()> {
     let agent = Agent::new(AgentOptions {
         initial_state: Some(PartialAgentState {
             system_prompt: Some(
-                "You are a research assistant. Use web_search to find information, \
-                 web_fetch to read web pages, and other tools as needed. \
+                "You are a research assistant. Use websearch to find information, \
+                 webfetch to read web pages, and other tools as needed. \
                  Always cite your sources."
                     .into(),
             ),
@@ -130,14 +130,14 @@ async fn main() -> anyhow::Result<()> {
                             tool_calls.fetch_add(1, Ordering::SeqCst);
                             println!();
                             println!("🔧 Calling: {tool_name}");
-                            // Show query for web_search
-                            if tool_name == "web_search"
+                            // Show query for websearch
+                            if tool_name == "websearch"
                                 && let Some(query) = args.get("query").and_then(|q| q.as_str())
                             {
                                 println!("   Query: {query}");
                             }
-                            // Show URL for web_fetch
-                            if tool_name == "web_fetch"
+                            // Show URL for webfetch
+                            if tool_name == "webfetch"
                                 && let Some(url) = args.get("url").and_then(|u| u.as_str())
                             {
                                 println!("   URL: {url}");

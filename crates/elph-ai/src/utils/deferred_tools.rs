@@ -119,17 +119,17 @@ mod tests {
                     tool_name: "bash".into(),
                     content: vec![ContentBlock::Text { text: "ok".into() }],
                     details: None,
-                    added_tool_names: Some(vec!["web_search".into()]),
+                    added_tool_names: Some(vec!["websearch".into()]),
                     is_error: false,
                     timestamp: 1,
                 },
             ],
-            tools: Some(vec![tool("bash"), tool("web_search")]),
+            tools: Some(vec![tool("bash"), tool("websearch")]),
         };
 
         let (immediate, deferred) = split_deferred_tools(&context, true, None);
         assert_eq!(immediate.len(), 1);
         assert_eq!(immediate[0].name, "bash");
-        assert!(deferred.contains_key("web_search"));
+        assert!(deferred.contains_key("websearch"));
     }
 }

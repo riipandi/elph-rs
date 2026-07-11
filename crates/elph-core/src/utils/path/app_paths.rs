@@ -41,6 +41,19 @@ pub trait AppPaths {
         self.config_dir().join("mcp.json")
     }
 
+    /// Shared OAuth / credential store file (default `auth.json` under config dir).
+    ///
+    /// Host-agnostic: elph → `~/.elph/auth.json`, other apps join their own `config_dir`.
+    fn auth_store_path(&self) -> PathBuf {
+        self.config_dir().join("auth.json")
+    }
+
+    /// Prefer [`auth_store_path`](Self::auth_store_path).
+    #[deprecated(note = "use auth_store_path() — single auth.json file")]
+    fn mcp_auth_dir(&self) -> PathBuf {
+        self.auth_store_path()
+    }
+
     fn skills_dir(&self) -> PathBuf {
         self.config_dir().join("skills")
     }

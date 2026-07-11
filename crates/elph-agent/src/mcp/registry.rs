@@ -1,24 +1,31 @@
-//! MCP tool registry — discover remote tools and bridge them into the agent harness.
+//! MCP tool registry — discover remote tools/resources/prompts and bridge them into the agent harness.
 //!
 //! Production path:
-//! 1. [`McpToolRegistry::load`] / [`load_with_options`] discovers tools (fail-open by default).
+//! 1. [`McpToolRegistry::load`] / [`load_with_options`] discovers catalogs (fail-open by default).
 //! 2. Sessions are pooled so tool calls reuse stdio processes / HTTP sessions.
 //! 3. [`McpToolRegistry::create_agent_tools`] exposes `mcp_{server}__{tool}` agent tools.
+//! 4. Policy filters deny-listed tools; approval is enforced via [`crate::mcp::policy`].
+//! 5. `tools/list_changed` (and resource/prompt variants) can refresh catalogs in place.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use elph_ai::Tool;
 use futures::stream::{self, StreamExt};
-use rmcp::model::{CallToolResult, ContentBlock, Tool as McpTool};
+use parking_lot::RwLock;
+use rmcp::model::{CallToolResult, ContentBlock, Prompt, Resource, ResourceContents, Tool as McpTool};
 use serde_json::{Value, json};
+use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult, ToolResultContent};
 
-use super::client::{call_tool_for_server, probe_server, validate_server_config};
+use super::client::{call_tool_for_server, probe_server_with_auth, validate_server_config};
 use super::config::{McpConfig, McpLoadOptions, McpServerConfig};
+use super::events::McpServerEvent;
+use super::policy::{McpPolicyConfig, mcp_tool_requires_approval};
 use super::session::McpSessionPool;
 
 /// A discovered MCP tool ready for exposure to the model.
@@ -29,6 +36,26 @@ pub struct McpToolDescriptor {
     pub exposed_name: String,
     pub description: String,
     pub parameters: Value,
+    pub requires_approval: bool,
+}
+
+/// Discovered resource metadata.
+#[derive(Debug, Clone)]
+pub struct McpResourceDescriptor {
+    pub server_name: String,
+    pub uri: String,
+    pub name: String,
+    pub description: String,
+    pub mime_type: Option<String>,
+}
+
+/// Discovered prompt metadata.
+#[derive(Debug, Clone)]
+pub struct McpPromptDescriptor {
+    pub server_name: String,
+    pub name: String,
+    pub description: String,
+    pub arguments_schema: Value,
 }
 
 /// Per-server discovery outcome.
@@ -38,6 +65,8 @@ pub struct McpServerLoadReport {
     pub ok: bool,
     pub transport: String,
     pub tool_count: usize,
+    pub resource_count: usize,
+    pub prompt_count: usize,
     pub message: String,
 }
 
@@ -46,26 +75,44 @@ pub struct McpServerLoadReport {
 pub struct McpLoadReport {
     pub servers: Vec<McpServerLoadReport>,
     pub tools_loaded: usize,
+    pub resources_loaded: usize,
+    pub prompts_loaded: usize,
     pub servers_ok: usize,
     pub servers_failed: usize,
     pub servers_skipped: usize,
 }
 
-/// Registry of MCP servers, pooled sessions, and discovered tools.
+/// Registry of MCP servers, pooled sessions, and discovered catalogs.
 pub struct McpToolRegistry {
     config: McpConfig,
-    tools: Vec<McpToolDescriptor>,
+    tools: RwLock<Vec<McpToolDescriptor>>,
+    resources: RwLock<Vec<McpResourceDescriptor>>,
+    prompts: RwLock<Vec<McpPromptDescriptor>>,
+    /// Servers that successfully listed resources (even if empty).
+    resource_capable: RwLock<Vec<String>>,
+    /// Servers that successfully listed prompts (even if empty).
+    prompt_capable: RwLock<Vec<String>>,
     pool: Arc<McpSessionPool>,
-    report: McpLoadReport,
+    report: RwLock<McpLoadReport>,
+    policy: McpPolicyConfig,
+    auth_store_path: Option<PathBuf>,
+    event_rx: RwLock<Option<mpsc::UnboundedReceiver<McpServerEvent>>>,
 }
 
 impl McpToolRegistry {
     pub fn empty() -> Self {
         Self {
             config: McpConfig::default(),
-            tools: Vec::new(),
+            tools: RwLock::new(Vec::new()),
+            resources: RwLock::new(Vec::new()),
+            prompts: RwLock::new(Vec::new()),
+            resource_capable: RwLock::new(Vec::new()),
+            prompt_capable: RwLock::new(Vec::new()),
             pool: Arc::new(McpSessionPool::new()),
-            report: McpLoadReport::default(),
+            report: RwLock::new(McpLoadReport::default()),
+            policy: McpPolicyConfig::default(),
+            auth_store_path: None,
+            event_rx: RwLock::new(None),
         }
     }
 
@@ -74,9 +121,19 @@ impl McpToolRegistry {
         Self::load_with_options(config, McpLoadOptions::default()).await
     }
 
-    /// Discover tools from all enabled servers.
+    /// Discover tools (and optionally resources/prompts) from all enabled servers.
     pub async fn load_with_options(config: McpConfig, options: McpLoadOptions) -> Result<Self> {
-        let pool = Arc::new(McpSessionPool::new());
+        let pool = McpSessionPool::new().with_auth_store_path(options.auth_store_path.clone());
+        let (event_tx, event_rx) = if options.enable_list_changed {
+            let (tx, rx) = mpsc::unbounded_channel();
+            pool.set_event_sender(tx.clone());
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
+        let _ = event_tx;
+        let pool = Arc::new(pool);
+
         let enabled: Vec<(String, McpServerConfig)> = config
             .enabled_servers()
             .map(|(n, c)| (n.to_string(), c.clone()))
@@ -85,17 +142,22 @@ impl McpToolRegistry {
 
         let concurrency = options.max_concurrency.max(1);
         let pool_for_discovery = Arc::clone(&pool);
+        let discover_rp = options.discover_resources_and_prompts;
         let results: Vec<ServerDiscovery> = stream::iter(enabled)
             .map(|(name, server_config)| {
                 let discovery_timeout = options.discovery_timeout;
                 let pool = Arc::clone(&pool_for_discovery);
-                async move { discover_one(&pool, &name, server_config, discovery_timeout).await }
+                async move { discover_one(&pool, &name, server_config, discovery_timeout, discover_rp).await }
             })
             .buffer_unordered(concurrency)
             .collect()
             .await;
 
         let mut tools = Vec::new();
+        let mut resources = Vec::new();
+        let mut prompts = Vec::new();
+        let mut resource_capable = Vec::new();
+        let mut prompt_capable = Vec::new();
         let mut report = McpLoadReport {
             servers_skipped: skipped,
             ..Default::default()
@@ -107,18 +169,34 @@ impl McpToolRegistry {
                     name,
                     transport,
                     descriptors,
+                    resource_descriptors,
+                    prompt_descriptors,
+                    resources_ok,
+                    prompts_ok,
                     message,
                 } => {
                     report.servers_ok += 1;
                     report.tools_loaded += descriptors.len();
+                    report.resources_loaded += resource_descriptors.len();
+                    report.prompts_loaded += prompt_descriptors.len();
                     report.servers.push(McpServerLoadReport {
                         name: name.clone(),
                         ok: true,
                         transport,
                         tool_count: descriptors.len(),
+                        resource_count: resource_descriptors.len(),
+                        prompt_count: prompt_descriptors.len(),
                         message,
                     });
                     tools.extend(descriptors);
+                    resources.extend(resource_descriptors);
+                    prompts.extend(prompt_descriptors);
+                    if resources_ok {
+                        resource_capable.push(name.clone());
+                    }
+                    if prompts_ok {
+                        prompt_capable.push(name);
+                    }
                 }
                 ServerDiscovery::Failed { name, transport, error } => {
                     report.servers_failed += 1;
@@ -127,6 +205,8 @@ impl McpToolRegistry {
                         ok: false,
                         transport,
                         tool_count: 0,
+                        resource_count: 0,
+                        prompt_count: 0,
                         message: error.clone(),
                     });
                     if options.continue_on_error {
@@ -138,8 +218,28 @@ impl McpToolRegistry {
             }
         }
 
+        // Apply global policy for requires_approval flags
+        let policy = config.policy.clone();
+        for tool in &mut tools {
+            let server_cfg = config.servers.get(&tool.server_name);
+            let effective = server_cfg
+                .map(|s| config.effective_policy(s))
+                .unwrap_or_else(|| policy.clone());
+            tool.requires_approval = mcp_tool_requires_approval(&effective, &tool.exposed_name);
+            // Drop denied tools
+        }
+        tools.retain(|t| {
+            let server_cfg = config.servers.get(&t.server_name);
+            let effective = server_cfg
+                .map(|s| config.effective_policy(s))
+                .unwrap_or_else(|| policy.clone());
+            effective.is_exposed(&t.exposed_name)
+        });
+
         info!(
             tools = report.tools_loaded,
+            resources = report.resources_loaded,
+            prompts = report.prompts_loaded,
             ok = report.servers_ok,
             failed = report.servers_failed,
             skipped = report.servers_skipped,
@@ -148,9 +248,16 @@ impl McpToolRegistry {
 
         Ok(Self {
             config,
-            tools,
+            tools: RwLock::new(tools),
+            resources: RwLock::new(resources),
+            prompts: RwLock::new(prompts),
+            resource_capable: RwLock::new(resource_capable),
+            prompt_capable: RwLock::new(prompt_capable),
             pool,
-            report,
+            report: RwLock::new(report),
+            policy,
+            auth_store_path: options.auth_store_path,
+            event_rx: RwLock::new(event_rx),
         })
     }
 
@@ -158,74 +265,340 @@ impl McpToolRegistry {
         &self.config
     }
 
-    pub fn descriptors(&self) -> &[McpToolDescriptor] {
-        &self.tools
+    pub fn policy(&self) -> &McpPolicyConfig {
+        &self.policy
+    }
+
+    pub fn effective_policy_for(&self, server_name: &str) -> McpPolicyConfig {
+        self.config
+            .servers
+            .get(server_name)
+            .map(|s| self.config.effective_policy(s))
+            .unwrap_or_else(|| self.policy.clone())
+    }
+
+    /// Whether a tool (by exposed name) requires approval under effective policy.
+    pub fn tool_requires_approval(&self, exposed_name: &str) -> bool {
+        if let Some(desc) = self.tools.read().iter().find(|t| t.exposed_name == exposed_name) {
+            return desc.requires_approval;
+        }
+        mcp_tool_requires_approval(&self.policy, exposed_name)
+    }
+
+    pub fn descriptors(&self) -> Vec<McpToolDescriptor> {
+        self.tools.read().clone()
+    }
+
+    pub fn resource_descriptors(&self) -> Vec<McpResourceDescriptor> {
+        self.resources.read().clone()
+    }
+
+    pub fn prompt_descriptors(&self) -> Vec<McpPromptDescriptor> {
+        self.prompts.read().clone()
     }
 
     pub fn tool_count(&self) -> usize {
-        self.tools.len()
+        self.tools.read().len()
     }
 
     pub fn server_count(&self) -> usize {
         self.config.servers.len()
     }
 
-    pub fn load_report(&self) -> &McpLoadReport {
-        &self.report
+    pub fn load_report(&self) -> McpLoadReport {
+        self.report.read().clone()
     }
 
     pub fn session_pool(&self) -> &Arc<McpSessionPool> {
         &self.pool
     }
 
-    /// Refresh tools for a single server (reconnect + re-list).
-    pub async fn refresh_server(&mut self, server_name: &str) -> Result<usize> {
+    pub fn auth_store_path(&self) -> Option<&PathBuf> {
+        self.auth_store_path.as_ref()
+    }
+
+    /// Take the list_changed event receiver (at most once).
+    pub fn take_event_receiver(&self) -> Option<mpsc::UnboundedReceiver<McpServerEvent>> {
+        self.event_rx.write().take()
+    }
+
+    /// Refresh tools (and resources/prompts) for a single server.
+    pub async fn refresh_server(&self, server_name: &str) -> Result<usize> {
         let Some(server_config) = self.config.servers.get(server_name).cloned() else {
             anyhow::bail!("MCP server \"{server_name}\" not configured");
         };
         if server_config.is_disabled() {
-            self.tools.retain(|t| t.server_name != server_name);
+            self.tools.write().retain(|t| t.server_name != server_name);
+            self.resources.write().retain(|t| t.server_name != server_name);
+            self.prompts.write().retain(|t| t.server_name != server_name);
+            self.resource_capable.write().retain(|n| n != server_name);
+            self.prompt_capable.write().retain(|n| n != server_name);
             let _ = self.pool.remove(server_name).await;
             return Ok(0);
         }
 
         let _ = self.pool.remove(server_name).await;
-        let discovery = discover_one(&self.pool, server_name, server_config, None).await;
+        let discovery = discover_one(&self.pool, server_name, server_config, None, true).await;
         match discovery {
-            ServerDiscovery::Ok { descriptors, .. } => {
-                let count = descriptors.len();
-                self.tools.retain(|t| t.server_name != server_name);
-                self.tools.extend(descriptors);
+            ServerDiscovery::Ok {
+                descriptors,
+                resource_descriptors,
+                prompt_descriptors,
+                resources_ok,
+                prompts_ok,
+                ..
+            } => {
+                let policy = self.effective_policy_for(server_name);
+                let mut tools: Vec<_> = descriptors
+                    .into_iter()
+                    .map(|mut d| {
+                        d.requires_approval = mcp_tool_requires_approval(&policy, &d.exposed_name);
+                        d
+                    })
+                    .filter(|d| policy.is_exposed(&d.exposed_name))
+                    .collect();
+                let count = tools.len();
+
+                {
+                    let mut all = self.tools.write();
+                    all.retain(|t| t.server_name != server_name);
+                    all.append(&mut tools);
+                }
+                {
+                    let mut all = self.resources.write();
+                    all.retain(|t| t.server_name != server_name);
+                    all.extend(resource_descriptors);
+                }
+                {
+                    let mut all = self.prompts.write();
+                    all.retain(|t| t.server_name != server_name);
+                    all.extend(prompt_descriptors);
+                }
+                {
+                    let mut caps = self.resource_capable.write();
+                    caps.retain(|n| n != server_name);
+                    if resources_ok {
+                        caps.push(server_name.to_string());
+                    }
+                }
+                {
+                    let mut caps = self.prompt_capable.write();
+                    caps.retain(|n| n != server_name);
+                    if prompts_ok {
+                        caps.push(server_name.to_string());
+                    }
+                }
                 Ok(count)
             }
             ServerDiscovery::Failed { error, .. } => Err(anyhow::anyhow!(error)),
         }
     }
 
-    /// Convert discovered MCP tools into harness [`AgentTool`]s using the session pool.
+    /// Apply a list_changed (or related) event by refreshing the affected server.
+    pub async fn handle_event(&self, event: &McpServerEvent) -> Result<usize> {
+        let server = match event {
+            McpServerEvent::ToolListChanged { server }
+            | McpServerEvent::ResourceListChanged { server }
+            | McpServerEvent::PromptListChanged { server }
+            | McpServerEvent::ResourceUpdated { server, .. } => server.as_str(),
+        };
+        info!(%server, ?event, "MCP catalog change; refreshing server");
+        self.refresh_server(server).await
+    }
+
+    /// Spawn a background task that refreshes catalogs on list_changed notifications.
+    ///
+    /// `on_refresh` is invoked after a successful refresh so the product can call
+    /// `harness.set_tools` with rebuilt agent tools.
+    pub fn spawn_hot_reload<F>(self: &Arc<Self>, mut on_refresh: F) -> bool
+    where
+        F: FnMut(Arc<McpToolRegistry>) + Send + 'static,
+    {
+        let Some(mut rx) = self.take_event_receiver() else {
+            return false;
+        };
+        let registry = Arc::clone(self);
+        tokio::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                match registry.handle_event(&event).await {
+                    Ok(_) => on_refresh(Arc::clone(&registry)),
+                    Err(error) => {
+                        warn!(error = %error, "MCP hot reload failed");
+                    }
+                }
+            }
+        });
+        true
+    }
+
+    /// Convert discovered MCP tools (+ resource/prompt bridge tools) into harness [`AgentTool`]s.
     pub fn create_agent_tools(self: &Arc<Self>) -> Vec<AgentTool> {
-        self.tools
-            .iter()
-            .map(|desc| {
-                let registry = Arc::clone(self);
-                let server = desc.server_name.clone();
-                let tool_name = desc.tool_name.clone();
-                simple_tool(
-                    Tool {
-                        name: desc.exposed_name.clone(),
-                        description: desc.description.clone(),
-                        parameters: desc.parameters.clone(),
+        let mut out = Vec::new();
+
+        for desc in self.tools.read().iter() {
+            let registry = Arc::clone(self);
+            let server = desc.server_name.clone();
+            let tool_name = desc.tool_name.clone();
+            out.push(simple_tool(
+                Tool {
+                    name: desc.exposed_name.clone(),
+                    description: desc.description.clone(),
+                    parameters: desc.parameters.clone(),
+                },
+                format!("MCP:{}", desc.server_name),
+                move |_, args| {
+                    let registry = registry.clone();
+                    let server = server.clone();
+                    let tool_name = tool_name.clone();
+                    Box::pin(async move { registry.call_tool(&server, &tool_name, args).await })
+                },
+            ));
+        }
+
+        // Bridge tools for resources / prompts per capable server.
+        for server in self.resource_capable.read().iter() {
+            out.push(self.bridge_list_resources(server));
+            out.push(self.bridge_read_resource(server));
+        }
+        for server in self.prompt_capable.read().iter() {
+            out.push(self.bridge_list_prompts(server));
+            out.push(self.bridge_get_prompt(server));
+        }
+
+        out
+    }
+
+    fn bridge_list_resources(self: &Arc<Self>, server: &str) -> AgentTool {
+        let registry = Arc::clone(self);
+        let server_owned = server.to_string();
+        let name = expose_tool_name(server, "list_resources");
+        simple_tool(
+            Tool {
+                name,
+                description: format!("[MCP:{server}] List resources available on this MCP server"),
+                parameters: json!({ "type": "object", "properties": {} }),
+            },
+            format!("MCP:{server}"),
+            move |_, _| {
+                let registry = registry.clone();
+                let server = server_owned.clone();
+                Box::pin(async move {
+                    let items = registry.resources.read().clone();
+                    let filtered: Vec<_> = items.into_iter().filter(|r| r.server_name == server).collect();
+                    let payload = json!(
+                        filtered
+                            .iter()
+                            .map(|r| json!({
+                                "uri": r.uri,
+                                "name": r.name,
+                                "description": r.description,
+                                "mimeType": r.mime_type,
+                            }))
+                            .collect::<Vec<_>>()
+                    );
+                    Ok(AgentToolResult::text(payload.to_string()))
+                })
+            },
+        )
+    }
+
+    fn bridge_read_resource(self: &Arc<Self>, server: &str) -> AgentTool {
+        let registry = Arc::clone(self);
+        let server_owned = server.to_string();
+        let name = expose_tool_name(server, "read_resource");
+        simple_tool(
+            Tool {
+                name,
+                description: format!("[MCP:{server}] Read a resource by URI from this MCP server"),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "uri": { "type": "string", "description": "Resource URI" }
                     },
-                    format!("MCP:{}", desc.server_name),
-                    move |_, args| {
-                        let registry = registry.clone();
-                        let server = server.clone();
-                        let tool_name = tool_name.clone();
-                        Box::pin(async move { registry.call_tool(&server, &tool_name, args).await })
+                    "required": ["uri"]
+                }),
+            },
+            format!("MCP:{server}"),
+            move |_, args| {
+                let registry = registry.clone();
+                let server = server_owned.clone();
+                Box::pin(async move {
+                    let uri = args
+                        .get("uri")
+                        .and_then(|v| v.as_str())
+                        .context("uri is required")?
+                        .to_string();
+                    registry.read_resource(&server, &uri).await
+                })
+            },
+        )
+    }
+
+    fn bridge_list_prompts(self: &Arc<Self>, server: &str) -> AgentTool {
+        let registry = Arc::clone(self);
+        let server_owned = server.to_string();
+        let name = expose_tool_name(server, "list_prompts");
+        simple_tool(
+            Tool {
+                name,
+                description: format!("[MCP:{server}] List prompt templates on this MCP server"),
+                parameters: json!({ "type": "object", "properties": {} }),
+            },
+            format!("MCP:{server}"),
+            move |_, _| {
+                let registry = registry.clone();
+                let server = server_owned.clone();
+                Box::pin(async move {
+                    let items = registry.prompts.read().clone();
+                    let filtered: Vec<_> = items.into_iter().filter(|p| p.server_name == server).collect();
+                    let payload = json!(
+                        filtered
+                            .iter()
+                            .map(|p| json!({
+                                "name": p.name,
+                                "description": p.description,
+                                "arguments": p.arguments_schema,
+                            }))
+                            .collect::<Vec<_>>()
+                    );
+                    Ok(AgentToolResult::text(payload.to_string()))
+                })
+            },
+        )
+    }
+
+    fn bridge_get_prompt(self: &Arc<Self>, server: &str) -> AgentTool {
+        let registry = Arc::clone(self);
+        let server_owned = server.to_string();
+        let name = expose_tool_name(server, "get_prompt");
+        simple_tool(
+            Tool {
+                name,
+                description: format!("[MCP:{server}] Fetch a prompt template with optional arguments"),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string", "description": "Prompt name" },
+                        "arguments": { "type": "object", "description": "Prompt arguments" }
                     },
-                )
-            })
-            .collect()
+                    "required": ["name"]
+                }),
+            },
+            format!("MCP:{server}"),
+            move |_, args| {
+                let registry = registry.clone();
+                let server = server_owned.clone();
+                Box::pin(async move {
+                    let prompt_name = args
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .context("name is required")?
+                        .to_string();
+                    let arguments = args.get("arguments").cloned();
+                    registry.get_prompt(&server, &prompt_name, arguments).await
+                })
+            },
+        )
     }
 
     /// Call a tool on a configured server (pooled connection).
@@ -245,6 +618,39 @@ impl McpToolRegistry {
         Ok(mcp_result_to_agent(result))
     }
 
+    pub async fn read_resource(&self, server: &str, uri: &str) -> Result<AgentToolResult> {
+        let Some(server_config) = self.config.servers.get(server).cloned() else {
+            anyhow::bail!("MCP server \"{server}\" not configured");
+        };
+        let contents = self
+            .pool
+            .read_resource(server, server_config, uri)
+            .await
+            .with_context(|| format!("MCP resource {server}/{uri}"))?;
+        Ok(resource_contents_to_agent(contents))
+    }
+
+    pub async fn get_prompt(
+        &self,
+        server: &str,
+        prompt_name: &str,
+        arguments: Option<Value>,
+    ) -> Result<AgentToolResult> {
+        let Some(server_config) = self.config.servers.get(server).cloned() else {
+            anyhow::bail!("MCP server \"{server}\" not configured");
+        };
+        let result = self
+            .pool
+            .get_prompt(server, server_config, prompt_name, arguments)
+            .await
+            .with_context(|| format!("MCP prompt {server}/{prompt_name}"))?;
+        let text = match serde_json::to_string_pretty(&result) {
+            Ok(s) => s,
+            Err(_) => format!("{result:?}"),
+        };
+        Ok(AgentToolResult::text(text))
+    }
+
     /// One-shot call without using the pool (tests / doctor).
     pub async fn call_tool_ephemeral(&self, server: &str, tool_name: &str, args: Value) -> Result<AgentToolResult> {
         let Some(server_config) = self.config.servers.get(server) else {
@@ -254,11 +660,11 @@ impl McpToolRegistry {
         Ok(mcp_result_to_agent(result))
     }
 
-    /// Probe all configured servers (including disabled? no — enabled only).
+    /// Probe all enabled servers.
     pub async fn probe_all(&self) -> Vec<super::client::McpProbeResult> {
         let mut out = Vec::new();
         for (name, config) in self.config.enabled_servers() {
-            out.push(probe_server(name, config).await);
+            out.push(probe_server_with_auth(name, config, self.auth_store_path.as_deref()).await);
         }
         out
     }
@@ -274,6 +680,10 @@ enum ServerDiscovery {
         name: String,
         transport: String,
         descriptors: Vec<McpToolDescriptor>,
+        resource_descriptors: Vec<McpResourceDescriptor>,
+        prompt_descriptors: Vec<McpPromptDescriptor>,
+        resources_ok: bool,
+        prompts_ok: bool,
         message: String,
     },
     Failed {
@@ -288,6 +698,7 @@ async fn discover_one(
     server_name: &str,
     config: McpServerConfig,
     override_timeout: Option<std::time::Duration>,
+    discover_rp: bool,
 ) -> ServerDiscovery {
     let transport = config.kind_label().to_string();
     if let Err(error) = validate_server_config(server_name, &config) {
@@ -299,10 +710,50 @@ async fn discover_one(
     }
 
     let op = async {
-        // Warm the session pool so subsequent tool calls reuse the connection.
-        pool.list_tools(server_name, config)
+        let tools = pool
+            .list_tools(server_name, config.clone())
             .await
-            .with_context(|| format!("list tools from MCP server \"{server_name}\""))
+            .with_context(|| format!("list tools from MCP server \"{server_name}\""))?;
+
+        let mut resources_ok = false;
+        let mut resource_descriptors = Vec::new();
+        let mut prompts_ok = false;
+        let mut prompt_descriptors = Vec::new();
+
+        if discover_rp {
+            match pool.list_resources(server_name, config.clone()).await {
+                Ok(resources) => {
+                    resources_ok = true;
+                    resource_descriptors = resources
+                        .into_iter()
+                        .map(|r| resource_descriptor(server_name, &r))
+                        .collect();
+                }
+                Err(error) => {
+                    debug_ignore_capability(server_name, "resources", &error);
+                }
+            }
+            match pool.list_prompts(server_name, config.clone()).await {
+                Ok(prompts) => {
+                    prompts_ok = true;
+                    prompt_descriptors = prompts
+                        .into_iter()
+                        .map(|p| prompt_descriptor(server_name, &p))
+                        .collect();
+                }
+                Err(error) => {
+                    debug_ignore_capability(server_name, "prompts", &error);
+                }
+            }
+        }
+
+        Ok::<_, anyhow::Error>((
+            tools,
+            resource_descriptors,
+            prompt_descriptors,
+            resources_ok,
+            prompts_ok,
+        ))
     };
 
     let result = if let Some(t) = override_timeout {
@@ -315,7 +766,7 @@ async fn discover_one(
     };
 
     match result {
-        Ok(remote_tools) => {
+        Ok((remote_tools, resource_descriptors, prompt_descriptors, resources_ok, prompts_ok)) => {
             let descriptors: Vec<_> = remote_tools
                 .into_iter()
                 .map(|tool| descriptor_from_mcp(server_name, &tool))
@@ -325,6 +776,10 @@ async fn discover_one(
                 name: server_name.to_string(),
                 transport,
                 descriptors,
+                resource_descriptors,
+                prompt_descriptors,
+                resources_ok,
+                prompts_ok,
                 message: format!("discovered {count} tools"),
             }
         }
@@ -334,6 +789,10 @@ async fn discover_one(
             error: error.to_string(),
         },
     }
+}
+
+fn debug_ignore_capability(server: &str, kind: &str, error: &anyhow::Error) {
+    tracing::debug!(server = %server, %kind, error = %error, "MCP capability not available");
 }
 
 fn descriptor_from_mcp(server_name: &str, tool: &McpTool) -> McpToolDescriptor {
@@ -359,6 +818,31 @@ fn descriptor_from_mcp(server_name: &str, tool: &McpTool) -> McpToolDescriptor {
         exposed_name,
         description: full_description,
         parameters,
+        requires_approval: true,
+    }
+}
+
+fn resource_descriptor(server_name: &str, resource: &Resource) -> McpResourceDescriptor {
+    McpResourceDescriptor {
+        server_name: server_name.to_string(),
+        uri: resource.uri.clone(),
+        name: resource.name.clone(),
+        description: resource.description.clone().unwrap_or_default(),
+        mime_type: resource.mime_type.clone(),
+    }
+}
+
+fn prompt_descriptor(server_name: &str, prompt: &Prompt) -> McpPromptDescriptor {
+    let arguments_schema = prompt
+        .arguments
+        .as_ref()
+        .map(|args| serde_json::to_value(args).unwrap_or(json!([])))
+        .unwrap_or(json!([]));
+    McpPromptDescriptor {
+        server_name: server_name.to_string(),
+        name: prompt.name.clone(),
+        description: prompt.description.clone().unwrap_or_default(),
+        arguments_schema,
     }
 }
 
@@ -453,6 +937,32 @@ pub fn mcp_result_to_agent(result: CallToolResult) -> AgentToolResult {
         "is_error": is_error,
     });
     agent_result
+}
+
+fn resource_contents_to_agent(contents: Vec<ResourceContents>) -> AgentToolResult {
+    let mut parts = Vec::new();
+    for item in contents {
+        match item {
+            ResourceContents::TextResourceContents {
+                uri, mime_type, text, ..
+            } => {
+                parts.push(format!("uri={uri} mime={mime_type:?}\n{text}"));
+            }
+            ResourceContents::BlobResourceContents {
+                uri, mime_type, blob, ..
+            } => {
+                parts.push(format!("uri={uri} mime={mime_type:?} blob_bytes={}", blob.len()));
+            }
+            other => {
+                parts.push(format!("{other:?}"));
+            }
+        }
+    }
+    if parts.is_empty() {
+        AgentToolResult::text("Resource returned no contents")
+    } else {
+        AgentToolResult::text(parts.join("\n---\n"))
+    }
 }
 
 #[cfg(test)]

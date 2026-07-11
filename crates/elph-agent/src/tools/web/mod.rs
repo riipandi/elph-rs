@@ -9,11 +9,11 @@ mod search;
 #[cfg(feature = "obscura")]
 mod obscura;
 
-pub use fetch::create_web_fetch_tool;
+pub use fetch::create_webfetch_tool;
 pub use ranking::{Engine, SearchResult};
-pub use search::create_web_search_tool;
+pub use search::create_websearch_tool;
 
 /// Web tools that do not require an [`ExecutionEnv`].
 pub fn create_web_tools() -> Vec<crate::types::AgentTool> {
-    vec![create_web_search_tool(), create_web_fetch_tool()]
+    vec![create_websearch_tool(), create_webfetch_tool()]
 }

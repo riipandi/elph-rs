@@ -9,7 +9,7 @@
 | `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
 | `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
 | `create_all_tools`          | all seven filesystem tools above |
-| `create_web_tools`          | `web_search`, `web_fetch`        |
+| `create_web_tools`          | `websearch`, `webfetch`          |
 | `create_all_tools_with_web` | filesystem tools + web tools     |
 | `create_multi_agent_tools`  | multi-agent tools (harness-only) |
 
@@ -32,7 +32,7 @@ Filesystem tools resolve paths through `ExecutionEnv::absolute_path` and perform
 
 `ls` resolves the directory path via `ExecutionEnv`, then lists immediate children with [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool.
 
-`web_search` and `web_fetch` do not use `ExecutionEnv`. They perform outbound HTTP requests and optionally delegate to an Obscura browser worker thread.
+`websearch` and `webfetch` do not use `ExecutionEnv`. They perform outbound HTTP requests and optionally delegate to an Obscura browser worker thread.
 
 ## Cargo features
 
@@ -131,7 +131,7 @@ List entries in a directory.
 
 Directories are suffixed with `/`. Names are sorted case-insensitively.
 
-### `web_search`
+### `websearch`
 
 Search the web using multiple providers with automatic ranking and fallback. Ported from [`elph-go/pkg/tools/websearch`](https://github.com/riipandi/elph-go/tree/main/pkg/tools/websearch).
 
@@ -176,7 +176,7 @@ results: 3
    snippet: A runtime for writing reliable network applications.
 ```
 
-### `web_fetch`
+### `webfetch`
 
 Fetch content from a public HTTP(S) URL. HTML responses are converted to plain text. Blocks private and loopback addresses (SSRF protection).
 
@@ -238,7 +238,7 @@ Provider-level OpenCode streaming lives in `elph-ai` as `opencode_big_pickle` (n
 | Test file                              | Coverage                            |
 | -------------------------------------- | ----------------------------------- |
 | `crates/elph-agent/tests/tools_fff.rs` | `grep`, `find`                      |
-| `crates/elph-agent/tests/web_tools.rs` | `web_search` ranking, `web_fetch`   |
+| `crates/elph-agent/tests/web_tools.rs` | `websearch` ranking, `webfetch`     |
 | `crates/elph-agent/tests/plan_mode.rs` | Plan mode policy and harness events |
 | `crates/elph-agent/tests/subagent.rs`  | Subagent spawn and list             |
 

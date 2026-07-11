@@ -24,6 +24,7 @@ obscura = ["dep:obscura"]
 
 [dependencies]
 anyhow.workspace = true
+async-trait = "0.1"
 bytes.workspace = true
 crossbeam-channel.workspace = true
 elph-ai.workspace = true
@@ -43,6 +44,7 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
 time.workspace = true
 tokio = { workspace = true, features = [
   "fs",

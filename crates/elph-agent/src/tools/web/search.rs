@@ -1,4 +1,4 @@
-//! `web_search` agent tool.
+//! `websearch` agent tool.
 
 use serde_json::{Value, json};
 
@@ -15,10 +15,10 @@ use super::ranking::{Engine, format_results, ordered_try_list};
 #[cfg(feature = "obscura")]
 use super::obscura;
 
-pub fn create_web_search_tool() -> AgentTool {
+pub fn create_websearch_tool() -> AgentTool {
     simple_tool(
         Tool {
-            name: "web_search".into(),
+            name: "websearch".into(),
             description: "Search the web using multiple search engines with automatic ranking and fallback. Supports DuckDuckGo, Brave, Exa, FireCrawl (keyless), Jina, Perplexity, Tavily, and SerpAPI. API keys are read from environment variables; DuckDuckGo and Obscura scraping are used as fallbacks.".into(),
             parameters: json!({
                 "type": "object",
@@ -39,12 +39,12 @@ pub fn create_web_search_tool() -> AgentTool {
                 "required": ["query"]
             }),
         },
-        "web_search",
-        |_, args| Box::pin(async move { execute_web_search(args, None).await }),
+        "websearch",
+        |_, args| Box::pin(async move { execute_websearch(args, None).await }),
     )
 }
 
-async fn execute_web_search(
+async fn execute_websearch(
     args: Value,
     signal: Option<tokio_util::sync::CancellationToken>,
 ) -> anyhow::Result<AgentToolResult> {
@@ -126,7 +126,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_empty_query() {
-        let err = execute_web_search(json!({ "query": "  " }), None).await.unwrap_err();
+        let err = execute_websearch(json!({ "query": "  " }), None).await.unwrap_err();
         assert!(err.to_string().contains("Empty search query"));
     }
 }

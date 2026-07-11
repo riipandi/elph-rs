@@ -1,4 +1,4 @@
-//! `web_fetch` agent tool.
+//! `webfetch` agent tool.
 
 use serde_json::{Value, json};
 
@@ -13,10 +13,10 @@ use super::common::{FETCH_MAX_BYTES, USER_AGENT, html_to_text, http_client, is_h
 #[cfg(feature = "obscura")]
 use super::obscura::FetchPageResult;
 
-pub fn create_web_fetch_tool() -> AgentTool {
+pub fn create_webfetch_tool() -> AgentTool {
     simple_tool(
         Tool {
-            name: "web_fetch".into(),
+            name: "webfetch".into(),
             description: "Fetch content from a public HTTP(S) URL. HTML is converted to plain text. Falls back to the Obscura headless browser for JavaScript-heavy pages.".into(),
             parameters: json!({
                 "type": "object",
@@ -29,8 +29,8 @@ pub fn create_web_fetch_tool() -> AgentTool {
                 "required": ["url"]
             }),
         },
-        "web_fetch",
-        |_, args| Box::pin(async move { execute_web_fetch(args, None).await }),
+        "webfetch",
+        |_, args| Box::pin(async move { execute_webfetch(args, None).await }),
     )
 }
 
@@ -41,7 +41,7 @@ struct FetchResult {
     body: String,
 }
 
-async fn execute_web_fetch(
+async fn execute_webfetch(
     args: Value,
     signal: Option<tokio_util::sync::CancellationToken>,
 ) -> anyhow::Result<AgentToolResult> {

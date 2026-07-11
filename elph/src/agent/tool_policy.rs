@@ -1,19 +1,22 @@
 //! Tool exposure and approval policy for TUI agent modes.
 
-use elph_agent::is_mutating_tool;
+use elph_agent::{McpToolRegistry, is_mcp_tool, is_mutating_tool};
 use elph_tui::AgentMode;
 use std::collections::HashSet;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::events::AgentUiEvent;
 use super::events::{ToolApprovalChoice, ToolApprovalRequest};
 
-const READ_ONLY_TOOLS: &[&str] = &["read", "grep", "find", "ls", "web_fetch", "web_search"];
+const READ_ONLY_TOOLS: &[&str] = &["read", "grep", "find", "ls", "webfetch", "websearch"];
 
 pub struct AgentModePolicy {
     pub mode: AgentMode,
     brave: bool,
     session_allowed: Mutex<HashSet<String>>,
+    /// Optional MCP registry for fine-grained MCP tool approval.
+    mcp_registry: Option<Arc<McpToolRegistry>>,
 }
 
 impl AgentModePolicy {
@@ -22,7 +25,13 @@ impl AgentModePolicy {
             mode,
             brave: mode == AgentMode::Brave,
             session_allowed: Mutex::new(HashSet::new()),
+            mcp_registry: None,
         }
+    }
+
+    pub fn with_mcp_registry(mut self, registry: Arc<McpToolRegistry>) -> Self {
+        self.mcp_registry = Some(registry);
+        self
     }
 
     pub fn set_mode(&mut self, mode: AgentMode) {
@@ -37,6 +46,12 @@ impl AgentModePolicy {
     pub fn needs_approval(&self, tool_name: &str) -> bool {
         if self.brave || self.mode == AgentMode::Ask {
             return false;
+        }
+        if is_mcp_tool(tool_name) {
+            if let Some(reg) = &self.mcp_registry {
+                return reg.tool_requires_approval(tool_name);
+            }
+            return is_mutating_tool(tool_name);
         }
         is_mutating_tool(tool_name)
     }

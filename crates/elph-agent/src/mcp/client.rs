@@ -1,28 +1,67 @@
-//! MCP client connectivity via rmcp (stdio + streamable HTTP).
+//! MCP client connectivity via rmcp (stdio + streamable HTTP + legacy SSE + OAuth).
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use http::{HeaderName, HeaderValue};
 use rmcp::ServiceExt;
-use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
+use rmcp::model::{
+    CallToolRequestParams, CallToolResult, GetPromptRequestParams, Prompt, ReadResourceRequestParams, Resource,
+    ResourceContents, Tool,
+};
 use rmcp::service::RunningService;
+use rmcp::transport::auth::AuthClient;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{ConfigureCommandExt, StreamableHttpClientTransport, TokioChildProcess};
 use serde_json::Value;
 use tokio::process::Command;
+use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tracing::{debug, warn};
 
+use super::auth::{authorization_manager_from_store, has_stored_credentials};
 use super::config::{McpHttpConfig, McpServerConfig, McpStdioConfig};
+use super::events::{McpClientService, McpServerEvent};
+use super::sse::SseClientTransport;
 
-/// Live MCP client service (stdio process or HTTP session).
-pub type McpClient = RunningService<rmcp::RoleClient, ()>;
+/// Live MCP client service (stdio process, HTTP session, or SSE).
+pub type McpClient = RunningService<rmcp::RoleClient, McpClientService>;
 
 /// Default probe/list timeout used by CLI doctor when no server timeout is set.
 pub const PROBE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Context for opening a connection (name, auth store, notifications).
+#[derive(Debug, Clone, Default)]
+pub struct McpConnectContext {
+    pub server_name: String,
+    /// Full path to shared `auth.json` (or host-chosen name). See [`super::auth::AuthStorePathBuilder`].
+    pub auth_store_path: Option<PathBuf>,
+    pub events: Option<mpsc::UnboundedSender<McpServerEvent>>,
+}
+
+impl McpConnectContext {
+    pub fn named(server_name: impl Into<String>) -> Self {
+        Self {
+            server_name: server_name.into(),
+            auth_store_path: None,
+            events: None,
+        }
+    }
+
+    /// Full path to the credential store file.
+    pub fn with_auth_store_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.auth_store_path = Some(path.into());
+        self
+    }
+
+    pub fn with_events(mut self, tx: mpsc::UnboundedSender<McpServerEvent>) -> Self {
+        self.events = Some(tx);
+        self
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct McpProbeResult {
@@ -35,13 +74,22 @@ pub struct McpProbeResult {
 
 /// Open a long-lived connection (caller owns lifecycle / cancel).
 pub async fn connect(config: &McpServerConfig) -> Result<McpClient> {
+    connect_with_context(config, &McpConnectContext::default()).await
+}
+
+pub async fn connect_with_context(config: &McpServerConfig, ctx: &McpConnectContext) -> Result<McpClient> {
     match config {
-        McpServerConfig::Stdio(cfg) => connect_stdio(cfg).await,
-        McpServerConfig::Http(cfg) => connect_http(cfg).await,
+        McpServerConfig::Stdio(cfg) => connect_stdio_with_context(cfg, ctx).await,
+        McpServerConfig::Http(cfg) => connect_http_with_context(cfg, ctx).await,
+        McpServerConfig::Sse(cfg) => connect_sse_with_context(cfg, ctx).await,
     }
 }
 
 pub async fn connect_stdio(config: &McpStdioConfig) -> Result<McpClient> {
+    connect_stdio_with_context(config, &McpConnectContext::default()).await
+}
+
+pub async fn connect_stdio_with_context(config: &McpStdioConfig, ctx: &McpConnectContext) -> Result<McpClient> {
     let mut command = Command::new(&config.command);
     command.args(&config.args);
     command.envs(config.env.iter());
@@ -56,15 +104,20 @@ pub async fn connect_stdio(config: &McpStdioConfig) -> Result<McpClient> {
 
     debug!(command = %config.command, args = ?config.args, "spawning MCP stdio server");
     let transport = TokioChildProcess::new(command.configure(|_| {})).context("spawn MCP stdio transport")?;
-    let client = ().serve(transport).await.context("initialize MCP stdio client")?;
+    let handler = McpClientService::new(&ctx.server_name, ctx.events.clone());
+    let client = handler.serve(transport).await.context("initialize MCP stdio client")?;
     Ok(client)
 }
 
 pub async fn connect_http(config: &McpHttpConfig) -> Result<McpClient> {
+    connect_http_with_context(config, &McpConnectContext::default()).await
+}
+
+pub async fn connect_http_with_context(config: &McpHttpConfig, ctx: &McpConnectContext) -> Result<McpClient> {
+    let handler = McpClientService::new(&ctx.server_name, ctx.events.clone());
     let mut transport_config = StreamableHttpClientTransportConfig::with_uri(config.url.clone());
-    if let Some(token) = config.resolve_auth_token() {
-        transport_config = transport_config.auth_header(token);
-    }
+
+    // Custom headers always applied.
     if !config.headers.is_empty() {
         let mut headers = std::collections::HashMap::new();
         for (key, value) in &config.headers {
@@ -76,14 +129,78 @@ pub async fn connect_http(config: &McpHttpConfig) -> Result<McpClient> {
         transport_config = transport_config.custom_headers(headers);
     }
 
+    let use_oauth = config.oauth
+        || ctx
+            .auth_store_path
+            .as_ref()
+            .is_some_and(|path| !ctx.server_name.is_empty() && has_stored_credentials(path, &ctx.server_name));
+
+    if use_oauth {
+        if let Some(store_path) = &ctx.auth_store_path {
+            if let Some(manager) = authorization_manager_from_store(&config.url, store_path, &ctx.server_name).await? {
+                debug!(url = %config.url, server = %ctx.server_name, "connecting MCP HTTP with OAuth");
+                let http = reqwest::Client::builder()
+                    .pool_max_idle_per_host(0)
+                    .redirect(reqwest::redirect::Policy::none())
+                    .build()
+                    .context("build OAuth HTTP client")?;
+                let auth_client = AuthClient::new(http, manager);
+                // Prefer OAuth; still allow static bearer override if set.
+                if let Some(token) = config.resolve_auth_token() {
+                    transport_config = transport_config.auth_header(token);
+                }
+                let transport = StreamableHttpClientTransport::with_client(auth_client, transport_config);
+                let client = handler
+                    .serve(transport)
+                    .await
+                    .context("initialize MCP HTTP OAuth client")?;
+                return Ok(client);
+            }
+            if config.oauth {
+                bail!(
+                    "MCP server \"{}\" requires OAuth; run `mcp auth {}` first",
+                    ctx.server_name,
+                    ctx.server_name
+                );
+            }
+        } else if config.oauth {
+            bail!(
+                "MCP server \"{}\" requires OAuth but no auth store path was configured",
+                ctx.server_name
+            );
+        }
+    }
+
+    if let Some(token) = config.resolve_auth_token() {
+        transport_config = transport_config.auth_header(token);
+    }
+
     debug!(url = %config.url, "connecting MCP streamable HTTP server");
     let transport = StreamableHttpClientTransport::from_config(transport_config);
-    let client = ().serve(transport).await.context("initialize MCP HTTP client")?;
+    let client = handler.serve(transport).await.context("initialize MCP HTTP client")?;
+    Ok(client)
+}
+
+pub async fn connect_sse_with_context(config: &McpHttpConfig, ctx: &McpConnectContext) -> Result<McpClient> {
+    debug!(url = %config.url, "connecting MCP legacy SSE server");
+    let transport = SseClientTransport::connect(config)
+        .await
+        .with_context(|| format!("connect SSE MCP at {}", config.url))?;
+    let handler = McpClientService::new(&ctx.server_name, ctx.events.clone());
+    let client = handler.serve(transport).await.context("initialize MCP SSE client")?;
     Ok(client)
 }
 
 pub async fn list_tools_on_client(client: &McpClient) -> Result<Vec<Tool>> {
     client.list_all_tools().await.context("list MCP tools")
+}
+
+pub async fn list_resources_on_client(client: &McpClient) -> Result<Vec<Resource>> {
+    client.list_all_resources().await.context("list MCP resources")
+}
+
+pub async fn list_prompts_on_client(client: &McpClient) -> Result<Vec<Prompt>> {
+    client.list_all_prompts().await.context("list MCP prompts")
 }
 
 pub async fn call_tool_on_client(client: &McpClient, tool_name: &str, args: Value) -> Result<CallToolResult> {
@@ -92,6 +209,24 @@ pub async fn call_tool_on_client(client: &McpClient, tool_name: &str, args: Valu
         params = params.with_arguments(map);
     }
     client.call_tool(params).await.context("call MCP tool")
+}
+
+pub async fn read_resource_on_client(client: &McpClient, uri: &str) -> Result<Vec<ResourceContents>> {
+    let params = ReadResourceRequestParams::new(uri.to_string());
+    let result = client.read_resource(params).await.context("read MCP resource")?;
+    Ok(result.contents)
+}
+
+pub async fn get_prompt_on_client(
+    client: &McpClient,
+    name: &str,
+    arguments: Option<Value>,
+) -> Result<rmcp::model::GetPromptResult> {
+    let mut params = GetPromptRequestParams::new(name.to_string());
+    if let Some(Value::Object(map)) = arguments {
+        params = params.with_arguments(map);
+    }
+    client.get_prompt(params).await.context("get MCP prompt")
 }
 
 /// Gracefully cancel a client; errors are logged.
@@ -106,10 +241,22 @@ pub async fn probe_stdio_server(name: &str, config: &McpStdioConfig) -> McpProbe
 }
 
 pub async fn probe_server(name: &str, config: &McpServerConfig) -> McpProbeResult {
+    probe_server_with_auth(name, config, None).await
+}
+
+pub async fn probe_server_with_auth(
+    name: &str,
+    config: &McpServerConfig,
+    auth_store_path: Option<&Path>,
+) -> McpProbeResult {
     let transport = config.kind_label().to_string();
     let op_timeout = config.operation_timeout();
+    let mut ctx = McpConnectContext::named(name);
+    if let Some(path) = auth_store_path {
+        ctx = ctx.with_auth_store_path(path);
+    }
     match timeout(op_timeout, async {
-        let client = connect(config).await?;
+        let client = connect_with_context(config, &ctx).await?;
         let tools = list_tools_on_client(&client).await.unwrap_or_default();
         let count = tools.len();
         shutdown_client(client).await;
@@ -184,6 +331,7 @@ pub fn parse_stdio_config(command: String, args: Vec<String>, env: BTreeMap<Stri
         cwd: None,
         timeout_ms: None,
         disabled: false,
+        policy: None,
     }
 }
 
@@ -198,9 +346,9 @@ pub fn validate_server_config(name: &str, config: &McpServerConfig) -> Result<()
                 bail!("MCP server \"{name}\" stdio command must not be empty");
             }
         }
-        McpServerConfig::Http(cfg) => {
+        McpServerConfig::Http(cfg) | McpServerConfig::Sse(cfg) => {
             if cfg.url.trim().is_empty() {
-                bail!("MCP server \"{name}\" HTTP url must not be empty");
+                bail!("MCP server \"{name}\" url must not be empty");
             }
             let parsed = url::Url::parse(&cfg.url).with_context(|| format!("MCP server \"{name}\" invalid url"))?;
             if parsed.scheme() != "http" && parsed.scheme() != "https" {

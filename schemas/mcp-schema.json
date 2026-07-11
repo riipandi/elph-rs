@@ -2,7 +2,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "https://github.com/riipandi/elph/schemas/mcp-schema.json",
     "title": "Elph MCP configuration",
-    "description": "MCP server definitions for Elph, typically stored at ~/.elph/mcp.json. Maps named servers to stdio (local process) or streamable HTTP endpoints. Matches elph_agent::mcp::McpConfig.",
+    "description": "MCP server definitions for Elph, typically stored at ~/.elph/mcp.json. Supports stdio, streamable HTTP, and legacy SSE transports; global/per-server tool policy; and OAuth for remote servers. Matches elph_agent::mcp::McpConfig.",
     "type": "object",
     "additionalProperties": false,
     "properties": {
@@ -17,6 +17,10 @@
             "additionalProperties": {
                 "$ref": "#/definitions/mcpServer"
             }
+        },
+        "policy": {
+            "$ref": "#/definitions/policy",
+            "description": "Global tool policy. Merged with each server's policy (server rules take precedence)."
         }
     },
     "definitions": {
@@ -30,15 +34,46 @@
             "default": false,
             "description": "When true, the server is skipped during discovery and tool calls."
         },
+        "policyAction": {
+            "type": "string",
+            "enum": ["allow", "requireApproval", "deny"],
+            "description": "allow = run without approval; requireApproval = expose but prompt user; deny = hide from model."
+        },
+        "policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Tool allow/deny/approval policy. Patterns support exact names, prefix* and *suffix globs.",
+            "properties": {
+                "default": {
+                    "$ref": "#/definitions/policyAction",
+                    "default": "requireApproval"
+                },
+                "allow": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "default": [],
+                    "description": "Exposed without approval (e.g. mcp_fs__read*)."
+                },
+                "deny": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "default": [],
+                    "description": "Never exposed to the model."
+                },
+                "requireApproval": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "default": [],
+                    "description": "Exposed but require user approval."
+                }
+            }
+        },
         "mcpServer": {
             "description": "One MCP server endpoint. Discriminated by the `type` field.",
             "oneOf": [
-                {
-                    "$ref": "#/definitions/stdioServer"
-                },
-                {
-                    "$ref": "#/definitions/httpServer"
-                }
+                { "$ref": "#/definitions/stdioServer" },
+                { "$ref": "#/definitions/httpServer" },
+                { "$ref": "#/definitions/sseServer" }
             ]
         },
         "stdioServer": {
@@ -49,8 +84,7 @@
             "properties": {
                 "type": {
                     "type": "string",
-                    "const": "stdio",
-                    "description": "Transport: spawn a child process and communicate over stdin/stdout."
+                    "const": "stdio"
                 },
                 "command": {
                     "type": "string",
@@ -59,97 +93,115 @@
                 },
                 "args": {
                     "type": "array",
-                    "description": "Command-line arguments passed to the executable.",
                     "default": [],
-                    "items": {
-                        "type": "string"
-                    }
+                    "items": { "type": "string" }
                 },
                 "env": {
                     "type": "object",
-                    "description": "Extra environment variables for the child process (merged over the parent environment).",
                     "default": {},
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "additionalProperties": { "type": "string" }
                 },
                 "cwd": {
                     "type": "string",
-                    "minLength": 1,
-                    "description": "Optional working directory for the child process."
+                    "minLength": 1
                 },
-                "timeoutMs": {
-                    "$ref": "#/definitions/timeoutMs"
-                },
-                "disabled": {
-                    "$ref": "#/definitions/disabled"
-                }
-            },
-            "examples": [
-                {
-                    "type": "stdio",
-                    "command": "npx",
-                    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-                }
-            ]
+                "timeoutMs": { "$ref": "#/definitions/timeoutMs" },
+                "disabled": { "$ref": "#/definitions/disabled" },
+                "policy": { "$ref": "#/definitions/policy" }
+            }
         },
         "httpServer": {
             "type": "object",
-            "description": "Remote MCP server over streamable HTTP. `type` accepts `http`, `streamableHttp`, or `streamable-http` (serde aliases).",
             "additionalProperties": false,
+            "description": "Remote MCP over streamable HTTP.",
             "required": ["type", "url"],
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["http", "streamableHttp", "streamable-http"],
-                    "description": "Transport: streamable HTTP MCP endpoint. Preferred spelling is `http`; aliases match common MCP config conventions."
+                    "enum": ["http", "streamableHttp", "streamable-http"]
                 },
                 "url": {
                     "type": "string",
                     "minLength": 1,
                     "format": "uri",
-                    "description": "Base URL of the MCP HTTP endpoint (e.g. https://host/mcp)."
+                    "description": "Base URL of the MCP endpoint (e.g. https://host/mcp)."
                 },
                 "headers": {
                     "type": "object",
-                    "description": "Extra HTTP headers sent with every request.",
                     "default": {},
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "additionalProperties": { "type": "string" }
                 },
                 "authToken": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Bearer token value without the `Bearer ` prefix. Prefer authTokenEnv for secrets so tokens are not stored in the config file."
+                    "description": "Bearer token without `Bearer ` prefix. Prefer authTokenEnv or OAuth."
                 },
                 "authTokenEnv": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Name of an environment variable that holds a bearer token. Used when authToken is unset or empty."
+                    "description": "Environment variable holding a bearer token."
                 },
-                "timeoutMs": {
-                    "$ref": "#/definitions/timeoutMs"
+                "timeoutMs": { "$ref": "#/definitions/timeoutMs" },
+                "disabled": { "$ref": "#/definitions/disabled" },
+                "oauth": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Prefer OAuth credentials from `elph mcp auth <name>`."
                 },
-                "disabled": {
-                    "$ref": "#/definitions/disabled"
-                }
-            },
-            "examples": [
-                {
-                    "type": "http",
-                    "url": "https://example.com/mcp",
-                    "authTokenEnv": "MCP_TOKEN"
+                "oauthScopes": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Scopes requested during OAuth authorization."
                 },
-                {
-                    "type": "streamableHttp",
-                    "url": "http://localhost:8080/mcp"
-                }
-            ]
+                "policy": { "$ref": "#/definitions/policy" }
+            }
+        },
+        "sseServer": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Legacy MCP HTTP+SSE transport (pre–Streamable HTTP).",
+            "required": ["type", "url"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "const": "sse"
+                },
+                "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "format": "uri",
+                    "description": "SSE endpoint URL (e.g. http://localhost:3000/sse)."
+                },
+                "headers": {
+                    "type": "object",
+                    "default": {},
+                    "additionalProperties": { "type": "string" }
+                },
+                "authToken": { "type": "string", "minLength": 1 },
+                "authTokenEnv": { "type": "string", "minLength": 1 },
+                "timeoutMs": { "$ref": "#/definitions/timeoutMs" },
+                "disabled": { "$ref": "#/definitions/disabled" },
+                "oauth": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "oauthScopes": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": []
+                },
+                "policy": { "$ref": "#/definitions/policy" }
+            }
         }
     },
     "examples": [
         {
+            "policy": {
+                "default": "requireApproval",
+                "allow": ["mcp_fs__list*", "mcp_fs__read*"],
+                "deny": ["mcp_dangerous__*"]
+            },
             "servers": {
                 "filesystem": {
                     "type": "stdio",
@@ -159,16 +211,13 @@
                 "remote": {
                     "type": "http",
                     "url": "https://example.com/mcp",
-                    "authTokenEnv": "MCP_TOKEN",
-                    "headers": {
-                        "X-Client": "elph"
-                    },
-                    "timeoutMs": 30000
+                    "oauth": true,
+                    "oauthScopes": ["read", "write"]
                 },
-                "offline": {
-                    "type": "stdio",
-                    "command": "true",
-                    "disabled": true
+                "legacy": {
+                    "type": "sse",
+                    "url": "http://localhost:3000/sse",
+                    "authTokenEnv": "MCP_TOKEN"
                 }
             }
         }

@@ -3,7 +3,9 @@
 mod wiring;
 
 use anyhow::Result;
-use elph_agent::{AgentHarness, CollaborationMode, GoalRuntime, PlanConfirmationChoice, SessionDirStorage};
+use elph_agent::{
+    AgentHarness, CollaborationMode, GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage,
+};
 use elph_tui::AgentMode;
 use std::sync::Arc;
 use std::time::Instant;
@@ -23,6 +25,7 @@ pub struct CodingAgentSession {
     ui_tx: mpsc::UnboundedSender<AgentUiEvent>,
     show_thinking: bool,
     goal_runtime: Arc<GoalRuntime>,
+    mcp_registry: Option<Arc<McpToolRegistry>>,
 }
 
 impl CodingAgentSession {
@@ -34,21 +37,31 @@ impl CodingAgentSession {
         agent_mode: AgentMode,
         show_thinking: bool,
         goal_runtime: Arc<GoalRuntime>,
+        mcp_registry: Option<Arc<McpToolRegistry>>,
     ) -> Result<(Self, mpsc::UnboundedReceiver<AgentUiEvent>)> {
         let (ui_tx, ui_rx) = mpsc::unbounded_channel();
+        let mut policy = AgentModePolicy::new(agent_mode);
+        if let Some(reg) = mcp_registry.clone() {
+            policy = policy.with_mcp_registry(reg);
+        }
         let session = Self {
             harness: harness.clone(),
             session_manager,
             session_id,
             selection,
-            policy: Arc::new(Mutex::new(AgentModePolicy::new(agent_mode))),
+            policy: Arc::new(Mutex::new(policy)),
             ui_tx: ui_tx.clone(),
             show_thinking,
             goal_runtime,
+            mcp_registry,
         };
         session.wire_harness(ui_tx).await?;
         session.apply_agent_mode(agent_mode).await?;
         Ok((session, ui_rx))
+    }
+
+    pub fn mcp_registry(&self) -> Option<Arc<McpToolRegistry>> {
+        self.mcp_registry.clone()
     }
 
     pub fn harness(&self) -> Arc<AgentHarness<SessionDirStorage>> {

@@ -42,7 +42,7 @@ That suggests continuing with one durable session log rather than adding harness
 | Backend                  | Durability   | Notes                                  |
 | ------------------------ | ------------ | -------------------------------------- |
 | `InMemorySessionStorage` | None         | Lost on drop                           |
-| `JsonlSessionStorage`    | File append  | Survives restart if file intact        |
+| `JsonSessionStorage`     | File append  | Survives restart if file intact        |
 | `TursoSessionStorage`    | SQL database | Migrations, queries, concurrent access |
 
 ## What the app must provide on resume
@@ -79,7 +79,7 @@ let harness = AgentHarness::builder()
     .await?;
 ```
 
-Built-in tool names: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`, `web_search`, `web_fetch`. See [tools.md](./tools.md).
+Built-in tool names: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`, `websearch`, `webfetch`. See [tools.md](./tools.md).
 
 For active tools:
 
@@ -209,4 +209,4 @@ The current implementation already queues pending writes and flushes at save poi
 - Do we require strict dependency ID/version matching on resume?
 - How much provider request data should be journaled?
 - Should recovery append user-visible assistant interruption messages or only internal operation entries?
-- Should `JsonlSessionStorage` support truncating a final partial JSONL line during recovery?
+- Should `JsonSessionStorage` support truncating a final partial JSONL line during recovery?

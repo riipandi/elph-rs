@@ -1,6 +1,7 @@
 # elph-agent
 
-Stateful agent runtime with tool execution, event streaming, and session-backed orchestration. Built on [`elph-ai`](../elph-ai) and ported from [@earendil-works/pi-agent](https://github.com/earendil-works/pi/tree/main/packages/agent).
+Stateful agent runtime with tool execution, event streaming, and session-backed orchestration.
+Built on [`elph-ai`](../elph-ai) and ported from [@earendil-works/pi-agent](https://github.com/earendil-works/pi/tree/main/packages/agent).
 
 ## Installation
 
@@ -439,11 +440,12 @@ Built-in tools are grouped by capability:
 | `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
 | `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
 | `create_all_tools`          | all seven filesystem tools above |
-| `create_web_tools`          | `web_search`, `web_fetch`        |
+| `create_web_tools`          | `websearch`, `webfetch`          |
 | `create_all_tools_with_web` | filesystem tools + web tools     |
 
 ```rust
-use elph_agent::{LocalExecutionEnv, create_all_tools, create_web_tools, create_all_tools_with_web};
+use elph_agent::LocalExecutionEnv;
+use elph_agent::{create_all_tools, create_web_tools, create_all_tools_with_web};
 use std::sync::Arc;
 
 let env = Arc::new(LocalExecutionEnv::new(cwd));
@@ -454,14 +456,14 @@ let all = create_all_tools_with_web(env);
 
 `grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `ls` uses [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool. `read`, `write`, `edit`, and `bash` use `ExecutionEnv` directly.
 
-`web_search` and `web_fetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
+`websearch` and `webfetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
 
 ```rust
 use elph_agent::create_web_tools;
 
 let tools = create_web_tools();
-// web_search: query the web (DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, SerpAPI)
-// web_fetch:    fetch a public URL as plain text
+// websearch: query the web (DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, SerpAPI)
+// webfetch:    fetch a public URL as plain text
 ```
 
 Set provider API keys via environment variables (`BRAVE_SEARCH_API_KEY`, `EXA_API_KEY`, `TAVILY_API_KEY`, etc.). DuckDuckGo, Jina, and FireCrawl work without keys. See [docs/tools.md](./docs/tools.md) for the full engine ranking table and parameters.
@@ -632,7 +634,7 @@ ensure_databases(&[DatabaseSpec {
 | Backend                  | Use case                                |
 | ------------------------ | --------------------------------------- |
 | `InMemorySessionStorage` | Tests, ephemeral sessions               |
-| `JsonlSessionStorage`    | File-backed append-only sessions        |
+| `JsonSessionStorage`     | File-backed append-only sessions        |
 | `TursoSessionStorage`    | Durable local sessions with SQL queries |
 
 ### Skills and Prompt Templates
@@ -700,6 +702,7 @@ cargo run -p elph-agent --example basic_agent
 cargo run -p elph-agent --example agent_skills
 cargo run -p elph-agent --example agent_skill_math
 cargo run -p elph-agent --example opencode_big_pickle_agent -- --prompt "Hello!"
+```
 
 For provider-level OpenCode streaming (without the agent loop), see `elph-ai` example `opencode_big_pickle`.
 
@@ -708,7 +711,7 @@ For provider-level OpenCode streaming (without the agent loop), see `elph-ai` ex
 | Document                                        | Description                                    |
 | ----------------------------------------------- | ---------------------------------------------- |
 | [tools.md](./docs/tools.md)                     | Built-in tools, web search/fetch, `fff-search` |
-| [skills.md](./docs/skills.md)                   | Skills loading, validation, formatting        |
+| [skills.md](./docs/skills.md)                   | Skills loading, validation, formatting         |
 | [agent-harness.md](./docs/agent-harness.md)     | Harness lifecycle, phases, save points         |
 | [hooks.md](./docs/hooks.md)                     | Hook design and mutation semantics             |
 | [models.md](./docs/models.md)                   | `elph_ai::Models` integration with harness     |
@@ -720,4 +723,3 @@ Full `elph-ai` provider architecture is documented in the [`elph-ai`](../elph-ai
 ## License
 
 Licensed under the [MIT License](https://www.tldrlegal.com/license/mit-license).
-```

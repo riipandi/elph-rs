@@ -69,12 +69,19 @@ pub use harness::{
 };
 pub use init::InitProgress;
 #[cfg(feature = "mcp")]
+#[allow(deprecated)]
+pub use mcp::mcp_auth_dir;
+#[cfg(feature = "mcp")]
 pub use mcp::{
-    DEFAULT_OPERATION_TIMEOUT_SECS, McpClient, McpConfig, McpHttpConfig, McpLoadOptions, McpLoadReport, McpProbeResult,
-    McpServerConfig, McpServerLoadReport, McpServerSession, McpSessionPool, McpStdioConfig, McpToolDescriptor,
-    McpToolRegistry, PROBE_TIMEOUT, call_stdio_tool, call_tool_for_server, connect, connect_http, connect_stdio,
-    expose_tool_name, list_tools, list_tools_for_server, mcp_result_to_agent, parse_exposed_tool_name,
-    parse_stdio_config, probe_server, probe_stdio_server, shutdown_client, validate_server_config,
+    AuthStoreFile, AuthStorePathBuilder, DEFAULT_AUTH_FILE_NAME, DEFAULT_OAUTH_SCOPES, DEFAULT_OPERATION_TIMEOUT_SECS,
+    FileCredentialStore, FileCredentialStoreBuilder, McpClient, McpClientService, McpConfig, McpConnectContext,
+    McpEventBus, McpHttpConfig, McpLoadOptions, McpLoadReport, McpOAuthFlowResult, McpPolicyAction, McpPolicyConfig,
+    McpProbeResult, McpPromptDescriptor, McpResourceDescriptor, McpServerConfig, McpServerEvent, McpServerLoadReport,
+    McpServerSession, McpSessionPool, McpStdioConfig, McpToolDescriptor, McpToolRegistry, PROBE_TIMEOUT,
+    auth_store_path, call_stdio_tool, call_tool_for_server, clear_credentials, connect, connect_http, connect_stdio,
+    connect_with_context, expose_tool_name, has_stored_credentials, list_tools, list_tools_for_server,
+    mcp_result_to_agent, mcp_tool_requires_approval, parse_exposed_tool_name, parse_stdio_config, pattern_matches,
+    probe_server, probe_server_with_auth, probe_stdio_server, run_oauth_flow, shutdown_client, validate_server_config,
 };
 pub use messages::{
     CustomMessageContent, bash_execution_to_text, create_branch_summary_message, create_compaction_summary_message,
@@ -84,8 +91,8 @@ pub use messages::{
 pub use migration::Migration;
 pub use mode::{
     CollaborationMode, PlanConfirmationChoice, assistant_message_text, extract_proposed_plan, filter_active_tools,
-    implement_prompt, is_multi_agent_tool, is_mutating_tool, plan_mode_block_reason, plan_mode_blocks_tool,
-    plan_mode_system_prompt,
+    implement_prompt, is_mcp_read_only_bridge_tool, is_mcp_tool, is_multi_agent_tool, is_mutating_tool,
+    plan_mode_block_reason, plan_mode_blocks_tool, plan_mode_system_prompt,
 };
 #[cfg(feature = "extensions")]
 pub use plugins::{
@@ -124,7 +131,7 @@ pub use tools::{WebSearchEngine, WebSearchResult};
 pub use tools::{
     create_all_tools, create_all_tools_with_web, create_bash_tool, create_coding_tools, create_edit_tool,
     create_find_tool, create_grep_tool, create_ls_tool, create_multi_agent_tools, create_read_only_tools,
-    create_read_tool, create_web_fetch_tool, create_web_search_tool, create_web_tools, create_write_tool, echo_tool,
+    create_read_tool, create_web_tools, create_webfetch_tool, create_websearch_tool, create_write_tool, echo_tool,
     simple_tool,
 };
 pub use types::*;

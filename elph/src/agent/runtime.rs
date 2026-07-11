@@ -3,13 +3,13 @@
 use anyhow::Result;
 use elph_agent::{
     AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, GoalRuntime, GoalStore,
-    LocalExecutionEnv, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt, create_all_tools,
+    LocalExecutionEnv, McpLoadOptions, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt, create_all_tools,
     create_goal_tools,
 };
 use elph_core::utils::path::AppPaths;
 use std::path::Path;
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{info, warn};
 
 use super::model_registry::resolve_model;
 use super::resource_loader::load_resources;
@@ -49,7 +49,12 @@ pub async fn create_coding_session_with_events(
     let mut tools = create_all_tools(env.clone());
 
     let mcp_config = crate::platform::mcp::load_config(options.paths)?;
-    let mcp_registry = match McpToolRegistry::load(mcp_config).await {
+    let auth_store_path = options.paths.auth_store_path();
+    let load_options = McpLoadOptions {
+        auth_store_path: Some(auth_store_path),
+        ..McpLoadOptions::default()
+    };
+    let mcp_registry = match McpToolRegistry::load_with_options(mcp_config, load_options).await {
         Ok(registry) => {
             let report = registry.load_report();
             if report.servers_failed > 0 {
@@ -116,16 +121,73 @@ pub async fn create_coding_session_with_events(
     })
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
+    let harness = Arc::new(harness);
+
+    // Hot-reload MCP tools when servers send tools/list_changed (or resource/prompt variants).
+    {
+        let harness_for_reload = Arc::clone(&harness);
+        let started = mcp_registry.spawn_hot_reload(move |registry| {
+            let harness = Arc::clone(&harness_for_reload);
+            tokio::spawn(async move {
+                if let Err(error) = apply_mcp_tools_to_harness(&harness, &registry).await {
+                    warn!(error = %error, "failed to apply MCP hot-reload tools");
+                } else {
+                    info!("MCP tools hot-reloaded into agent harness");
+                }
+            });
+        });
+        if started {
+            info!("MCP list_changed hot-reload watcher started");
+        }
+    }
+
     CodingAgentSession::new(
-        Arc::new(harness),
+        harness,
         session_manager,
         session_id,
         selection,
         agent_mode,
         options.settings.show_thinking,
         goal_runtime,
+        Some(Arc::clone(&mcp_registry)),
     )
     .await
+}
+
+async fn apply_mcp_tools_to_harness(
+    harness: &AgentHarness<elph_agent::SessionDirStorage>,
+    registry: &Arc<McpToolRegistry>,
+) -> Result<()> {
+    let mcp_tools = registry.create_agent_tools();
+    let mcp_names: Vec<String> = mcp_tools.iter().map(|t| t.name().to_string()).collect();
+    let mut kept: Vec<_> = harness
+        .get_tools()
+        .await
+        .into_iter()
+        .filter(|t| !t.name().starts_with("mcp_"))
+        .collect();
+    kept.extend(mcp_tools);
+
+    let prev_active: Vec<String> = harness
+        .get_active_tools()
+        .await
+        .into_iter()
+        .map(|t| t.name().to_string())
+        .collect();
+    // Empty active list means "all tools active" — preserve that convention.
+    let active_opt = if prev_active.is_empty() {
+        None
+    } else {
+        let mut next: Vec<String> = prev_active.into_iter().filter(|n| !n.starts_with("mcp_")).collect();
+        next.extend(mcp_names);
+        Some(next)
+    };
+
+    harness
+        .set_tools(kept, active_opt)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    Ok(())
 }
 
 pub async fn create_coding_session(options: CreateSessionOptions<'_>) -> Result<CodingAgentSession> {

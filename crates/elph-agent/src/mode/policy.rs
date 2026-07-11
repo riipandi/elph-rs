@@ -8,8 +8,8 @@ const PLAN_MODE_TOOLS: &[&str] = &[
     "grep",
     "find",
     "ls",
-    "web_fetch",
-    "web_search",
+    "webfetch",
+    "websearch",
     "ask_text",
     "ask_select",
     "ask_confirm",
@@ -48,7 +48,20 @@ pub fn is_plan_mode_tool(name: &str) -> bool {
 }
 
 pub fn is_mutating_tool(name: &str) -> bool {
-    MUTATING_TOOLS.contains(&name)
+    if MUTATING_TOOLS.contains(&name) {
+        return true;
+    }
+    // MCP tools are treated as potentially mutating unless they are read-only bridge tools.
+    // Product-level policy may refine this via `McpToolRegistry::tool_requires_approval`.
+    if is_mcp_tool(name) {
+        return !is_mcp_read_only_bridge_tool(name);
+    }
+    false
+}
+
+/// MCP bridge tools that only inspect server state (safe without approval by default).
+pub fn is_mcp_read_only_bridge_tool(name: &str) -> bool {
+    name.ends_with("__list_resources") || name.ends_with("__list_prompts") || name.ends_with("__read_resource")
 }
 
 pub fn is_multi_agent_tool(name: &str) -> bool {
