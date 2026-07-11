@@ -19,9 +19,9 @@ const GRAPH_MIGRATION: &[Migration] = &[Migration {
             agent_path TEXT NOT NULL,
             depth INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'open',
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (parent_session_id, child_session_id)
-        );",
+        ) STRICT;",
 }];
 
 #[tokio::test(flavor = "multi_thread")]

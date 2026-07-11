@@ -19,7 +19,7 @@ impl TursoCheckpointSaver {
                 display_name TEXT,
                 auto_named INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
-            );",
+            ) STRICT;",
         )
         .await
         .map_err(|error| anyhow::anyhow!("thread_metadata schema: {error}"))?;

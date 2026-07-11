@@ -53,7 +53,7 @@ mod tests {
     static TEST_MIGRATIONS: [Migration; 1] = [Migration {
         version: 1,
         name: "create_notes",
-        up: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)",
+        up: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL) STRICT",
     }];
 
     #[tokio::test]

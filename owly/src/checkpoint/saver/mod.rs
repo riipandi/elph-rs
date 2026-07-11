@@ -62,10 +62,10 @@ impl TursoCheckpointSaver {
                 checkpoint_id TEXT NOT NULL,
                 parent_checkpoint_id TEXT,
                 type TEXT,
-                checkpoint BLOB,
-                metadata BLOB,
+                checkpoint TEXT,
+                metadata TEXT,
                 PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
-            );
+            ) STRICT;
             CREATE TABLE IF NOT EXISTS writes (
                 thread_id TEXT NOT NULL,
                 checkpoint_ns TEXT NOT NULL DEFAULT '',
@@ -74,9 +74,9 @@ impl TursoCheckpointSaver {
                 idx INTEGER NOT NULL,
                 channel TEXT NOT NULL,
                 type TEXT,
-                value BLOB,
+                value TEXT,
                 PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
-            );",
+            ) STRICT;",
         )
         .await
         .map_err(|e| anyhow::anyhow!("schema: {e}"))?;

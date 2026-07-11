@@ -10,14 +10,14 @@ pub const SESSION_TREE_MIGRATIONS: [Migration; 1] = [Migration {
             leaf_id TEXT,
             created_at TEXT NOT NULL,
             metadata TEXT NOT NULL
-        );
+        ) STRICT;
         CREATE TABLE IF NOT EXISTS session_tree_entries (
             session_id TEXT NOT NULL,
             seq INTEGER NOT NULL,
             id TEXT NOT NULL,
             data TEXT NOT NULL,
             PRIMARY KEY (session_id, seq)
-        );
+        ) STRICT;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_session_tree_entries_id
             ON session_tree_entries(session_id, id);",
 }];
