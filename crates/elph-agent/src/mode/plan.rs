@@ -38,9 +38,7 @@ pub fn assistant_message_text(content: &[elph_ai::AssistantContentBlock]) -> Str
         .join("")
 }
 
-pub fn implement_prompt(plan_text: &str) -> String {
-    format!("Implement this plan:\n\n{plan_text}")
-}
+pub use crate::prompt::builtin::plan::implement_prompt;
 
 #[cfg(test)]
 mod tests {

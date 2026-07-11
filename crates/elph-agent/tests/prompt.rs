@@ -6,7 +6,7 @@ use std::path::Path;
 use elph_agent::env::LocalExecutionEnv;
 
 use elph_agent::harness::types::PromptTemplate;
-use elph_agent::prompt_templates::{
+use elph_agent::prompt::{
     PromptTemplateDiagnosticCode, format_prompt_template_invocation, load_prompt_templates,
     load_sourced_prompt_templates, parse_command_args, substitute_args,
 };

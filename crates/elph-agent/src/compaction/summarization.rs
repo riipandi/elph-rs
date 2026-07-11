@@ -5,13 +5,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::compaction::utils::serialize_conversation;
 use crate::harness::types::{CompactionError, CompactionErrorCode};
-
 use crate::messages::default_convert_to_llm;
+use crate::prompt::builtin::compaction::{SUMMARIZATION_PROMPT, SUMMARIZATION_SYSTEM_PROMPT};
+use crate::prompt::builtin::compaction::{TURN_PREFIX_SUMMARIZATION_PROMPT, UPDATE_SUMMARIZATION_PROMPT};
 use crate::types::AgentMessage;
-
-use super::types::{
-    SUMMARIZATION_PROMPT, SUMMARIZATION_SYSTEM_PROMPT, TURN_PREFIX_SUMMARIZATION_PROMPT, UPDATE_SUMMARIZATION_PROMPT,
-};
 
 fn now_millis() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64

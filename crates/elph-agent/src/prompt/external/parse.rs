@@ -1,11 +1,10 @@
-//! Prompt template file parsing and frontmatter extraction.
+//! Slash-command prompt template file parsing and frontmatter extraction.
 
 use serde::Deserialize;
 
 use crate::env::{LocalExecutionEnv, basename_env_path};
 use crate::harness::types::{FileSystem, PromptTemplate, Result, err, ok};
-
-use super::{PromptTemplateDiagnostic, PromptTemplateDiagnosticCode};
+use crate::prompt::{PromptTemplateDiagnostic, PromptTemplateDiagnosticCode};
 
 #[derive(Debug, Default, Deserialize)]
 pub(super) struct PromptTemplateFrontmatter {

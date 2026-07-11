@@ -10,6 +10,7 @@ mod utils;
 
 pub use crate::harness::types::FileOperations;
 pub use crate::harness::types::{CompactionPreparation, CompactionSettings, DEFAULT_COMPACTION_SETTINGS};
+pub use crate::prompt::builtin::compaction::SUMMARIZATION_SYSTEM_PROMPT;
 pub use branch_summarization::{
     BranchPreparation, BranchSummaryDetails, CollectEntriesResult, GenerateBranchSummaryOptions,
     collect_entries_for_branch_summary, generate_branch_summary, prepare_branch_entries,
@@ -22,7 +23,7 @@ pub use estimation::{
 };
 pub use preparation::prepare_compaction;
 pub use summarization::generate_summary;
-pub use types::{CompactionDetails, CompactionResult, SUMMARIZATION_SYSTEM_PROMPT};
+pub use types::{CompactionDetails, CompactionResult};
 pub use utils::{
     compute_file_lists, create_file_ops, extract_file_ops_from_message, format_file_operations, serialize_conversation,
 };

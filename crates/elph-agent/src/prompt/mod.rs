@@ -1,11 +1,16 @@
-//! Named prompt template invocation — elph-agent module.
+//! Prompt management for elph-agent.
+//!
+//! - [`builtin`] — static prompt constants and formatters used by the runtime
+//! - [`external`] — filesystem-backed slash-command templates (`.md` files)
+//! - [`invoke`] — slash-command argument parsing and placeholder substitution
 
-mod load;
-mod parse;
-mod substitute;
+pub mod builtin;
+pub mod external;
 
-pub use load::{load_prompt_templates, load_sourced_prompt_templates};
-pub use substitute::{format_prompt_template_invocation, parse_command_args, substitute_args};
+mod invoke;
+
+pub use external::{load_prompt_templates, load_sourced_prompt_templates};
+pub use invoke::{format_prompt_template_invocation, parse_command_args, substitute_args};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptTemplateDiagnosticCode {

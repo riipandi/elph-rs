@@ -1,4 +1,4 @@
-//! Prompt template argument parsing and substitution.
+//! Slash-command argument parsing and placeholder substitution.
 
 use crate::harness::types::PromptTemplate;
 

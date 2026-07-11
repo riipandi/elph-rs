@@ -17,7 +17,7 @@ pub mod migration;
 pub mod mode;
 #[cfg(feature = "extensions")]
 pub mod plugins;
-pub mod prompt_templates;
+pub mod prompt;
 pub mod proxy;
 pub mod runtime;
 pub mod sandbox;
@@ -104,7 +104,7 @@ pub use plugins::{
     ExtensionCommand, ExtensionManifest, ExtensionRegistry, ExtensionSlashResult, ExtensionsSettings,
     discover_manifests, extension_roots, global_extensions_dir, load_manifest, project_extensions_dir,
 };
-pub use prompt_templates::{
+pub use prompt::{
     LoadPromptTemplatesResult, LoadSourcedPromptTemplatesResult, PromptTemplateDiagnostic,
     PromptTemplateDiagnosticCode, SourcedPromptTemplate, SourcedPromptTemplateDiagnostic,
     format_prompt_template_invocation, load_prompt_templates, load_sourced_prompt_templates, parse_command_args,

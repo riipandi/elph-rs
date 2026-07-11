@@ -2,10 +2,9 @@
 
 use elph_ai::AssistantMessage;
 
-use crate::harness::types::{
-    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessPhase, AgentHarnessPromptOptions, PendingSessionWrite,
-};
-use crate::prompt_templates::format_prompt_template_invocation;
+use crate::harness::types::{AgentHarnessError, AgentHarnessPromptOptions};
+use crate::harness::types::{AgentHarnessErrorCode, AgentHarnessPhase, PendingSessionWrite};
+use crate::prompt::format_prompt_template_invocation;
 use crate::session::types::{HasSessionId, SessionStorage};
 use crate::skills::format_skill_invocation;
 use crate::types::AgentMessage;

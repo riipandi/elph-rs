@@ -1,13 +1,13 @@
-//! Prompt template loading from filesystem paths.
+//! Load slash-command prompt templates from filesystem paths.
 
 use crate::env::LocalExecutionEnv;
 use crate::harness::types::{FileErrorCode, FileInfo, FileKind, FileSystem, Result};
-
-use super::parse::{diagnostic, load_template_from_file};
-use super::{
+use crate::prompt::{
     LoadPromptTemplatesResult, LoadSourcedPromptTemplatesResult, PromptTemplateDiagnostic,
     PromptTemplateDiagnosticCode, SourcedPromptTemplate, SourcedPromptTemplateDiagnostic,
 };
+
+use super::parse::{diagnostic, load_template_from_file};
 
 /// Load prompt templates from one or more paths.
 pub async fn load_prompt_templates(env: &LocalExecutionEnv, paths: &[&str]) -> LoadPromptTemplatesResult {
