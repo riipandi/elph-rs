@@ -11,7 +11,7 @@ fn cleanups() -> &'static Mutex<Vec<SessionResourceCleanup>> {
 
 fn lock_cleanups() -> std::sync::MutexGuard<'static, Vec<SessionResourceCleanup>> {
     // Prefer recovering a poisoned registry over permanently losing cleanup hooks.
-    // DeepWiki/Tokio guidance: std::sync::Mutex is fine for short critical sections that
+    // Tokio guidance: std::sync::Mutex is fine for short critical sections that
     // never hold across `.await`; poison recovery keeps session teardown reliable.
     match cleanups().lock() {
         Ok(guard) => guard,
