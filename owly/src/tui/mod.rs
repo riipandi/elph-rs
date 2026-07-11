@@ -1,18 +1,22 @@
-//! SuperLightTUI interactive shell for Owly.
+//! tuie interactive shell for Owly.
 
 mod app;
 mod ask;
 mod banner;
 mod chat_stream;
-mod chrome;
+
 mod context;
 mod entries;
 mod launch;
 mod setup;
+mod setup_tuie;
+mod shell_host;
 mod slash;
-mod static_flush;
 mod tool_display;
 mod transcript;
+pub mod transcript_render;
+
+pub use entries::{OwlyEntry, OwlyEntryKind, command_result_entry};
 
 use anyhow::Result;
 

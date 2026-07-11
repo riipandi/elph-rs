@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use elph_tui::{
-    ModelSelectorAction, ModelSelectorState, SessionSelectorAction, SessionSelectorState, TranscriptEntry,
-    TreeNavigatorAction, TreeNavigatorState, push_capped,
-};
+use elph_tui::{ModelSelectorState, SessionSelectorState, TranscriptEntry, TreeNavigatorState, push_capped};
 
 use crate::agent::{
     CreateSessionOptions, create_coding_session_with_events, list_model_select_items, list_session_select_items,
@@ -12,6 +9,7 @@ use crate::agent::{
 use crate::shell::{ActiveOverlay, ElphApp};
 use crate::tui::transcript_from_branch;
 
+#[allow(dead_code)] // tuie overlay port pending
 impl ElphApp {
     pub(super) fn close_overlay(&mut self) {
         self.active_overlay = ActiveOverlay::None;
@@ -161,82 +159,8 @@ impl ElphApp {
         self.active_overlay = ActiveOverlay::Tree;
     }
 
-    pub(super) fn handle_overlay_input(&mut self, ui: &slt::Context) -> bool {
-        if !self.overlay_visible() {
-            return false;
-        }
-
-        match self.active_overlay {
-            ActiveOverlay::Model => {
-                match elph_tui::handle_model_selector_input(ui, &mut self.model_selector, &self.overlay_items, true) {
-                    ModelSelectorAction::Selected(item) => {
-                        let value = item.value.clone();
-                        let session = Arc::clone(&self.session);
-                        match elph_agent::block_on(async move { session.set_model_from_value(&value).await }) {
-                            Ok(display) => {
-                                push_capped(
-                                    &mut self.chat.entries,
-                                    TranscriptEntry::system(format!("Model set to {display}")),
-                                    elph_tui::DEFAULT_TRANSCRIPT_CAP,
-                                );
-                                self.prompt.model_name = display;
-                            }
-                            Err(err) => {
-                                push_capped(
-                                    &mut self.chat.entries,
-                                    TranscriptEntry::system(format!("Failed to set model: {err}")),
-                                    elph_tui::DEFAULT_TRANSCRIPT_CAP,
-                                );
-                            }
-                        }
-                        self.close_overlay();
-                    }
-                    ModelSelectorAction::Cancelled => self.close_overlay(),
-                    ModelSelectorAction::None => {}
-                }
-            }
-            ActiveOverlay::Session => {
-                match elph_tui::handle_session_selector_input(ui, &mut self.session_selector, &self.overlay_items, true)
-                {
-                    SessionSelectorAction::Selected(item) => {
-                        let resume_id = item.value.clone();
-                        self.close_overlay();
-                        self.swap_session(Some(&resume_id));
-                    }
-                    SessionSelectorAction::Cancelled => self.close_overlay(),
-                    SessionSelectorAction::None => {}
-                }
-            }
-            ActiveOverlay::Tree => {
-                match elph_tui::handle_tree_navigator_input(ui, &mut self.tree_navigator, &self.overlay_items, true) {
-                    TreeNavigatorAction::Selected(item) => {
-                        let entry_id = item.value.clone();
-                        let session = Arc::clone(&self.session);
-                        match elph_agent::block_on(async move { session.navigate_tree_to(&entry_id).await }) {
-                            Ok(()) => {
-                                self.rebuild_transcript_from_session();
-                                push_capped(
-                                    &mut self.chat.entries,
-                                    TranscriptEntry::system("Navigated session tree"),
-                                    elph_tui::DEFAULT_TRANSCRIPT_CAP,
-                                );
-                            }
-                            Err(err) => {
-                                push_capped(
-                                    &mut self.chat.entries,
-                                    TranscriptEntry::system(format!("Tree navigation failed: {err}")),
-                                    elph_tui::DEFAULT_TRANSCRIPT_CAP,
-                                );
-                            }
-                        }
-                        self.close_overlay();
-                    }
-                    TreeNavigatorAction::Cancelled => self.close_overlay(),
-                    TreeNavigatorAction::None => {}
-                }
-            }
-            ActiveOverlay::None => {}
-        }
-        true
+    /// Overlay keyboard handling is deferred until tuie popup selectors land.
+    pub(super) fn handle_overlay_input(&mut self) -> bool {
+        self.overlay_visible()
     }
 }

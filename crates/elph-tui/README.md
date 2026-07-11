@@ -1,22 +1,21 @@
 # elph-tui
 
-Terminal UI components for Elph agent applications. Built on [SuperLightTUI](https://github.com/subinium/SuperLightTUI)
-for the agent shell and a pi-tui-inspired `diff/` engine for differential rendering, overlays, and rich components.
+Terminal UI components for Elph agent applications. The interactive shell is built on [tuie](https://crates.io/crates/tuie)
+with a pi-tui-inspired `diff/` engine for differential rendering, overlays, and rich components.
 
 ## Usage Sketch
 
 ```rust
-use elph_tui::{ChatStreamState, PromptState, Theme, render_chat_stream, render_prompt};
-use slt::run;
+use std::cell::RefCell;
+use std::rc::Rc;
+use elph_tui::{AgentShell, ShellHost, Theme, configure_runtime, start_shell};
 
-let mut chat = ChatStreamState::with_messages(vec!["hello".into()]);
-let mut prompt = PromptState::new("claude-sonnet");
-let theme = Theme::detect();
+struct MyHost;
+impl ShellHost for MyHost { /* poll, chrome, transcript_lines, on_prompt_action, … */ }
 
-run(|ui| {
-    render_chat_stream(ui, &mut chat, theme);
-    render_prompt(ui, &mut prompt, theme);
-})?;
+let host: Rc<RefCell<dyn ShellHost>> = Rc::new(RefCell::new(MyHost));
+configure_runtime();
+start_shell(AgentShell::new(host))?;
 ```
 
 ## License

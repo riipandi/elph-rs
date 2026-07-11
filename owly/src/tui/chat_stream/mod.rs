@@ -1,4 +1,4 @@
-//! Owly chat stream state (transcript scrollback is flushed via `static_flush`).
+//! Owly chat stream state (transcript rendered in the tuie shell pane).
 
 /// Minimal chat state retained for dispatch-side hooks.
 pub struct OwlyChatState;

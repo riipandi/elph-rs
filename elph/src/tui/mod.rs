@@ -1,4 +1,4 @@
-//! TUI bridge between coding-agent events and SLT transcript.
+//! TUI bridge between coding-agent events and the tuie transcript.
 
 mod bridge;
 mod dispatch;

@@ -26,7 +26,8 @@ clap = { workspace = true, features = ["env"] }
 elph-agent.workspace = true
 elph-ai.workspace = true
 elph-tui.workspace = true
-superlighttui.workspace = true
+tuie = { version = "0.2", features = ["harmonious"] }
+chord_macro = "0.1"
 indicatif.workspace = true
 memchr.workspace = true
 regex.workspace = true

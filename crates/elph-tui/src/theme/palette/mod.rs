@@ -1,11 +1,8 @@
 mod detect;
 mod semantic;
-mod slt_theme;
 
 use crate::prompt::AgentMode;
-use slt::{Color, Context};
-
-use slt_theme::apply_slt_theme;
+use tuie::prelude::Color;
 
 /// Visual theme variant for the terminal UI.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,17 +43,17 @@ impl Theme {
     pub fn from_mode(mode: ThemeMode) -> Self {
         Self {
             mode,
-            background: Color::Reset,
-            foreground: Color::Reset,
-            muted: Color::DarkGray,
-            prompt_prefix: Color::Reset,
-            scrollbar_thumb: Color::DarkGray,
-            scrollbar_track: Color::DarkGray,
-            frame_border: Color::Reset,
-            mode_build: Color::DarkGray,
-            mode_plan: Color::Cyan,
-            mode_ask: Color::Blue,
-            mode_brave: Color::Red,
+            background: Color::Background,
+            foreground: Color::Foreground,
+            muted: Color::grey256(8),
+            prompt_prefix: Color::Foreground,
+            scrollbar_thumb: Color::grey256(8),
+            scrollbar_track: Color::grey256(8),
+            frame_border: Color::Foreground,
+            mode_build: Color::grey256(8),
+            mode_plan: Color::CYAN,
+            mode_ask: Color::BLUE,
+            mode_brave: Color::RED,
         }
     }
 
@@ -72,9 +69,9 @@ impl Theme {
         })
     }
 
-    /// Sync SuperLightTUI with a terminal-respecting palette for the active mode.
-    pub fn apply_to(self, ui: &mut Context) {
-        apply_slt_theme(ui, self);
+    /// Sync tuie with a terminal-respecting palette for the active mode.
+    pub fn apply_tuie_theme(self) -> std::io::Result<()> {
+        crate::theme::tuie_palette::apply_tuie_theme(self)
     }
 
     pub fn mode_accent(self, mode: AgentMode) -> Color {
@@ -102,13 +99,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn palettes_use_terminal_reset() {
+    fn palettes_use_terminal_defaults() {
         let dark = Theme::dark();
         let light = Theme::light();
-        assert_eq!(dark.background, Color::Reset);
-        assert_eq!(light.background, Color::Reset);
-        assert_eq!(dark.foreground, Color::Reset);
-        assert_eq!(light.foreground, Color::Reset);
+        assert_eq!(dark.background, Color::Background);
+        assert_eq!(light.background, Color::Background);
+        assert_eq!(dark.foreground, Color::Foreground);
+        assert_eq!(light.foreground, Color::Foreground);
         assert_eq!(dark.mode, ThemeMode::Dark);
         assert_eq!(light.mode, ThemeMode::Light);
     }
@@ -148,17 +145,17 @@ mod tests {
     #[test]
     fn mode_border_uses_ansi() {
         let theme = Theme::dark();
-        assert_eq!(theme.mode_border_color(AgentMode::Plan), Color::Cyan);
-        assert_eq!(theme.mode_border_color(AgentMode::Ask), Color::Blue);
+        assert_eq!(theme.mode_border_color(AgentMode::Plan), Color::CYAN);
+        assert_eq!(theme.mode_border_color(AgentMode::Ask), Color::BLUE);
     }
 
     #[test]
     fn context_usage_thresholds() {
         let theme = Theme::dark();
-        assert_eq!(theme.context_usage_color(30.0), Color::Reset);
-        assert_eq!(theme.context_usage_color(60.0), Color::Yellow);
-        assert_eq!(theme.context_usage_color(85.0), Color::LightRed);
-        assert_eq!(theme.context_usage_color(95.0), Color::Red);
+        assert_eq!(theme.context_usage_color(30.0), Color::Foreground);
+        assert_eq!(theme.context_usage_color(60.0), Color::YELLOW);
+        assert_eq!(theme.context_usage_color(85.0), Color::BRIGHT_RED);
+        assert_eq!(theme.context_usage_color(95.0), Color::RED);
     }
 
     #[test]

@@ -6,7 +6,7 @@ use crate::onboarding::{self, SetupCredentials};
 use super::OwlyApp;
 
 impl OwlyApp {
-    pub(super) fn complete_setup(&mut self, credentials: SetupCredentials) {
+    pub(crate) fn complete_setup(&mut self, credentials: SetupCredentials) {
         self.setup.clear_error();
         let apply_context = self.context.clone();
         let persist_context = self.context.clone();

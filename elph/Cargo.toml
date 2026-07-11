@@ -27,7 +27,8 @@ elph-agent.workspace = true
 elph-ai.workspace = true
 elph-core = { workspace = true, features = ["fastembed"] }
 elph-tui.workspace = true
-superlighttui.workspace = true
+tuie = { version = "0.2", features = ["harmonious"] }
+chord_macro = "0.1"
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true

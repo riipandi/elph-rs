@@ -52,7 +52,6 @@ pub use overlay::{
     OverlayAnchor, OverlayHandle, OverlayLayout, OverlayMargin, OverlayOptions, SizeValue, composite_line_at,
     resolve_layout,
 };
-pub(crate) use overlay::{OverlayEntry, composite_overlays};
 pub use render::{RenderState, SYNC_BEGIN, SYNC_END, do_render, first_changed_line};
 pub use select_list::{SelectItem, SelectList, SelectListTheme};
 pub use settings_list::{SettingItem, SettingsList, SettingsListTheme};

@@ -7,7 +7,7 @@ pub const OWLY_SLASH_COMMANDS: &[&str] = &[
 
 /// Normalize prompt text before dispatch so shell handlers receive `/command` form.
 ///
-/// [`handle_prompt_input`] strips the `/` prefix on submit; this restores it for known commands.
+/// [`strip_submit_trigger`] strips the `/` prefix on submit; this restores it for known commands.
 pub fn normalize_dispatch_text(text: &str) -> String {
     let trimmed = text.trim();
     if trimmed.is_empty() {

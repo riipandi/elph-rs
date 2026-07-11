@@ -19,7 +19,7 @@ pub use app::{SHOULD_KILL_PARENT, kill_parent};
 pub use bootstrap::ensure_home_blocking;
 pub use datastore::{ensure as ensure_datastore, ensure_blocking as ensure_datastore_blocking};
 pub use elph_core::utils::path::AppPaths;
-pub use interrupt::handle_prompt_interrupt;
+pub use interrupt::{PromptInterrupt, handle_prompt_interrupt_prompt, handle_prompt_interrupt_text};
 pub use paths::Paths;
 pub use project::ensure as ensure_project;
 pub use settings::Settings;

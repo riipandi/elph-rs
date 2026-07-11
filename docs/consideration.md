@@ -6,13 +6,13 @@ Design log for evaluating third-party libraries. Verdicts guide adoption — imp
 
 ## Near-term stack (target)
 
-| Layer           | Planned crates                                                  |
-| --------------- | --------------------------------------------------------------- |
-| LLM / providers | `genai`, `schemars`                                             |
-| Agent runtime   | `fff-search` (done), `rmcp`, `jsonschema`                       |
-| TUI             | `superlighttui`, `syntect`, `anstyle-syntect`, `pulldown-cmark` |
-| Config          | `figment`, `jsonc-parser`                                       |
-| Shared          | `tracing`, `tokio`, `chrono`, `memchr`                          |
+| Layer           | Planned crates                                         |
+| --------------- | ------------------------------------------------------ |
+| LLM / providers | `genai`, `schemars`                                    |
+| Agent runtime   | `fff-search` (done), `rmcp`, `jsonschema`              |
+| TUI             | `tuie`, `syntect`, `anstyle-syntect`, `pulldown-cmark` |
+| Config          | `figment`, `jsonc-parser`                              |
+| Shared          | `tracing`, `tokio`, `chrono`, `memchr`                 |
 
 ---
 
@@ -41,11 +41,11 @@ Design log for evaluating third-party libraries. Verdicts guide adoption — imp
 
 ## TUI, markdown & prompts
 
-Two layers: immediate-mode agent shell + rich diff/overlay components.
+Two layers: tuie agent shell + rich diff/overlay components.
 
 | Verdict   | Item                                                                                                      | Rationale                                    |
 | --------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **Keep**  | [superlighttui](https://github.com/subinium/SuperLightTUI)                                                | Agent shell for elph and owly                |
+| **Keep**  | [tuie](https://crates.io/crates/tuie)                                                                     | Agent shell for elph and owly                |
 | **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark)                                        | Markdown line rendering                      |
 | **Adopt** | [syntect](https://crates.io/crates/syntect) + [anstyle-syntect](https://crates.io/crates/anstyle-syntect) | Code-block highlighting                      |
 | **Defer** | anstyle-git, termimad                                                                                     | Git diff colors; full markdown TUI redundant |

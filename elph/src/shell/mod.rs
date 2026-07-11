@@ -1,10 +1,11 @@
 //! Interactive TUI application shell.
 
 mod events;
-mod input;
 mod overlays;
 mod render;
+mod shell_host;
 mod slash;
+mod transcript_render;
 mod turn;
 
 use std::path::PathBuf;
@@ -12,11 +13,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use elph_tui::{
-    ActivityState, PromptQueue, PromptState, SelectItem, SessionSelectorState, SlashPaletteState, Theme, ThinkingLevel,
-    ToolApprovalState, ToolExecutionState, TranscriptStyle, TreeNavigatorState, default_activity_spinner,
-    read_git_branch,
+    ActivityState, PromptQueue, PromptState, SelectItem, SessionSelectorState, Theme, ThinkingLevel, ToolApprovalState,
+    ToolExecutionState, TranscriptStyle, TreeNavigatorState, read_git_branch,
 };
-use slt::widgets::SpinnerState;
 use tokio::sync::mpsc;
 
 use crate::agent::{
@@ -26,7 +25,7 @@ use crate::agent::{
 use crate::extensions::ExtensionHost;
 use crate::platform::{Paths, Settings};
 
-pub use render::{render_app, run_sigint_watcher, run_tui};
+pub use render::{run_sigint_watcher, run_tui};
 
 /// Launch options for the interactive TUI.
 #[derive(Debug, Clone, Default)]
@@ -54,8 +53,6 @@ pub struct ElphApp {
     pub thinking: ThinkingLevel,
     pub agent_running: bool,
     pub activity: ActivityState,
-    pub spinner: SpinnerState,
-    pub slash_palette: SlashPaletteState,
     pub slash_commands: Vec<elph_tui::SlashCommand>,
     pub git_branch: Option<String>,
     pub collapse: elph_tui::CollapseState,
@@ -70,8 +67,12 @@ pub struct ElphApp {
     pub(super) last_turn_elapsed_secs: f64,
     pub(super) total_api_secs: f64,
     pub(super) started_at: Instant,
+    // INVARIANT: used by overlay session swap once tuie modals land.
+    #[allow(dead_code)]
     pub(super) settings: Settings,
+    #[allow(dead_code)]
     pub(super) paths: Paths,
+    #[allow(dead_code)]
     pub(super) cwd: PathBuf,
     pub(super) active_overlay: ActiveOverlay,
     pub(super) model_selector: elph_tui::ModelSelectorState,
@@ -125,8 +126,6 @@ impl ElphApp {
             thinking,
             agent_running: false,
             activity: ActivityState::default(),
-            spinner: default_activity_spinner(),
-            slash_palette: SlashPaletteState::default(),
             slash_commands: {
                 let registry = extensions.registry();
                 let guard = registry.read();

@@ -109,31 +109,29 @@ When `owly` is run with no arguments (or in a TTY), the startup mode resolves to
 7. Each turn preserves conversation history via the same session store
 8. On restart, the session is recovered: mid-turn assistant drafts are merged into the transcript and pending `ask_*` interrupts are reported so the user knows what the agent was waiting for
 
-**TUI keybindings** (rendered as a help bar below the prompt):
+**TUI stack:** Interactive shells for `owly` and `elph` use [tuie](https://crates.io/crates/tuie) via the shared [`elph-tui`](../crates/elph-tui/) crate (`AgentShell`, `ShellHost`, `PromptPane`, `TranscriptPane`). Global chords are centralized in [`keymap/mod.rs`](../crates/elph-tui/src/keymap/mod.rs).
 
-| Key                     | Action                        |
-| ----------------------- | ----------------------------- |
-| `Enter`                 | Send message                  |
-| `Shift+Enter`           | Insert newline                |
-| `Esc`                   | Clear prompt                  |
-| `Tab`                   | Cycle agent mode              |
-| `←` / `→`               | Move cursor                   |
-| `Alt+←` / `Alt+→`       | Jump word                     |
-| `Alt+Backspace`         | Delete word backward          |
-| `Shift+↑` / `Shift+↓`   | Scroll chat transcript        |
-| `Shift+End`             | Jump to tail (re-enable auto) |
-| `Page Up` / `Page Down` | Page scroll                   |
+**TUI keybindings:**
 
-The prompt widget was redesigned: it is no longer a bordered box. Instead a mode badge, model label, and compact help bar sit above and below an unbordered textarea. Cursor navigation (arrow keys, word jumps, deletions) is handled by the [`editing.rs`](../crates/elph-tui/src/prompt/editing.rs) module _before_ SLT's built-in handler, ensuring reliable behavior even when chat scroll or focus order would otherwise intercept arrow keys.
+| Key                   | Action                                      |
+| --------------------- | ------------------------------------------- |
+| `Enter`               | Send (idle) or queue (while agent is busy)  |
+| `Ctrl+Enter`          | Steer / follow-up while agent is busy       |
+| `Esc`                 | Clear prompt (when idle)                    |
+| `Tab`                 | Cycle agent mode (empty prompt)             |
+| `Shift+↑` / `Shift+↓` | Scroll chat transcript                      |
+| `Shift+End`           | Jump to tail (re-enable auto-scroll)        |
+| `Ctrl+K`              | Open command palette (all slash commands)   |
+| `/` in prompt         | Open fuzzy slash-command palette            |
+| `Ctrl+S`              | Toggle right sidebar (terminals ≥ 100 cols) |
+| `Ctrl+C`              | Cancel agent run or exit when idle          |
+| `Ctrl+T`              | Toggle light/dark theme                     |
 
-**Transcript scroll** uses the shared [`transcript_scroll`](../crates/elph-tui/src/prompt/transcript_scroll.rs) module (extracted from `elph-tui` into its own `prompt/transcript_scroll.rs`). It provides:
+The prompt is a multiline tuie textarea (`PromptPane`) with steering preserved: queued messages while the agent runs, `Ctrl+Enter` for follow-up steering. Cursor editing for the legacy render path still uses [`editing.rs`](../crates/elph-tui/src/prompt/editing.rs); the tuie prompt handles input natively.
 
-- `ScrollSnapshot` — captures scroll state before each render frame
-- `handle_transcript_scroll_keys()` — Shift+arrow / PageUp/Down / Shift+End keybindings
-- `prepare_transcript_follow()` — snap to tail before rendering when auto-scroll is active
-- `apply_transcript_auto_scroll()` — sticky-tail behavior after content is measured
+**Transcript scroll** is implemented by [`TranscriptPane`](../crates/elph-tui/src/widgets/transcript.rs) with auto-scroll follow-tail and global chord dispatch via `GlobalChordHandler`.
 
-The session banner is rendered **inside** the scrollable transcript area via the `BannerInfo` struct (from `elph-tui`'s chrome module), so it scrolls with the content instead of staying fixed outside the viewport. The `owly/src/tui/banner.rs` module was simplified to only provide the `directory_display()` path helper; the banner itself is assembled from `BannerInfo` in `app.rs`.
+The welcome banner is rendered as hint entries at the top of the scrollable transcript (`OwlyEntry::hint`). `owly/src/tui/banner.rs` provides the `directory_display()` path helper.
 
 **Keyboard enhancement**: Both the `owly` and `elph` TUI apps enable the terminal keyboard enhancement protocol on startup (`enable_keyboard_enhancement()`) and disable it on drop, allowing reliable modifier key detection (Shift, Alt, Ctrl) for all keybindings above.
 

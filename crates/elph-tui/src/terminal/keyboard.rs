@@ -19,7 +19,7 @@ fn enhancement_flags() -> KeyboardEnhancementFlags {
 
 /// Enables xterm keyboard enhancements needed for ⌘/⌥ modifier reporting.
 ///
-/// Must be called after the terminal is in raw mode (SLT enables this on first draw).
+/// Must be called after the terminal is in raw mode (the shell runtime enables this on first draw).
 pub fn enable_keyboard_enhancement() -> Result<()> {
     if ENABLED.load(Ordering::Relaxed) || !terminal::supports_keyboard_enhancement().unwrap_or(false) {
         return Ok(());

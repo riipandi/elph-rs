@@ -1,19 +1,18 @@
-//! Owly interactive shell application (SuperLightTUI).
+//! Owly interactive shell application (tuie).
 
 mod events;
 mod input;
-mod render;
 mod run;
 mod setup;
 
 use elph_tui::AgentMode;
 use elph_tui::{
-    ActivityState, PromptQueue, PromptState, SlashPaletteState, Theme, ToolExecutionState, default_activity_spinner,
-    owly_builtin_commands, pick_tip,
+    ActivityState, BannerInfo, PromptQueue, PromptState, Theme, ToolExecutionState, owly_builtin_commands, pick_tip,
+    simple_banner_lines,
 };
-use slt::widgets::SpinnerState;
 use tokio::sync::mpsc;
 
+use crate::tui::banner::directory_display;
 use crate::tui::setup::SetupWizardState;
 
 use super::ask::PendingAsk;
@@ -21,9 +20,9 @@ use super::chat_stream::OwlyChatState;
 use super::context::AppContext;
 use super::entries::OwlyEntry;
 use super::launch::LaunchState;
-use super::static_flush::TranscriptFlushState;
 use crate::ui_events::AgentUiEvent;
 
+pub use events::AppMessage;
 pub use run::run_shell;
 
 pub struct OwlyApp {
@@ -36,35 +35,57 @@ pub struct OwlyApp {
     pub running: bool,
     pub setup_complete: bool,
     pub setup: SetupWizardState,
-    pub setup_error: Option<String>,
     pub provider: String,
     pub model: String,
     pub show_thinking: bool,
     pub should_exit: bool,
     pub submit_tx: mpsc::UnboundedSender<String>,
-    pub tip: &'static str,
     pub turn: u32,
     pub session_label: String,
     pub activity: ActivityState,
-    pub spinner: SpinnerState,
     pub prompt_queue: PromptQueue,
     pub slash_commands: Vec<elph_tui::SlashCommand>,
-    pub slash_palette: SlashPaletteState,
-    pub(super) transcript_flush: TranscriptFlushState,
-    pub(super) banner_emitted: bool,
     pub(super) pending_ask: Option<PendingAsk>,
 }
 
 impl OwlyApp {
     pub(super) fn from_launch(launch: LaunchState) -> Self {
         let show_thinking = launch.app_context.verbose();
-        let startup_entries = super::transcript::lines_to_entries(&launch.startup_lines);
+        let mut entries = super::transcript::lines_to_entries(&launch.startup_lines);
+        let directory = directory_display(launch.app_context.cwd());
+        let banner = BannerInfo {
+            app_name: "Owly",
+            version: env!("CARGO_PKG_VERSION"),
+            update_available: false,
+            directory: &directory,
+            model: if launch.model.is_empty() {
+                None
+            } else {
+                Some(launch.model.as_str())
+            },
+            provider: if launch.provider.is_empty() {
+                None
+            } else {
+                Some(launch.provider.as_str())
+            },
+            extensions: 0,
+            commands: 0,
+            skills: 0,
+            tools: 0,
+            mcp_connected: 0,
+            mcp_total: 0,
+            mcp_tools: 0,
+            tip: pick_tip(&launch.session_id),
+        };
+        for line in simple_banner_lines(banner) {
+            entries.insert(0, OwlyEntry::hint(line));
+        }
         let setup = SetupWizardState::new(&launch.provider, &launch.model);
 
         let session_label = launch.session_label.clone();
         Self {
             context: launch.app_context,
-            entries: startup_entries,
+            entries,
             live_tools: Vec::new(),
             prompt: {
                 let mut prompt = PromptState::new(launch.model.clone());
@@ -77,22 +98,16 @@ impl OwlyApp {
             running: false,
             setup_complete: !launch.pending_setup,
             setup,
-            setup_error: None,
             provider: launch.provider,
             model: launch.model,
             show_thinking,
             should_exit: false,
             submit_tx: launch.submit_tx,
-            tip: pick_tip(&launch.session_id),
             turn: 0,
             session_label,
             activity: ActivityState::default(),
-            spinner: default_activity_spinner(),
             prompt_queue: PromptQueue::default(),
             slash_commands: owly_builtin_commands(),
-            slash_palette: SlashPaletteState::default(),
-            transcript_flush: TranscriptFlushState::default(),
-            banner_emitted: false,
             pending_ask: None,
         }
     }
@@ -129,13 +144,13 @@ impl OwlyApp {
             question,
             kind,
             response_tx,
-            selected: default_index,
+            _selected: default_index,
         };
         pending.push_transcript_notice(&mut self.entries);
         if let crate::ui_events::AskUserKind::Text { default: Some(default) } = &pending.kind
             && !default.is_empty()
         {
-            self.prompt.textarea.set_value(default);
+            self.prompt.set_value(default);
         }
         self.activity = ActivityState::awaiting_input();
         self.pending_ask = Some(pending);

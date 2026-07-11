@@ -1,7 +1,6 @@
 #[cfg(unix)]
 use super::app::SHOULD_KILL_PARENT;
 use super::app::WAS_INTERRUPTED;
-use slt::TextareaState;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Suppresses the duplicate SIGINT delivery that follows a clear-from-non-empty prompt.
@@ -16,23 +15,45 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// Result of handling Ctrl+C / SIGINT against the current prompt text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptInterrupt {
+    /// Non-empty prompt was cleared; shell should stay open.
+    Cleared,
+    /// Empty prompt (or coalesced second interrupt) — request exit.
+    ShouldExit,
+    /// No action (e.g. coalesced duplicate).
+    Ignored,
+}
+
 /// First Ctrl+C / SIGINT clears the prompt; second exits (when prompt is empty).
-pub fn handle_prompt_interrupt(prompt: &mut TextareaState) -> bool {
-    if !prompt.value().is_empty() {
-        prompt.set_value("");
+pub fn handle_prompt_interrupt_text(value: &str) -> PromptInterrupt {
+    if !value.is_empty() {
         LAST_INTERRUPT_CLEAR_MS.store(now_ms(), Ordering::Relaxed);
-        return false;
+        return PromptInterrupt::Cleared;
     }
 
     let cleared_at = LAST_INTERRUPT_CLEAR_MS.load(Ordering::Relaxed);
     if cleared_at != 0 && now_ms().saturating_sub(cleared_at) < INTERRUPT_COALESCE_MS {
-        return false;
+        return PromptInterrupt::Ignored;
     }
 
     WAS_INTERRUPTED.store(true, Ordering::Relaxed);
     #[cfg(unix)]
     SHOULD_KILL_PARENT.store(true, Ordering::Relaxed);
-    true
+    PromptInterrupt::ShouldExit
+}
+
+/// Clears or exits based on [`handle_prompt_interrupt_text`], returning `true` when the shell should exit.
+pub fn handle_prompt_interrupt_prompt(prompt: &mut elph_tui::PromptState) -> bool {
+    match handle_prompt_interrupt_text(&prompt.value()) {
+        PromptInterrupt::Cleared => {
+            prompt.clear();
+            false
+        }
+        PromptInterrupt::ShouldExit => true,
+        PromptInterrupt::Ignored => false,
+    }
 }
 
 #[cfg(test)]
@@ -48,5 +69,10 @@ mod tests {
     fn coalesce_suppresses_exit_immediately_after_clear() {
         assert!(interrupt_coalesce_should_suppress_exit(1_000, 1_100));
         assert!(!interrupt_coalesce_should_suppress_exit(1_000, 1_300));
+    }
+
+    #[test]
+    fn non_empty_prompt_clears_without_exit() {
+        assert_eq!(handle_prompt_interrupt_text("draft"), PromptInterrupt::Cleared);
     }
 }
