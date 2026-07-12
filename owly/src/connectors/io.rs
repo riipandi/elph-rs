@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use super::types::{ConnectorId, ConnectorState};
 
 pub fn connectors_root() -> PathBuf {
-    crate::mode::owly_home_dir().join("connectors")
+    crate::wiki::mode::owly_home_dir().join("connectors")
 }
 
 pub fn connector_home(id: ConnectorId) -> PathBuf {
@@ -29,7 +29,7 @@ pub fn ensure_connector_home(id: ConnectorId) -> Result<()> {
     let home = connector_home(id);
     std::fs::create_dir_all(&home).with_context(|| format!("create {}", home.display()))?;
     std::fs::create_dir_all(raw_dir(id))?;
-    crate::credentials::secure_env_dir()?;
+    crate::runtime::credentials::secure_env_dir()?;
     Ok(())
 }
 

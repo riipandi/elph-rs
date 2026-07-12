@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use elph_ai::{SimpleStreamOptions, StreamOptions};
 
-use crate::config::Config;
-use crate::constants::{
+use crate::runtime::config::Config;
+use crate::runtime::constants::{
     provider_config, provider_is_configured, provider_oauth_capable, provider_oauth_only,
     resolve_provider_retry_attempts,
 };
-use crate::interactive;
+use crate::ui::spinner::progress_spinner;
 
 use super::shared_models::shared_models;
 
@@ -32,7 +32,7 @@ pub(super) async fn resolve_model_and_auth(
             config.provider, config.model_id
         ))?;
 
-    let setup = interactive::progress_spinner("Resolving auth...");
+    let setup = progress_spinner("Resolving auth...");
     let auth = models.get_auth(&model).await?;
     setup.finish_and_clear();
 

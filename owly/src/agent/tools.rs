@@ -12,8 +12,8 @@ fn truncate_with_ellipsis(value: &str, max_chars: usize) -> String {
 }
 
 pub(super) fn summarize_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
-    if crate::ask_user::ASK_TOOL_NAMES.contains(&tool_name) {
-        crate::ask_user::format_args_summary(tool_name, args)
+    if crate::runtime::ask_user::ASK_TOOL_NAMES.contains(&tool_name) {
+        crate::runtime::ask_user::format_args_summary(tool_name, args)
     } else {
         args.to_string()
     }

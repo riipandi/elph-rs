@@ -41,6 +41,12 @@ Track how far **Owly** lags or leads mainstream **OpenWiki** on the Elph stack.
 
 ## Timeline
 
+### 2026-07-12T17:30:00Z — layered crate layout + E2E expansion
+
+- Source buckets: `cli/`, `ui/`, `app/`, `wiki/`, `setup/`, `runtime/` (+ `agent/`, `connectors/`)
+- E2E script: 106 non-LLM + 10 optional LLM assertions; `cli_e2e_test.rs` integration tests
+- Cron usage error message fixed (`owly cron pause <source|all>`)
+
 ### 2026-07-12T10:30:00Z — terminal product pass
 
 - Personal mode default; `owly personal` / `owly code` positional modes

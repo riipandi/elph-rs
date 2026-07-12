@@ -18,10 +18,10 @@ cargo run -p owly -- [OPTIONS] [MESSAGE]
 
 ## Modes
 
-| Mode | Wiki location | Default |
-|------|---------------|---------|
-| **personal** | `~/.owly/wiki/` | yes |
-| **code** | `./openwiki/` in the repository | explicit |
+| Mode         | Wiki location                   | Default  |
+| ------------ | ------------------------------- | -------- |
+| **personal** | `~/.owly/wiki/`                 | yes      |
+| **code**     | `./openwiki/` in the repository | explicit |
 
 Personal mode is the default when no mode is given. Code mode targets repository documentation and optional `AGENTS.md` / `CLAUDE.md` refresh blocks.
 
@@ -121,35 +121,35 @@ CI examples: [`examples/`](./examples/) (GitHub Actions, GitLab CI, Bitbucket Pi
 
 ### Environment
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OWLY_PROVIDER` | LLM provider | `opencode` |
-| `OWLY_MODEL_ID` | Model id | `big-pickle` |
+| Variable        | Description  | Default      |
+| --------------- | ------------ | ------------ |
+| `OWLY_PROVIDER` | LLM provider | `opencode`   |
+| `OWLY_MODEL_ID` | Model id     | `big-pickle` |
 
 ### Provider API keys
 
-| Provider | Environment variable |
-|----------|---------------------|
-| OpenCode | `OPENCODE_API_KEY` |
-| Anthropic | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
+| Provider   | Environment variable |
+| ---------- | -------------------- |
+| OpenCode   | `OPENCODE_API_KEY`   |
+| Anthropic  | `ANTHROPIC_API_KEY`  |
+| OpenAI     | `OPENAI_API_KEY`     |
 | OpenRouter | `OPENROUTER_API_KEY` |
-| Google | `GOOGLE_API_KEY` |
-| DeepSeek | `DEEPSEEK_API_KEY` |
-| Groq | `GROQ_API_KEY` |
-| Fireworks | `FIREWORKS_API_KEY` |
-| Together | `TOGETHER_API_KEY` |
-| Mistral | `MISTRAL_API_KEY` |
+| Google     | `GOOGLE_API_KEY`     |
+| DeepSeek   | `DEEPSEEK_API_KEY`   |
+| Groq       | `GROQ_API_KEY`       |
+| Fireworks  | `FIREWORKS_API_KEY`  |
+| Together   | `TOGETHER_API_KEY`   |
+| Mistral    | `MISTRAL_API_KEY`    |
 
 ### Files under `~/.owly/`
 
-| Path | Purpose |
-|------|---------|
-| `.env` | Provider keys and defaults |
-| `wiki/` | Personal wiki root |
-| `owly.sqlite` | Chat session checkpoints (Turso) |
+| Path              | Purpose                                   |
+| ----------------- | ----------------------------------------- |
+| `.env`            | Provider keys and defaults                |
+| `wiki/`           | Personal wiki root                        |
+| `owly.sqlite`     | Chat session checkpoints (Turso)          |
 | `onboarding.json` | Personal onboarding + connector instances |
-| `INSTRUCTIONS.md` | Personal wiki goals |
+| `INSTRUCTIONS.md` | Personal wiki goals                       |
 
 ## Documentation layout (code mode)
 
@@ -172,23 +172,55 @@ openwiki/
 
 **Init / update (full):** above plus `bash`, `edit`, `write`
 
+## Source layout
+
+Owly is organized in layers under `owly/src/`:
+
+| Layer          | Path          | Role                                            |
+| -------------- | ------------- | ----------------------------------------------- |
+| **CLI**        | `cli/`        | Argument parsing, product subcommand routing    |
+| **UI**         | `ui/`         | Terminal output, stream rendering, spinners     |
+| **App**        | `app/`        | Use-cases: init, update, chat, ingest, cron     |
+| **Wiki**       | `wiki/`       | Docs domain: mode, prompts, metadata, snapshots |
+| **Agent**      | `agent/`      | elph-agent integration and checkpoint listeners |
+| **Connectors** | `connectors/` | Ingestion sources (`git-repo`, `web-search`, …) |
+| **Setup**      | `setup/`      | Onboarding wizard, connector auth               |
+| **Runtime**    | `runtime/`    | Config, credentials, Turso session/checkpoint   |
+
+`lib.rs` re-exports stable paths (`owly::config`, `owly::mode`, …) for tests and integrations.
+
 ## Development
 
 ```sh
 cargo build -p owly
 cargo test -p owly
+cargo nextest run -p owly --test cli_e2e_test   # binary-level CLI smoke tests
 cargo clippy -p owly --all-targets -- -D warnings
+make check && make lint && make test            # workspace gates
 ```
 
 ### E2E CLI smoke tests
 
+[`scripts/e2e_cli.sh`](./scripts/e2e_cli.sh) exercises core flags, dry-run paths, trailing-flag recovery, `auth` / `ingest` / `cron`, connector configure + cron lifecycle, and ingest without LLM wiki writes. Live chat checks are optional.
+
 ```sh
 cargo build -p owly --release
 ./owly/scripts/e2e_cli.sh
+# → 106 assertions (no LLM), 5 chat cases skipped
 
-# optional live LLM checks (uses ~/.owly credentials)
-OWLY_E2E_LLM=1 OWLY_E2E_HOME="$HOME" ./owly/scripts/e2e_cli.sh
+# Live LLM chat (streams credentials from ~/.owly/.env; does not change isolated HOME)
+OWLY_E2E_LLM=1 ./owly/scripts/e2e_cli.sh
+# → 116 assertions, 0 skipped
 ```
+
+Covered surface (non-LLM unless noted):
+
+- **Core:** bare `owly`, `--help` / `-h`, `--credentials`, `--init` / `--update` validation, `-p`, `--mode`
+- **Flags:** `--stream`, `--verbose`, `--modelId` / `--model=`, `--directory` (trailing recovery)
+- **Dry-run:** personal/code init, update, chat; mixed flag order
+- **Product:** `auth list|configure`, `ingest`, `cron list|pause|resume|delete`, rejected `ngrok` / OAuth providers
+- **Connectors:** configure `git-repo` / `web-search` / `hackernews`, `--force`, ingest skip path
+- **LLM (optional):** personal chat stream / print / verbose / positional
 
 ## Credits
 

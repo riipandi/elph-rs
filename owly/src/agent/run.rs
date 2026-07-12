@@ -1,24 +1,21 @@
 use anyhow::Result;
-use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-use elph_agent::{
-    Agent, AgentOptions, AgentState, LocalExecutionEnv, PartialAgentState, create_all_tools, create_read_only_tools,
-};
+use elph_agent::{Agent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_all_tools, create_read_only_tools};
 
-use crate::ask_user::{AskUserBridge, create_ask_tools};
-use crate::cli::format_stream_footer;
-use crate::config::Config;
-use crate::docs::{self, DocumentationSnapshot};
-use crate::env;
-use crate::mode::WikiContext;
-use crate::session::SessionStore;
+use crate::runtime::ask_user::{AskUserBridge, create_ask_tools};
+use crate::runtime::config::Config;
+use crate::runtime::env;
+use crate::runtime::session::SessionStore;
+use crate::ui::spinner::progress_spinner;
+use crate::ui::stream::create_event_subscriber;
+use crate::ui::{format_stream_footer, print_assistant_response};
+use crate::wiki::docs::{self, DocumentationSnapshot};
+use crate::wiki::mode::WikiContext;
 
-use crate::interactive;
-
-use super::listeners::{create_checkpoint_write_subscriber, create_event_subscriber};
+use super::listeners::create_checkpoint_write_subscriber;
 use super::model::resolve_model_and_auth;
 
 /// Result of a single agent invocation.
@@ -42,26 +39,6 @@ pub struct RunAgentOptions<'a> {
     pub session: Option<&'a mut SessionStore>,
     pub is_followup: bool,
     pub docs_snapshot_before: Option<DocumentationSnapshot>,
-}
-
-fn print_assistant_response(state: &AgentState) -> bool {
-    let Some(elph_ai::Message::Assistant(assistant)) = state.messages.last().and_then(|m| m.as_llm()) else {
-        return false;
-    };
-    let mut wrote = false;
-    for block in &assistant.content {
-        if let elph_ai::AssistantContentBlock::Text(t) = block
-            && !t.text.is_empty()
-        {
-            print!("{}", t.text);
-            wrote = true;
-        }
-    }
-    if wrote {
-        println!();
-        let _ = std::io::stdout().flush();
-    }
-    wrote
 }
 
 /// Run the agent with the given command.
@@ -141,7 +118,7 @@ pub async fn run_agent(opts: RunAgentOptions<'_>) -> Result<RunAgentResult> {
         ..Default::default()
     });
 
-    let generating = interactive::progress_spinner("Thinking...");
+    let generating = progress_spinner("Thinking...");
     let saw_any_delta = Arc::new(AtomicBool::new(false));
     let stream_ends_with_newline = Arc::new(AtomicBool::new(true));
 

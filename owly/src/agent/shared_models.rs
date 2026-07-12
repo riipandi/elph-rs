@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 use anyhow::Result;
 use elph_ai::{CreateModelsOptions, Models, builtin_models};
 
-use crate::credentials::{OwlyAuthContext, OwlyCredentialStore};
+use crate::runtime::credentials::{OwlyAuthContext, OwlyCredentialStore};
 
 static SHARED_MODELS: OnceLock<Arc<Models>> = OnceLock::new();
 static SHARED_CREDENTIALS: OnceLock<Arc<OwlyCredentialStore>> = OnceLock::new();

@@ -52,6 +52,13 @@ fn e2e_help_lists_personal_mode() {
 }
 
 #[test]
+fn e2e_h_alias_matches_help() {
+    let (code, out) = run(&["-h"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("owly personal"));
+}
+
+#[test]
 fn e2e_init_requires_mode() {
     let (code, out) = run(&["--init"]);
     assert_ne!(code, 0);
@@ -74,10 +81,33 @@ fn e2e_dry_run_personal_init_mixed_order() {
 }
 
 #[test]
+fn e2e_trailing_stream_flag_on_dry_run_chat() {
+    let (code, out) = run(&["--dry-run", "personal", "hello", "--stream"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("chat"));
+}
+
+#[test]
 fn e2e_auth_list() {
     let (code, out) = run(&["auth", "list"]);
     assert_eq!(code, 0);
     assert!(out.contains("auth configure"));
+}
+
+#[test]
+fn e2e_cron_pause_requires_target() {
+    let (code, out) = run(&["cron", "pause"]);
+    assert_ne!(code, 0);
+    assert!(out.contains("Usage: owly cron pause"));
+}
+
+#[test]
+fn e2e_ingest_after_auth_configure_skips_wiki_without_llm() {
+    let (code, out) = run(&["auth", "configure", "git-repo"]);
+    assert_eq!(code, 0, "auth configure failed: {out}");
+    let (code, out) = run(&["ingest", "git-repo"]);
+    assert_eq!(code, 0, "ingest failed: {out}");
+    assert!(out.contains("wiki: skipped") || out.contains("Owly ingest git-repo"));
 }
 
 #[test]

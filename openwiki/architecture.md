@@ -13,45 +13,56 @@ status: published
 
 ## Overview
 
-Owly is a CLI agent that generates and maintains documentation in either **code** mode (repository `openwiki/`) or **personal** mode (`~/.owly/wiki/`). It follows a pipeline: **CLI → Mode → Command → Agent → LLM → Filesystem**.
+Owly is a CLI agent that generates and maintains documentation in either **code** mode (repository `openwiki/`) or **personal** mode (`~/.owly/wiki/`). It follows a pipeline: **CLI → App → Wiki/Agent → Runtime → Filesystem**, with terminal rendering in **`ui/`**.
 
 ```
 User Input (CLI flags + trailing args)
     │
     ▼
 ┌──────────────────┐
-│     cli.rs       │  -- init/update/chat flags, mode positional, product subcommands
+│    cli/mod.rs    │  -- init/update/chat flags, mode positional, product subcommands
 │  (arg parsing)   │  -- resolves RunMode (Code | Personal)
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│   mode.rs        │  WikiContext: wiki_root, agent_cwd, session_anchor
-│ (RunMode, ctx)   │  code → ./openwiki/ , personal → ~/.owly/wiki/
+│   app/mod.rs     │  run_command: init / update / chat / ingest / cron
+│  (use-cases)     │  ──▶ app/doc_run (shared init/update agent runs)
 └────────┬─────────┘
          │
-         ▼
-┌──────────────────┐     ┌────────────────────┐
-│ commands/mod.rs  │────▶│  commands/doc_run  │  shared init/update runs
-│  (dispatch)      │     │  (code + personal) │
-│                  │     └────────────────────┘
-│  mode-aware      │     ┌────────────────────────┐
-│  prompt prep     │────▶│  agent/mod.rs          │
-└────────┬─────────┘     │  (tools, run, model)   │
-         │               └───────────┬────────────┘
-         │                           │
-         ▼                           ▼
-┌──────────────────────┐   ┌──────────────────────┐
-│ credentials/env      │   │ elph-agent + elph-ai │
-│ (~/.owly, OAuth)     │   │ (LLM, tools, stream) │
-└──────────────────────┘   └───────────┬──────────┘
-                                       │
-                                       ▼
-                              ┌────────────────────┐
-                              │    Filesystem      │
-                              │  (wiki_root/*)     │
-                              └────────────────────┘
+    ┌────┴────┐
+    ▼         ▼
+┌─────────┐ ┌──────────────────┐
+│ wiki/   │ │   agent/mod.rs   │  elph-agent tools, run, listeners
+│ mode,   │ │                  │  ui/stream.rs renders LLM deltas
+│ prompts │ └────────┬─────────┘
+└────┬────┘          │
+     │               ▼
+     │      ┌──────────────────────┐
+     │      │ runtime/             │  config, credentials, session, checkpoint
+     │      │ (~/.owly, Turso)     │
+     │      └───────────┬──────────┘
+     │                  │
+     ▼                  ▼
+┌────────────────────────────────────┐
+│  Filesystem (wiki_root/*)          │
+│  code → ./openwiki/                │
+│  personal → ~/.owly/wiki/          │
+└────────────────────────────────────┘
 ```
+
+### Crate buckets (`owly/src/`)
+
+| Bucket | Path | Responsibility |
+|--------|------|----------------|
+| CLI | [`cli/`](../owly/src/cli/) | `Cli` struct, `execute()`, product subcommands |
+| UI | [`ui/`](../owly/src/ui/) | Headers, stream subscriber, spinners, dry-run display |
+| App | [`app/`](../owly/src/app/) | `run_command`, non-interactive init/update/chat, ingest, cron |
+| Wiki | [`wiki/`](../owly/src/wiki/) | `WikiContext`, prompts, metadata, doc snapshots |
+| Agent | [`agent/`](../owly/src/agent/) | `run_agent`, model auth, checkpoint write listener |
+| Connectors | [`connectors/`](../owly/src/connectors/) | Ingestion sources |
+| Setup | [`setup/`](../owly/src/setup/) | Onboarding wizard, `auth configure` |
+| Runtime | [`runtime/`](../owly/src/runtime/) | Config, env, Turso checkpoint + session store |
 
 ---
 
@@ -61,7 +72,7 @@ User Input (CLI flags + trailing args)
 
 Initializes `tracing` logging, parses CLI arguments via `clap`, and calls `cli.execute()`.
 
-### 2. CLI Layer & Mode Resolution — [`cli.rs`](../owly/src/cli.rs), [`mode.rs`](../owly/src/mode.rs)
+### 2. CLI Layer & Mode Resolution — [`cli/mod.rs`](../owly/src/cli/mod.rs), [`wiki/mode.rs`](../owly/src/wiki/mode.rs)
 
 The `Cli` struct (clap derive) parses arguments. Key flags:
 
@@ -80,15 +91,15 @@ The `execute()` method first resolves the run mode:
 2. Checks positional arg (`code` or `personal`)
 3. Defaults to `Personal`
 
-Then creates a `WikiContext` from the resolved mode and `cwd`, resolves the `Command` (Init/Update/Chat), and calls [`run_command()`](../owly/src/commands/mod.rs) with the context. Product subcommands (`auth`/`ingest`/`cron`) are parsed from trailing args before command resolution — delegated to [`cli_product.rs`](../owly/src/cli_product.rs).
+Then creates a `WikiContext` from the resolved mode and `cwd`, resolves the `Command` (Init/Update/Chat), and calls [`run_command()`](../owly/src/app/mod.rs) with the context. Product subcommands (`auth`/`ingest`/`cron`) are parsed from trailing args before command resolution — delegated to [`cli/product.rs`](../owly/src/cli/product.rs).
 
 **Bare invocation** (`owly` with no flags/args) prints "Interactive mode not yet implemented".
 
 **Banner output** uses ANSI color codes (cyan for logo, green for values, dimmed for labels).
 
-**Source:** [`owly/src/cli.rs`](../owly/src/cli.rs) — ported from OpenWiki `src/cli.tsx`. [`owly/src/mode.rs`](../owly/src/mode.rs) — `RunMode` and `WikiContext` types.
+**Source:** [`owly/src/cli/mod.rs`](../owly/src/cli/mod.rs) — ported from OpenWiki `src/cli.tsx`. [`owly/src/wiki/mode.rs`](../owly/src/wiki/mode.rs) — `RunMode` and `WikiContext` types.
 
-### 3. Command Dispatch — [`commands/mod.rs`](../owly/src/commands/mod.rs)
+### 3. Application dispatch — [`app/mod.rs`](../owly/src/app/mod.rs)
 
 `run_command()` takes a `WikiContext` and resolves the environment:
 
@@ -104,8 +115,8 @@ The `run_non_interactive()` function dispatches to mode-specific logic:
 
 | Command            | Behavior                                                                                                                       |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `Init`             | Delegates to [`doc_run::run_init_agent()`](../owly/src/commands/doc_run.rs) — checks wiki root, runs init agent                |
-| `Update`           | Delegates to [`doc_run::run_update_agent()`](../owly/src/commands/doc_run.rs) — checks wiki root, runs update agent            |
+| `Init`             | Delegates to [`doc_run::run_init_agent()`](../owly/src/app/doc_run.rs) — checks wiki root, runs init agent                |
+| `Update`           | Delegates to [`doc_run::run_update_agent()`](../owly/src/app/doc_run.rs) — checks wiki root, runs update agent            |
 | `Chat { message }` | Single-turn chat using read-only tools via `agent::run_agent()`. Interactive multi-turn chat requires passing a `SessionStore` |
 
 Each non-interactive command flows through:
@@ -116,7 +127,7 @@ Each non-interactive command flows through:
 4. Docs snapshot compared to detect changes
 5. If changed: metadata saved, ecosystem hooks synced
 
-**Source:** [`owly/src/commands/mod.rs`](../owly/src/commands/mod.rs) — ported from OpenWiki `src/commands.ts`. The [`doc_run.rs`](../owly/src/commands/doc_run.rs) sub-module holds shared init/update agent run logic. The [`non_interactive.rs`](../owly/src/commands/non_interactive.rs) sub-module handles one-shot execution.
+**Source:** [`owly/src/app/mod.rs`](../owly/src/app/mod.rs) — ported from OpenWiki `src/commands.ts`. [`app/doc_run.rs`](../owly/src/app/doc_run.rs) holds shared init/update agent run logic. [`app/non_interactive.rs`](../owly/src/app/non_interactive.rs) handles one-shot execution. Terminal rendering lives in [`ui/`](../owly/src/ui/).
 
 ### Auto session naming
 
@@ -126,13 +137,13 @@ Owly assigns a human-readable title to each chat thread, similar to the [pi-auto
 
 **Generation:** `elph_agent::generate_session_name()` collects user messages from the transcript, calls the session model via `complete_simple`, and sanitizes the result (max 60 characters, quotes stripped). Logic lives in `elph-agent` under `prompt/builtin/session_name.rs` and `prompt/session_name.rs`.
 
-**Storage:** `TursoCheckpointSaver` persists `display_name` and `auto_named` in a `thread_metadata` table (keyed by `thread_id`). `SessionStore::display_name()`, `set_display_name()`, and `try_auto_name()` wrap read/write.
+**Storage:** `TursoCheckpointSaver` persists `display_name` and `auto_named` in a `thread_metadata` table (keyed by `thread_id`). `SessionStore::display_name()`, `set_display_name()`, and `try_auto_name()` wrap read/write (see [`runtime/session/`](../owly/src/runtime/session/), [`runtime/checkpoint/`](../owly/src/runtime/checkpoint/)).
 
 **Output:** The title is printed in the terminal output after the first turn. On launch, an existing title is loaded from the DB; if none exists, the raw thread id is used until auto-naming runs.
 
 **Manual override:** The title is set once per thread. There is no REPL `/name` command in the current terminal-only mode (the interactive TUI shell was removed).
 
-**Source:** [`owly/src/agent/run.rs`](../owly/src/agent/run.rs) (post-turn hook), [`owly/src/session/store.rs`](../owly/src/session/store.rs) (API), [`owly/src/checkpoint/saver/thread_meta.rs`](../owly/src/checkpoint/saver/thread_meta.rs) (persistence).
+**Source:** [`owly/src/agent/run.rs`](../owly/src/agent/run.rs) (post-turn hook), [`owly/src/runtime/session/store.rs`](../owly/src/runtime/session/store.rs) (API), [`owly/src/runtime/checkpoint/saver/thread_meta.rs`](../owly/src/runtime/checkpoint/saver/thread_meta.rs) (persistence).
 
 ### 4. Agent Layer — [`agent/mod.rs`](../owly/src/agent/mod.rs)
 
@@ -140,7 +151,7 @@ The core integration with `elph-agent` and `elph-ai`. Key functions live across 
 
 - **`shared_models()`** — Builds a shared `elph_ai::Models` instance with a credential store for OAuth and API key providers.
 - **`resolve_model_and_auth()`** — Resolves the model from Config, obtains authentication (spinner for auth resolution), and returns model handle, models arc, and stream function. Handles OAuth-only providers.
-- **`create_event_subscriber()`** — Returns an `AgentListener` closure for streaming display. Uses an indicatif spinner, controls text deltas, thinking deltas, and tool call logging based on `stream` and `verbose` flags. No TUI dependency.
+- **Stream display** — [`ui/stream.rs`](../owly/src/ui/stream.rs) returns an `AgentListener` for streaming text/thinking/tool output. [`ui/spinner.rs`](../owly/src/ui/spinner.rs) provides the indicatif spinner. No TUI dependency.
 - **`create_checkpoint_write_subscriber()`** — Returns an `AgentListener` for persisting mid-turn state. Handles events: `TextDelta` (assistant draft), `ToolExecutionStart` (records interrupt for ask tools), `ToolExecutionUpdate` (records streaming tool partial output), and `ToolExecutionEnd` (records resume/tool result). Uses `is_ask_tool()` from session.rs.
 - **`run_agent()`** — Accepts a `RunAgentOptions` struct. Sets up the agent with tools, subscribes to streaming events, sends prompts, waits for completion, saves session messages, detects docs changes, and returns `RunAgentResult`.
 - **`prepare_init_command()`** — Mode-aware: dispatches to code or personal init prompts based on `WikiContext.mode`.
@@ -348,9 +359,10 @@ Tracks the last successful update in `openwiki/.last-update.json`. The no-op che
 
 ### Adding a new command
 
-1. Add variant to `Command` enum in [`commands/mod.rs`](../owly/src/commands/mod.rs)
-2. Add handler in `run_non_interactive()` in [`commands/non_interactive.rs`](../owly/src/commands/non_interactive.rs)
-3. For init/update actions, add logic in [`commands/doc_run.rs`](../owly/src/commands/doc_run.rs)
+1. Add variant to `Command` enum in [`app/mod.rs`](../owly/src/app/mod.rs)
+2. Add handler in `run_non_interactive()` in [`app/non_interactive.rs`](../owly/src/app/non_interactive.rs)
+3. For init/update actions, add logic in [`app/doc_run.rs`](../owly/src/app/doc_run.rs)
+4. Add terminal output in [`ui/`](../owly/src/ui/) — keep business logic out of `println!` in app/agent layers
 4. Add CLI flag in [`cli.rs`](../owly/src/cli.rs)
 5. Add mode-aware prompt preparation function in [`agent/commands.rs`](../owly/src/agent/commands.rs)
 6. For product subcommands (auth/ingest/cron), route through [`cli_product.rs`](../owly/src/cli_product.rs) instead
