@@ -57,18 +57,18 @@ Living **gap logs** for the TypeScript → Rust port (timestamps, pi vs elph mat
 
 Details and source maps: [openwiki/quickstart.md](../openwiki/quickstart.md).
 
-| Area                        | Target      | Notes                                    |
-| --------------------------- | ----------- | ---------------------------------------- |
-| Agent loop + tools          | Done        | `elph-agent` harness                     |
-| Goals + nested subagents    | Done        | Codex-style goals, depth-3 subagents     |
-| MCP → agent loop            | Done        | `mcp_{server}__{tool}` registry          |
-| WASM extensions (phase 1)   | In progress | Slash commands; wasmtime Component Model |
-| `elph` crate layout         | Done        | `agent/`, `cli/`, `platform/`, `shell/`  |
-| Elph TUI + coding agent     | In progress | Shell wired; overlays partially stubbed  |
-| Elph slash commands         | In progress | Built-ins + `/goal`; extension commands  |
-| Prompt templates            | Planned     | Format and dirs designed                 |
-| Provider / MCP / server CLI | Planned     | Commands defined, incomplete             |
-| Memory CLI                  | Done        | Inspect and maintain store               |
+| Area                        | Target      | Notes                                         |
+| --------------------------- | ----------- | --------------------------------------------- |
+| Agent loop + tools          | Done        | `elph-agent` harness; `builtin-tools` feature |
+| Goals + nested subagents    | Done        | Codex-style goals, depth-3 subagents          |
+| MCP → agent loop            | Done        | `mcp_{server}__{tool}` registry               |
+| WASM extensions (phase 1)   | In progress | Slash commands; wasmtime Component Model      |
+| `elph` crate layout         | Done        | `agent/`, `cli/`, `platform/`, `shell/`       |
+| Elph TUI + coding agent     | In progress | Shell wired; overlays partially stubbed       |
+| Elph slash commands         | In progress | Built-ins + `/goal`; extension commands       |
+| Prompt templates            | Planned     | Format and dirs designed                      |
+| Provider / MCP / server CLI | Planned     | Commands defined, incomplete                  |
+| Memory CLI                  | Done        | Inspect and maintain store                    |
 
 ## Where to start
 

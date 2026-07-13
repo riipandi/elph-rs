@@ -25,7 +25,7 @@ anyhow.workspace = true
 chord_macro = "0.1"
 clap.workspace = true
 clap_complete.workspace = true
-elph-agent = { workspace = true, features = ["tracing"] }
+elph-agent = { workspace = true, features = ["tracing", "builtin-tools"] }
 elph-ai = { workspace = true, features = ["tracing"] }
 elph-core = { workspace = true, features = ["fastembed", "tracing"] }
 elph-tui.workspace = true
@@ -42,7 +42,7 @@ tuie = { workspace = true, features = ["harmonious"] }
 libc.workspace = true
 
 [dev-dependencies]
-elph-agent.workspace = true
+elph-agent = { workspace = true, features = ["builtin-tools"] }
 elph-core.workspace = true
 elph-tui.workspace = true
 libc.workspace = true

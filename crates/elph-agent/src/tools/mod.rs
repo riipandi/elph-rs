@@ -1,15 +1,26 @@
 //! Built-in agent tools and tool registry helpers.
 
-mod bash;
 mod common;
+
+#[cfg(feature = "tools-bash")]
+mod bash;
+#[cfg(feature = "tools-edit")]
 mod edit;
+#[cfg(any(feature = "tools-grep", feature = "tools-find", feature = "tools-ls"))]
 mod fff_picker;
+#[cfg(feature = "tools-find")]
 mod find;
+#[cfg(feature = "tools-grep")]
 mod grep;
+#[cfg(feature = "tools-ls")]
 mod ls;
+#[cfg(feature = "tools-multi-agent")]
 mod multi_agent;
+#[cfg(feature = "tools-read")]
 mod read;
+#[cfg(feature = "tools-web")]
 pub mod web;
+#[cfg(feature = "tools-write")]
 mod write;
 
 use std::future::Future;
@@ -22,17 +33,26 @@ use serde_json::Value;
 use crate::env::LocalExecutionEnv;
 use crate::types::{AgentTool, AgentToolResult, ToolExecuteFn};
 
+#[cfg(feature = "tools-bash")]
 pub use bash::create_bash_tool;
+#[cfg(feature = "tools-edit")]
 pub use edit::create_edit_tool;
+#[cfg(feature = "tools-find")]
 pub use find::create_find_tool;
+#[cfg(feature = "tools-grep")]
 pub use grep::create_grep_tool;
+#[cfg(feature = "tools-ls")]
 pub use ls::create_ls_tool;
+#[cfg(feature = "tools-multi-agent")]
 pub use multi_agent::create_multi_agent_tools;
+#[cfg(feature = "tools-read")]
 pub use read::create_read_tool;
+#[cfg(feature = "tools-web")]
 pub use web::{
     Engine as WebSearchEngine, SearchResult as WebSearchResult, create_web_tools, create_webfetch_tool,
     create_websearch_tool,
 };
+#[cfg(feature = "tools-write")]
 pub use write::create_write_tool;
 
 pub fn simple_tool(
@@ -72,42 +92,44 @@ pub fn echo_tool() -> AgentTool {
     )
 }
 
-/// Core coding tools: read, bash, edit, write.
-pub fn create_coding_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
-    vec![
-        create_read_tool(env.clone()),
-        create_bash_tool(env.clone()),
-        create_edit_tool(env.clone()),
-        create_write_tool(env),
-    ]
+/// Core filesystem and shell tools: read, bash, edit, write.
+#[cfg(feature = "tools-core")]
+pub fn create_core_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
+    let mut tools = Vec::new();
+    #[cfg(feature = "tools-read")]
+    tools.push(create_read_tool(env.clone()));
+    #[cfg(feature = "tools-bash")]
+    tools.push(create_bash_tool(env.clone()));
+    #[cfg(feature = "tools-edit")]
+    tools.push(create_edit_tool(env.clone()));
+    #[cfg(feature = "tools-write")]
+    tools.push(create_write_tool(env));
+    tools
 }
 
 /// Read-only exploration tools.
+#[cfg(feature = "tools-explore")]
 pub fn create_read_only_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
-    vec![
-        create_read_tool(env.clone()),
-        create_grep_tool(env.clone()),
-        create_find_tool(env.clone()),
-        create_ls_tool(env),
-    ]
-}
-
-/// All built-in tools.
-pub fn create_all_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
-    vec![
-        create_read_tool(env.clone()),
-        create_bash_tool(env.clone()),
-        create_edit_tool(env.clone()),
-        create_write_tool(env.clone()),
-        create_grep_tool(env.clone()),
-        create_find_tool(env.clone()),
-        create_ls_tool(env),
-    ]
-}
-
-/// All built-in tools including web tools.
-pub fn create_all_tools_with_web(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
-    let mut tools = create_all_tools(env);
-    tools.extend(create_web_tools());
+    let mut tools = Vec::new();
+    #[cfg(feature = "tools-read")]
+    tools.push(create_read_tool(env.clone()));
+    #[cfg(feature = "tools-grep")]
+    tools.push(create_grep_tool(env.clone()));
+    #[cfg(feature = "tools-find")]
+    tools.push(create_find_tool(env.clone()));
+    #[cfg(feature = "tools-ls")]
+    tools.push(create_ls_tool(env));
     tools
+}
+
+/// All enabled filesystem built-in tools.
+#[cfg(any(feature = "tools-core", feature = "tools-explore"))]
+pub fn create_all_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
+    crate::builder::BuiltinToolsBuilder::new(env).without_web().build()
+}
+
+/// All enabled built-in tools including web tools when compiled in.
+#[cfg(any(feature = "tools-core", feature = "tools-explore", feature = "tools-web"))]
+pub fn create_all_tools_with_web(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
+    crate::builder::BuiltinToolsBuilder::all(env).build()
 }

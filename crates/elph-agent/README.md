@@ -458,25 +458,23 @@ let read_file_tool = simple_tool(
 );
 ```
 
-Built-in tools are grouped by capability:
+Built-in tools are optional Cargo features. Enable `builtin-tools` for the full catalog, or pick groups (`tools-core`, `tools-explore`, `tools-web`, …). See [docs/tools.md](./docs/tools.md).
 
-| Helper                      | Tools                            |
+| Helper / builder            | Tools                            |
 | --------------------------- | -------------------------------- |
-| `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
+| `BuiltinToolsBuilder::all`  | all enabled built-in tools       |
+| `create_core_tools`         | `read`, `bash`, `edit`, `write`  |
 | `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
 | `create_all_tools`          | all seven filesystem tools above |
 | `create_web_tools`          | `websearch`, `webfetch`          |
 | `create_all_tools_with_web` | filesystem tools + web tools     |
 
 ```rust
-use elph_agent::LocalExecutionEnv;
-use elph_agent::{create_all_tools, create_web_tools, create_all_tools_with_web};
+use elph_agent::{BuiltinToolsBuilder, LocalExecutionEnv};
 use std::sync::Arc;
 
 let env = Arc::new(LocalExecutionEnv::new(cwd));
-let coding = create_all_tools(env.clone());
-let web = create_web_tools(); // no ExecutionEnv required
-let all = create_all_tools_with_web(env);
+let tools = BuiltinToolsBuilder::all(env).build();
 ```
 
 `grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `ls` uses [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool. `read`, `write`, `edit`, and `bash` use `ExecutionEnv` directly.
@@ -495,14 +493,23 @@ Set provider API keys via environment variables (`BRAVE_SEARCH_API_KEY`, `EXA_AP
 
 ### Cargo features
 
-| Feature   | Default | Description                                           |
-| --------- | ------- | ----------------------------------------------------- |
-| `obscura` | yes     | Embed Obscura for browser-based search/fetch fallback |
-
-Disable Obscura for faster builds when browser fallback is not needed:
+| Feature         | Default | Description                                           |
+| --------------- | ------- | ----------------------------------------------------- |
+| `builtin-tools` | no      | All built-in tool groups (enabled by `elph` binary)   |
+| `tools-core`    | no      | `read`, `bash`, `edit`, `write`                       |
+| `tools-explore` | no      | `read`, `grep`, `find`, `ls`                          |
+| `tools-web`     | no      | `websearch`, `webfetch`                               |
+| `mcp`           | yes     | MCP client                                            |
+| `extensions`    | yes     | WASM extension host                                   |
+| `obscura`       | no      | Obscura browser fallback for web tools                |
+| `tracing`       | no      | `fastrace` instrumentation                            |
 
 ```bash
+# Minimal agent runtime (no built-in tools, no MCP)
 cargo build -p elph-agent --no-default-features
+
+# Full coding agent stack (as used by elph)
+cargo build -p elph-agent --features "mcp,extensions,builtin-tools"
 ```
 
 The first build with `obscura` compiles V8 from source and can take a long time.

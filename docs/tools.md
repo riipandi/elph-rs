@@ -2,6 +2,26 @@
 
 Design for the agent tool catalog — permissions, provider exposure, and execution behavior.
 
+## Compile-time catalog (`elph-agent`)
+
+Built-in tools live in `elph-agent` and are **optional Cargo features**. The `elph` binary enables the meta feature `builtin-tools` by default so every shipped tool is available.
+
+| Group            | Feature         | Tools                            |
+| ---------------- | --------------- | -------------------------------- |
+| Core             | `tools-core`    | `read`, `bash`, `edit`, `write`  |
+| Explore          | `tools-explore` | `read`, `grep`, `find`, `ls`     |
+| Web              | `tools-web`     | `websearch`, `webfetch`          |
+| Multi-agent      | `tools-multi-agent` | injected by `AgentHarness` |
+| All of the above | `builtin-tools` | meta feature                     |
+
+Registration in host apps uses [`BuiltinToolsBuilder`](../crates/elph-agent/src/builder.rs). Elph wires tools in `elph/src/agent/runtime.rs`:
+
+```rust
+let mut tools = BuiltinToolsBuilder::all(env.clone()).build();
+```
+
+Implementation reference: [`crates/elph-agent/docs/tools.md`](../crates/elph-agent/docs/tools.md).
+
 ## Permission classes
 
 | Permission          | Behavior                                                |

@@ -10,6 +10,16 @@ Design notes for building and working on the Elph workspace locally. Operational
 
 Library crates (`elph-core`, `elph-ai`, `elph-agent`, `elph-tui`, `elph-swarm`) are consumed by `elph` and published to crates.io.
 
+### `elph-agent` feature flags
+
+| Consumer        | Typical features                                |
+| --------------- | ----------------------------------------------- |
+| `elph` binary   | `mcp`, `extensions`, `builtin-tools`, `tracing` |
+| Minimal embed   | `mcp` only (`--no-default-features`)            |
+| Custom tool set | `tools-core`, `tools-explore`, … à la carte     |
+
+See [`crates/elph-agent/docs/tools.md`](../crates/elph-agent/docs/tools.md) for the full feature matrix.
+
 ## Make targets (build)
 
 | Target            | Behavior                                              |

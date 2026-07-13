@@ -87,7 +87,7 @@ config.servers.insert(
 let registry = Arc::new(
     McpToolRegistry::load_with_options(config, McpLoadOptions::default()).await?,
 );
-let mut tools = elph_agent::create_coding_tools(env);
+let mut tools = elph_agent::BuiltinToolsBuilder::new(env).without_web().build();
 tools.extend(registry.create_agent_tools());
 // pass tools into AgentHarness / AgentLoop
 ```
@@ -111,15 +111,15 @@ enc: + URL-safe base64 (no pad) of (nonce 12 bytes || ciphertext+tag)
 
 ### API
 
-| Function | Role |
-| --- | --- |
-| `Aes256Key::generate` / `load` / `load_or_create` / `save` | Key lifecycle |
-| `default_auth_key_path` | `auth.json` → `auth.key` |
-| `is_encrypted_value` | Detect `enc:` prefix |
-| `encrypt_string_async` / `decrypt_string_async` | UTF-8 string round-trip |
-| `encrypt_string_sync` / `decrypt_string_sync` | Sync helpers (tests / non-async) |
-| `encrypt_json_async` / `decrypt_json_async` | Serde JSON blob |
-| `encrypt_async` / `decrypt_async` | Raw bytes |
+| Function                                                   | Role                             |
+| ---------------------------------------------------------- | -------------------------------- |
+| `Aes256Key::generate` / `load` / `load_or_create` / `save` | Key lifecycle                    |
+| `default_auth_key_path`                                    | `auth.json` → `auth.key`         |
+| `is_encrypted_value`                                       | Detect `enc:` prefix             |
+| `encrypt_string_async` / `decrypt_string_async`            | UTF-8 string round-trip          |
+| `encrypt_string_sync` / `decrypt_string_sync`              | Sync helpers (tests / non-async) |
+| `encrypt_json_async` / `decrypt_json_async`                | Serde JSON blob                  |
+| `encrypt_async` / `decrypt_async`                          | Raw bytes                        |
 
 ```rust
 use std::sync::Arc;

@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use elph_agent::{
-    Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_all_tools, create_coding_tools,
+    Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_all_tools, create_core_tools,
     create_read_only_tools,
 };
 use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         }
         "coding" => {
             println!("Using coding tools: read, bash, edit, write");
-            create_coding_tools(env.clone())
+            create_core_tools(env.clone())
         }
         "all" => {
             println!("Using all tools: read, bash, edit, write, grep, find, ls");
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
         }
         _ => {
             println!("Using coding tools (default): read, bash, edit, write");
-            create_coding_tools(env.clone())
+            create_core_tools(env.clone())
         }
     };
 

@@ -20,13 +20,19 @@ default = ["mcp", "extensions"]
 extensions = ["dep:wasmtime"]
 mcp = ["dep:rmcp"]
 obscura = ["dep:obscura"]
-tracing = [
-  "dep:fastrace",
-  "dep:fastrace-reqwest",
-  "fastrace/enable",
-  "elph-ai/tracing",
-  "elph-core/tracing",
-]
+tools-read = []
+tools-bash = []
+tools-edit = []
+tools-write = []
+tools-grep = ["dep:fff-search"]
+tools-find = ["dep:fff-search"]
+tools-ls = ["dep:walkdir"]
+tools-web = []
+tools-multi-agent = []
+tools-core = ["tools-read", "tools-bash", "tools-edit", "tools-write"]
+tools-explore = ["tools-read", "tools-grep", "tools-find", "tools-ls"]
+builtin-tools = ["tools-core", "tools-explore", "tools-web", "tools-multi-agent"]
+tracing = ["dep:fastrace", "dep:fastrace-reqwest", "fastrace/enable", "elph-ai/tracing", "elph-core/tracing"]
 # obscura is git-only (h4ckf0r0day/obscura); workspace [patch.crates-io] redirects 0.1 → tag v0.1.9.
 
 [dependencies]
@@ -40,7 +46,7 @@ elph-ai.workspace = true
 elph-core = { workspace = true, default-features = true }
 fastrace = { workspace = true, optional = true }
 fastrace-reqwest = { workspace = true, optional = true }
-fff-search.workspace = true
+fff-search = { workspace = true, optional = true }
 futures.workspace = true
 http.workspace = true
 ignore.workspace = true
@@ -77,7 +83,7 @@ tsid.workspace = true
 turso.workspace = true
 url.workspace = true
 urlencoding.workspace = true
-walkdir.workspace = true
+walkdir = { workspace = true, optional = true }
 wasmtime = { workspace = true, optional = true }
 
 [[example]]
@@ -107,10 +113,12 @@ path = "examples/agent_harness.rs"
 [[example]]
 name = "agent_coding_tools"
 path = "examples/agent_coding_tools.rs"
+required-features = ["builtin-tools"]
 
 [[example]]
 name = "agent_web_tools"
 path = "examples/agent_web_tools.rs"
+required-features = ["builtin-tools"]
 
 [[example]]
 name = "agent_multi_turn"
@@ -131,6 +139,7 @@ path = "examples/agent_compaction.rs"
 [[example]]
 name = "agent_coding_workflow"
 path = "examples/agent_coding_workflow.rs"
+required-features = ["tools-core"]
 
 [[example]]
 name = "agent_skills"
@@ -186,6 +195,21 @@ tsid.workspace = true
 name = "tracing_http"
 path = "tests/tracing_http.rs"
 required-features = ["tracing"]
+
+[[test]]
+name = "web_tools"
+path = "tests/web_tools.rs"
+required-features = ["tools-web"]
+
+[[test]]
+name = "plan_mode"
+path = "tests/plan_mode.rs"
+required-features = ["builtin-tools"]
+
+[[test]]
+name = "subagent"
+path = "tests/subagent.rs"
+required-features = ["builtin-tools"]
 
 [lints.rust]
 linker_messages = "allow"

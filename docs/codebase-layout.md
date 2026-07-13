@@ -71,6 +71,8 @@ Top-level `agent_loop/` is the low-level turn runner (stream → tool execution 
 
 ```
 crates/elph-agent/src/
+├── builder.rs               # AgentBuilder (logging) + BuiltinToolsBuilder (tool catalog)
+├── tools/                   # Optional built-in tools (Cargo feature gated)
 ├── agent_loop/              # Core agent turn loop (tools.rs + private run_loop)
 ├── harness/
 │   ├── mod.rs
@@ -114,12 +116,12 @@ crates/elph-core/src/floppy/
 
 ## Crate boundaries
 
-| Crate        | Responsibility                                                                   |
-| ------------ | -------------------------------------------------------------------------------- |
-| `elph-agent` | AgentHarness, tools, goals, subagents, MCP, **WASM extension host** (`plugins/`) |
-| `elph-ai`    | LLM providers, streaming                                                         |
-| `elph-tui`   | Reusable TUI components, chrome, diff engine                                     |
-| `elph`       | Product binary: CLI + shell + platform glue                                      |
+| Crate        | Responsibility                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `elph-agent` | AgentHarness, optional built-in tools (`builtin-tools`), goals, subagents, MCP, **WASM extension host** (`plugins/`) |
+| `elph-ai`    | LLM providers, streaming                                                                                             |
+| `elph-tui`   | Reusable TUI components, chrome, diff engine                                                                         |
+| `elph`       | Product binary: CLI + shell + platform glue                                                                          |
 
 ## Test placement rules
 

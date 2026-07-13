@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use parking_lot::Mutex;
 use std::time::Duration;
 
-use elph_agent::{Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_coding_tools};
+use elph_agent::{Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_core_tools};
 use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -83,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
     // ── Create execution environment ──
     let cwd = std::env::current_dir()?;
     let env = Arc::new(LocalExecutionEnv::new(&cwd));
-    let agent_tools = create_coding_tools(env);
+    let agent_tools = create_core_tools(env);
 
     // ── Build agent with coding-focused system prompt ──
     let agent = Agent::new(AgentOptions {

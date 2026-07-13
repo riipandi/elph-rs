@@ -255,7 +255,7 @@ Built-in tool wiring:
 - `read`, `write`, `edit`, `bash` — `ExecutionEnv` file and shell APIs
 - `ls` — path resolution via `ExecutionEnv`, listing via `walkdir` on a blocking thread
 - `grep`, `find` — resolve paths via `ExecutionEnv`, then search the real filesystem with [`fff-search`](https://crates.io/crates/fff-search) (`FilePicker::collect_files`, `watch: false`)
-- `websearch`, `webfetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Register via `create_web_tools()` or `create_all_tools_with_web()`.
+- `websearch`, `webfetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Enable the `tools-web` feature and register via `BuiltinToolsBuilder::all(env).build()` or `create_web_tools()`.
 
 See [tools.md](./tools.md) for tool groups, parameters, engine ranking, and output formats.
 

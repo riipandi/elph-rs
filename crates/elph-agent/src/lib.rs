@@ -30,7 +30,7 @@ pub mod types;
 
 pub use agent::{Agent, AgentListener, AgentOptions, AgentSubscription, PartialAgentState, default_model};
 pub use agent_loop::{agent_loop, agent_loop_continue, run_agent_loop, run_agent_loop_continue};
-pub use builder::{AgentBuilder, AgentInit};
+pub use builder::{AgentBuilder, AgentInit, BuiltinToolsBuilder};
 pub use compaction::{
     BranchPreparation, BranchSummaryDetails, CollectEntriesResult, CompactionDetails, CompactionPreparation,
     CompactionResult, CompactionSettings, ContextUsageEstimate, CutPointResult, FileOperations,
@@ -138,11 +138,33 @@ pub use subagent::{
     AgentControl, AgentGraphStore, AgentRegistry, SubagentBootstrap, SubagentEventForwarder, SubagentHarness,
     SubagentInfo, SubagentLimits, SubagentSpawnConfig, SubagentStatus, generate_agent_name,
 };
+#[cfg(any(feature = "tools-core", feature = "tools-explore"))]
+pub use tools::create_all_tools;
+#[cfg(any(feature = "tools-core", feature = "tools-explore", feature = "tools-web"))]
+pub use tools::create_all_tools_with_web;
+#[cfg(feature = "tools-bash")]
+pub use tools::create_bash_tool;
+#[cfg(feature = "tools-core")]
+pub use tools::create_core_tools;
+#[cfg(feature = "tools-edit")]
+pub use tools::create_edit_tool;
+#[cfg(feature = "tools-find")]
+pub use tools::create_find_tool;
+#[cfg(feature = "tools-grep")]
+pub use tools::create_grep_tool;
+#[cfg(feature = "tools-ls")]
+pub use tools::create_ls_tool;
+#[cfg(feature = "tools-multi-agent")]
+pub use tools::create_multi_agent_tools;
+#[cfg(feature = "tools-explore")]
+pub use tools::create_read_only_tools;
+#[cfg(feature = "tools-read")]
+pub use tools::create_read_tool;
+#[cfg(feature = "tools-write")]
+pub use tools::create_write_tool;
+#[cfg(feature = "tools-web")]
 pub use tools::{WebSearchEngine, WebSearchResult};
-pub use tools::{
-    create_all_tools, create_all_tools_with_web, create_bash_tool, create_coding_tools, create_edit_tool,
-    create_find_tool, create_grep_tool, create_ls_tool, create_multi_agent_tools, create_read_only_tools,
-    create_read_tool, create_web_tools, create_webfetch_tool, create_websearch_tool, create_write_tool, echo_tool,
-    simple_tool,
-};
+#[cfg(feature = "tools-web")]
+pub use tools::{create_web_tools, create_webfetch_tool, create_websearch_tool};
+pub use tools::{echo_tool, simple_tool};
 pub use types::*;

@@ -34,6 +34,7 @@ use crate::runtime::try_block_on;
 use crate::session::tree::Session;
 use crate::session::types::{HasSessionId, SessionStorage, SessionTreeEntry};
 use crate::subagent::{AgentControl, AgentRegistry, SubagentLimits, SubagentSpawnConfig, generate_agent_name};
+#[cfg(feature = "tools-multi-agent")]
 use crate::tools::create_multi_agent_tools;
 use crate::types::{AgentMessage, AgentThinkingLevel, AgentTool, ConvertToLlmFn, QueueMode, StreamFn};
 
@@ -175,6 +176,7 @@ where
                 ))
             }
         };
+        #[cfg(feature = "tools-multi-agent")]
         if agent_control.depth() < limits.max_depth && !is_child_harness {
             for tool in create_multi_agent_tools(agent_control.clone()) {
                 tools_map.insert(tool.name().to_string(), tool);

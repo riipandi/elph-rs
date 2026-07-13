@@ -1,28 +1,88 @@
 # Built-in tools
 
-`elph-agent` ships coding and exploration tools backed by `ExecutionEnv`, plus web tools that operate independently of the filesystem environment. Register them via factory helpers or compose your own `AgentTool` values.
+`elph-agent` ships filesystem, shell, exploration, and web tools. Built-in tools are **optional at compile time** via Cargo features. Register them with [`BuiltinToolsBuilder`](../src/builder.rs), group helpers, or compose your own `AgentTool` values.
 
-## Tool groups
+## Cargo features
 
-| Helper                      | Tools                            |
-| --------------------------- | -------------------------------- |
-| `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
-| `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
-| `create_all_tools`          | all seven filesystem tools above |
-| `create_web_tools`          | `websearch`, `webfetch`          |
-| `create_all_tools_with_web` | filesystem tools + web tools     |
-| `create_multi_agent_tools`  | multi-agent tools (harness-only) |
+| Feature             | Default | Tools / behavior                                     |
+| ------------------- | ------- | ---------------------------------------------------- |
+| `builtin-tools`     | no      | Meta — enables all groups below                      |
+| `tools-core`        | no      | `read`, `bash`, `edit`, `write`                      |
+| `tools-explore`     | no      | `read`, `grep`, `find`, `ls`                         |
+| `tools-web`         | no      | `websearch`, `webfetch`                              |
+| `tools-multi-agent` | no      | `spawn_agent`, `send_message`, … (harness injection) |
+| `tools-read`        | no      | `read` only                                          |
+| `tools-bash`        | no      | `bash` only                                          |
+| `tools-edit`        | no      | `edit` only                                          |
+| `tools-write`       | no      | `write` only                                         |
+| `tools-grep`        | no      | `grep` only (pulls in `fff-search`)                  |
+| `tools-find`        | no      | `find` only (pulls in `fff-search`)                  |
+| `tools-ls`          | no      | `ls` only (pulls in `walkdir`)                       |
+| `mcp`               | yes     | MCP client — see [mcp.md](./mcp.md)                  |
+| `extensions`        | yes     | WASM extension host                                  |
+| `obscura`           | no      | Obscura browser fallback for web tools               |
+| `tracing`           | no      | `fastrace` spans + HTTP trace propagation            |
+
+The `elph` binary enables `builtin-tools` (and `tracing`) by default:
+
+```toml
+# elph/Cargo.toml
+elph-agent = { workspace = true, features = ["tracing", "builtin-tools"] }
+```
+
+Minimal library consumer without built-in tools:
+
+```bash
+cargo build -p elph-agent --no-default-features
+```
+
+Filesystem + web only:
+
+```bash
+cargo build -p elph-agent --no-default-features --features "tools-core,tools-explore,tools-web"
+```
+
+## Registration
+
+### `BuiltinToolsBuilder` (recommended)
+
+Assembles every tool enabled by the active Cargo features:
 
 ```rust
-use elph_agent::{LocalExecutionEnv, create_all_tools, create_web_tools};
+use elph_agent::{BuiltinToolsBuilder, LocalExecutionEnv};
 use std::sync::Arc;
 
 let env = Arc::new(LocalExecutionEnv::new(cwd));
-let coding = create_all_tools(env);
-let web = create_web_tools();
+
+// All compiled built-in tools (filesystem + web when tools-web is enabled)
+let tools = BuiltinToolsBuilder::all(env.clone()).build();
+
+// Filesystem tools only
+let fs_tools = BuiltinToolsBuilder::new(env).without_web().build();
 ```
 
-`echo_tool()` is a minimal helper for harness tests and examples.
+[`AgentBuilder`](../src/builder.rs) handles app logging/init only. Use `BuiltinToolsBuilder` for the tool catalog.
+
+### Group helpers
+
+| Helper                      | Feature gate        | Tools                            |
+| --------------------------- | ------------------- | -------------------------------- |
+| `create_core_tools`         | `tools-core`        | `read`, `bash`, `edit`, `write`  |
+| `create_read_only_tools`    | `tools-explore`     | `read`, `grep`, `find`, `ls`     |
+| `create_all_tools`          | core/explore        | all seven filesystem tools above |
+| `create_web_tools`          | `tools-web`         | `websearch`, `webfetch`          |
+| `create_all_tools_with_web` | core/explore/web    | filesystem + web tools           |
+| `create_multi_agent_tools`  | `tools-multi-agent` | harness-only multi-agent tools   |
+
+```rust
+use elph_agent::{BuiltinToolsBuilder, LocalExecutionEnv};
+use std::sync::Arc;
+
+let env = Arc::new(LocalExecutionEnv::new(cwd));
+let tools = BuiltinToolsBuilder::all(env).build();
+```
+
+`echo_tool()` is always available — minimal helper for harness tests and examples.
 
 ## Execution environment
 
@@ -33,22 +93,6 @@ Filesystem tools resolve paths through `ExecutionEnv::absolute_path` and perform
 `ls` resolves the directory path via `ExecutionEnv`, then lists immediate children with [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool.
 
 `websearch` and `webfetch` do not use `ExecutionEnv`. They perform outbound HTTP requests and optionally delegate to an Obscura browser worker thread.
-
-## Cargo features
-
-| Feature      | Default | Description                                                  |
-| ------------ | ------- | ------------------------------------------------------------ |
-| `mcp`        | yes     | MCP client (stdio + streamable HTTP); see [mcp.md](./mcp.md) |
-| `extensions` | yes     | WASM extension host                                          |
-| `obscura`    | yes     | Enable Obscura headless-browser fallback for web tools       |
-
-```bash
-# Faster builds — HTTP-only web tools
-cargo build -p elph-agent --no-default-features
-
-# Default — includes Obscura (first build compiles V8 from source)
-cargo build -p elph-agent
-```
 
 ## Tool reference
 
@@ -243,7 +287,7 @@ Provider-level OpenCode streaming lives in `elph-ai` as `opencode_big_pickle` (n
 | `crates/elph-agent/tests/subagent.rs`  | Subagent spawn and list             |
 
 ```bash
-cargo test -p elph-agent --test tools_fff
-cargo test -p elph-agent --test web_tools
-cargo test -p elph-agent --lib tools::web
+cargo test -p elph-agent --features builtin-tools --test tools_fff
+cargo test -p elph-agent --features tools-web --test web_tools
+cargo test -p elph-agent --features builtin-tools --test plan_mode
 ```

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use elph_agent::{
     AgentHarness, AgentHarnessEvent, AgentHarnessOptions, AgentHarnessResources, AgentThinkingLevel, CollaborationMode,
     InMemorySessionStorage, LocalExecutionEnv, PlanConfirmationChoice, QueueMode, Session, SystemPrompt,
-    create_coding_tools, create_read_only_tools, extract_proposed_plan, plan_mode_blocks_tool,
+    create_core_tools, create_read_only_tools, extract_proposed_plan, plan_mode_blocks_tool,
 };
 use elph_ai::{FauxResponseStep, faux_assistant_message, faux_text};
 use tempfile::TempDir;
@@ -34,7 +34,7 @@ async fn harness_enter_plan_mode_filters_active_tools() {
     let (faux, models) = common::new_faux();
     let (_temp, env) = test_env();
     let session = Session::new(InMemorySessionStorage::new(None).expect("session"));
-    let tools = create_coding_tools(env.clone());
+    let tools = create_core_tools(env.clone());
 
     let harness = AgentHarness::new(AgentHarnessOptions {
         env,

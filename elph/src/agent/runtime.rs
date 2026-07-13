@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use elph_agent::{
-    AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, GoalRuntime, GoalStore,
-    LocalExecutionEnv, McpLoadOptions, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt, create_all_tools,
+    AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, BuiltinToolsBuilder, GoalRuntime,
+    GoalStore, LocalExecutionEnv, McpLoadOptions, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt,
     create_goal_tools,
 };
 use elph_core::utils::path::AppPaths;
@@ -45,7 +45,7 @@ pub async fn create_coding_session_with_events(
     let selection = resolve_model(options.settings, options.provider_override, options.model_override).await?;
 
     let resources = load_resources(options.paths, options.cwd);
-    let mut tools = create_all_tools(env.clone());
+    let mut tools = BuiltinToolsBuilder::all(env.clone()).build();
 
     let mcp_config = crate::platform::mcp::load_config(options.paths)?;
     let auth_store_path = options.paths.auth_store_path();

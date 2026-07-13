@@ -76,6 +76,7 @@ pub async fn spawn_subagent_harness(
     }
 
     let mut tools = base_tools;
+    #[cfg(feature = "tools-multi-agent")]
     if depth < limits.max_depth {
         tools.extend(crate::tools::create_multi_agent_tools(agent_control.clone()));
     }
