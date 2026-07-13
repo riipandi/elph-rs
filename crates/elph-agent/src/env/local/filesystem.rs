@@ -168,7 +168,10 @@ impl FileSystem for LocalExecutionEnv {
             Err(error) => return err(Self::to_file_error(error, Some(&normalized))),
         };
         match file.write_all(content).await {
-            Ok(()) => ok(()),
+            Ok(()) => match file.flush().await {
+                Ok(()) => ok(()),
+                Err(error) => err(Self::to_file_error(error, Some(&normalized))),
+            },
             Err(error) => err(Self::to_file_error(error, Some(&normalized))),
         }
     }

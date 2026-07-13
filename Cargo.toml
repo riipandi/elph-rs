@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/elph-*", "eclaw", "elph", "owly"]
-exclude = ["extensions/say-hello"]
+members = ["crates/elph-*", "elph"]
+exclude = ["extensions/say-hello", "eclaw", "owly"]
 
 [workspace.package]
 homepage = "https://elph.space"
@@ -34,7 +34,6 @@ elph-tui = { path = "crates/elph-tui", version = "0.0.26" }
 eventsource-stream = "0.2.3"
 fastembed = { version = "5.17.2" }
 fff-search = "0.9.6"
-fs4 = "1.1.0"
 futures = "0.3.32"
 futures-util = "0.3.32"
 git2 = { version = "0.21.0", features = ["cred"] }

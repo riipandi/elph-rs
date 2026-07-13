@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
 use anyhow::{Context, Result};
-use fs4::fs_std::FileExt;
 use tokio::sync::Mutex as AsyncMutex;
 
 /// Process-wide async mutexes keyed by canonical store path.
@@ -34,7 +33,7 @@ fn async_mutex_for(path: &Path) -> Arc<AsyncMutex<()>> {
 /// Holds an in-process async mutex and a cross-process exclusive file lock.
 pub struct AuthStoreGuard {
     _guard: tokio::sync::OwnedMutexGuard<()>,
-    /// Keep the lock file open for the duration of the guard (`fs4` unlocks on drop).
+    /// Keep the lock file open for the duration of the guard (lock releases on drop).
     _file: File,
 }
 
@@ -59,7 +58,7 @@ pub async fn lock_auth_store(path: &Path) -> Result<AuthStoreGuard> {
             .truncate(false)
             .open(&lock_path_clone)
             .with_context(|| format!("open lock {}", lock_path_clone.display()))?;
-        file.lock_exclusive()
+        file.lock()
             .with_context(|| format!("lock exclusive {}", lock_path_clone.display()))?;
         Ok::<File, anyhow::Error>(file)
     })

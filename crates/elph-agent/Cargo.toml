@@ -32,7 +32,6 @@ crossbeam-channel.workspace = true
 elph-ai.workspace = true
 elph-core.workspace = true
 fff-search.workspace = true
-fs4.workspace = true
 futures.workspace = true
 http.workspace = true
 ignore.workspace = true

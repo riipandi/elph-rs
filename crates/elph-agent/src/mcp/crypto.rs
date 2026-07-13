@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
+use aes_gcm::aead::{Aead, Generate, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use anyhow::{Context, Result, bail};
 use base64::Engine;
@@ -54,7 +54,7 @@ impl Aes256Key {
 
     /// Generate a new random key.
     pub fn generate() -> Self {
-        let key = Aes256Gcm::generate_key(&mut OsRng);
+        let key = Key::<Aes256Gcm>::generate();
         let mut bytes = [0u8; KEY_LEN];
         bytes.copy_from_slice(key.as_slice());
         Self { bytes }
@@ -157,8 +157,8 @@ pub fn decrypt_string_sync(key: &Aes256Key, encoded: &str) -> Result<String> {
 }
 
 fn encrypt_sync(key: &Aes256Key, plaintext: &[u8]) -> Result<String> {
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key.bytes));
-    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let cipher = Aes256Gcm::new_from_slice(&key.bytes).map_err(|e| anyhow::anyhow!("invalid AES key: {e:?}"))?;
+    let nonce = Nonce::generate();
     let ciphertext = cipher
         .encrypt(&nonce, plaintext)
         .map_err(|e| anyhow::anyhow!("AES-256-GCM encrypt failed: {e}"))?;
@@ -181,10 +181,13 @@ fn decrypt_sync(key: &Aes256Key, encoded: &str) -> Result<Vec<u8>> {
         bail!("encrypted payload too short");
     }
     let (nonce_bytes, ct) = packed.split_at(NONCE_LEN);
-    let nonce = Nonce::from_slice(nonce_bytes);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key.bytes));
+    let nonce_arr: [u8; NONCE_LEN] = nonce_bytes
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("invalid nonce length"))?;
+    let nonce = Nonce::from(nonce_arr);
+    let cipher = Aes256Gcm::new_from_slice(&key.bytes).map_err(|e| anyhow::anyhow!("invalid AES key: {e:?}"))?;
     cipher
-        .decrypt(nonce, ct)
+        .decrypt(&nonce, ct)
         .map_err(|e| anyhow::anyhow!("AES-256-GCM decrypt failed: {e}"))
 }
 
