@@ -53,7 +53,7 @@ Resolved by [`LoggingOptions::resolve`](../../elph-core/src/logger/options.rs) v
 
 | Variable                 | Default | Effect                                        |
 | ------------------------ | ------- | --------------------------------------------- |
-| `{PREFIX}_TRACE`         | on      | Set to `0` to disable trace file output       |
+| `{PREFIX}_TRACE`         | on      | Set to `0`, `false`, `off`, or `no` to disable tracing (file output, log bridge, HTTP propagation) |
 | `{PREFIX}_LOG_LEVEL`     | `info`  | `trace` / `debug` / `info` / `warn` / `error` |
 | `{PREFIX}_LOG_FILE`      | on      | Set to `0` to disable rolling JSONL logs      |
 | `{PREFIX}_LOG_ROTATION`  | `daily` | `hourly`, `daily`, or `weekly`                |

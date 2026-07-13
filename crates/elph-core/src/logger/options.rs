@@ -61,8 +61,14 @@ impl LoggingOptions {
         Self::parse_trace_enabled(std::env::var(&key).ok().as_deref())
     }
 
-    fn parse_trace_enabled(value: Option<&str>) -> bool {
-        value.map(|value| value != "0").unwrap_or(true)
+    pub fn parse_trace_enabled(value: Option<&str>) -> bool {
+        match value.map(str::trim).filter(|value| !value.is_empty()) {
+            None => true,
+            Some(value) => {
+                let normalized = value.to_ascii_lowercase();
+                !matches!(normalized.as_str(), "0" | "false" | "no" | "off" | "disabled")
+            }
+        }
     }
 
     pub fn resolve(env_prefix: &str, app_name: &'static str, logs_dir: Option<PathBuf>, console_enabled: bool) -> Self {
@@ -101,10 +107,17 @@ mod tests {
     fn trace_enabled_defaults_to_true() {
         assert!(LoggingOptions::parse_trace_enabled(None));
         assert!(LoggingOptions::parse_trace_enabled(Some("1")));
+        assert!(LoggingOptions::parse_trace_enabled(Some("true")));
+        assert!(LoggingOptions::parse_trace_enabled(Some("on")));
     }
 
     #[test]
     fn trace_disabled_when_env_is_zero() {
-        assert!(!LoggingOptions::parse_trace_enabled(Some("0")));
+        for value in ["0", "false", "no", "off", "disabled", " FALSE "] {
+            assert!(
+                !LoggingOptions::parse_trace_enabled(Some(value)),
+                "expected disabled for {value:?}"
+            );
+        }
     }
 }

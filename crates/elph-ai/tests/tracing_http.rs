@@ -1,11 +1,16 @@
 #![cfg(feature = "tracing")]
 
 use elph_ai::trace::with_trace_headers;
-use fastrace::collector::SpanContext;
+use elph_core::trace::{JsonlReporter, set_reporter};
+use fastrace::collector::{Config, SpanContext};
 use fastrace::prelude::Span;
 
 #[tokio::test]
 async fn with_trace_headers_injects_traceparent() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let reporter = JsonlReporter::new(dir.path(), "elph").expect("reporter");
+    set_reporter(reporter, Config::default());
+
     let span = Span::root("elph.test.http", SpanContext::random());
     let _guard = span.set_local_parent();
 

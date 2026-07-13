@@ -20,13 +20,16 @@ const FILE_WRITER_BUFFER_LINES: usize = 16_384;
 /// Keeps the global logforth bridge alive so async appenders can flush on shutdown.
 pub struct LogGuard {
     bridge: Arc<LogBridge>,
+    trace_enabled: bool,
 }
 
 impl Drop for LogGuard {
     fn drop(&mut self) {
         self.bridge.flush();
         #[cfg(feature = "tracing")]
-        fastrace::flush();
+        if self.trace_enabled {
+            crate::trace::flush();
+        }
     }
 }
 
@@ -39,8 +42,9 @@ pub fn init(options: LoggingOptions) -> Option<LogGuard> {
         return None;
     }
 
+    let trace_enabled = options.trace_enabled;
     crate::trace::init(&options);
-    install_logger(&options)
+    install_logger(&options, trace_enabled)
 }
 
 fn level_filter(level: &str) -> Box<dyn Filter> {
@@ -81,7 +85,7 @@ fn file_appender(options: &LoggingOptions) -> append::Async {
         .build()
 }
 
-fn install_logger(options: &LoggingOptions) -> Option<LogGuard> {
+fn install_logger(options: &LoggingOptions, trace_enabled: bool) -> Option<LogGuard> {
     let filter = level_filter(&options.level);
     let mut starter = logforth::starter_log::builder();
 
@@ -98,19 +102,19 @@ fn install_logger(options: &LoggingOptions) -> Option<LogGuard> {
     }
 
     #[cfg(feature = "tracing")]
-    {
+    if trace_enabled {
         let fastrace = append::FastraceEvent::default();
         starter = starter.dispatch(|d| d.filter(filter).append(fastrace));
-    }
-    #[cfg(not(feature = "tracing"))]
-    {
+    } else {
         let _ = filter;
     }
+    #[cfg(not(feature = "tracing"))]
+    let _ = filter;
 
     let logger = starter.build();
     let bridge = Arc::new(LogBridge::new(logger));
     log::set_boxed_logger(Box::new(bridge.clone())).expect("failed to set global logger");
     log::set_max_level(parse_max_level(&options.level));
 
-    Some(LogGuard { bridge })
+    Some(LogGuard { bridge, trace_enabled })
 }

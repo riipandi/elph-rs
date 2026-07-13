@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use elph_core::logger::LoggingOptions;
-use elph_core::trace::{JsonlReporter, flush, root_span, set_reporter};
+use elph_core::trace::{JsonlReporter, flush, is_enabled, root_span, set_reporter};
 use fastrace::collector::Config;
 use fastrace::local::LocalSpan;
 
@@ -15,6 +15,7 @@ fn root_span_flushes_to_jsonl_reporter() {
     let reporter = JsonlReporter::new(dir.path(), "elph").expect("reporter");
     let trace_path = reporter.path().to_path_buf();
     set_reporter(reporter, Config::default().report_interval(Duration::from_millis(10)));
+    assert!(is_enabled());
 
     {
         let _guard = root_span("elph.test.root");
@@ -41,6 +42,7 @@ fn init_skips_reporter_when_trace_disabled() {
         trace_enabled: false,
     };
     elph_core::trace::init(&options);
+    assert!(!is_enabled());
     assert!(!dir.path().join("elph-traces.jsonl").exists());
 }
 

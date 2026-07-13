@@ -66,6 +66,10 @@ Default config: `~/.elph/` | Default data: `~/.local/share/elph/`
 | `ELPH_PROMPT_ENCODING_DELIMITER` | General TOON delimiter: `comma`, `tab`, or `pipe` (default `comma`) |
 | `ELPH_PROMPT_ENCODING_TABULAR_DELIMITER` | Tabular TOON delimiter: `comma`, `tab`, or `pipe` (default `tab`) |
 | `ELPH_QUIET`           | Suppress bootstrap output                             |
+| `ELPH_TRACE`           | Distributed tracing (`fastrace`): default on; set `0`, `false`, `off`, or `no` to disable |
+| `ELPH_LOG_LEVEL`       | Log level: `trace`, `debug`, `info`, `warn`, `error` (default `info`) |
+| `ELPH_LOG_FILE`        | Rolling JSONL log file: default on; set `0` to disable |
+| `ELPH_LOG_ROTATION`    | Log rotation: `hourly`, `daily` (default), or `weekly` |
 
 Provider JSON may reference API keys via `env.VAR`, `$VAR`, `${VAR}`, `!shell-command`, or literals.
 
