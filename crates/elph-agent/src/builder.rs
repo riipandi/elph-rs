@@ -105,21 +105,22 @@ impl BuiltinToolsBuilder {
     }
 
     pub fn build(self) -> Vec<AgentTool> {
-        let mut tools = Vec::new();
-        #[cfg(feature = "tools-read")]
-        tools.push(crate::tools::create_read_tool(self.env.clone()));
-        #[cfg(feature = "tools-bash")]
-        tools.push(crate::tools::create_bash_tool(self.env.clone()));
-        #[cfg(feature = "tools-edit")]
-        tools.push(crate::tools::create_edit_tool(self.env.clone()));
-        #[cfg(feature = "tools-write")]
-        tools.push(crate::tools::create_write_tool(self.env.clone()));
-        #[cfg(feature = "tools-grep")]
-        tools.push(crate::tools::create_grep_tool(self.env.clone()));
-        #[cfg(feature = "tools-find")]
-        tools.push(crate::tools::create_find_tool(self.env.clone()));
-        #[cfg(feature = "tools-ls")]
-        tools.push(crate::tools::create_ls_tool(self.env.clone()));
+        let mut tools = vec![
+            #[cfg(feature = "tools-read")]
+            crate::tools::create_read_tool(self.env.clone()),
+            #[cfg(feature = "tools-bash")]
+            crate::tools::create_bash_tool(self.env.clone()),
+            #[cfg(feature = "tools-edit")]
+            crate::tools::create_edit_tool(self.env.clone()),
+            #[cfg(feature = "tools-write")]
+            crate::tools::create_write_tool(self.env.clone()),
+            #[cfg(feature = "tools-grep")]
+            crate::tools::create_grep_tool(self.env.clone()),
+            #[cfg(feature = "tools-find")]
+            crate::tools::create_find_tool(self.env.clone()),
+            #[cfg(feature = "tools-ls")]
+            crate::tools::create_ls_tool(self.env.clone()),
+        ];
         if self.include_web {
             #[cfg(feature = "tools-web")]
             tools.extend(crate::tools::create_web_tools());

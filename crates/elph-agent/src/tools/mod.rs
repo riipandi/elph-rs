@@ -95,30 +95,32 @@ pub fn echo_tool() -> AgentTool {
 /// Core filesystem and shell tools: read, bash, edit, write.
 #[cfg(feature = "tools-core")]
 pub fn create_core_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
-    let mut tools = Vec::new();
-    #[cfg(feature = "tools-read")]
-    tools.push(create_read_tool(env.clone()));
-    #[cfg(feature = "tools-bash")]
-    tools.push(create_bash_tool(env.clone()));
-    #[cfg(feature = "tools-edit")]
-    tools.push(create_edit_tool(env.clone()));
-    #[cfg(feature = "tools-write")]
-    tools.push(create_write_tool(env));
+    let tools = vec![
+        #[cfg(feature = "tools-read")]
+        create_read_tool(env.clone()),
+        #[cfg(feature = "tools-bash")]
+        create_bash_tool(env.clone()),
+        #[cfg(feature = "tools-edit")]
+        create_edit_tool(env.clone()),
+        #[cfg(feature = "tools-write")]
+        create_write_tool(env),
+    ];
     tools
 }
 
 /// Read-only exploration tools.
 #[cfg(feature = "tools-explore")]
 pub fn create_read_only_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
-    let mut tools = Vec::new();
-    #[cfg(feature = "tools-read")]
-    tools.push(create_read_tool(env.clone()));
-    #[cfg(feature = "tools-grep")]
-    tools.push(create_grep_tool(env.clone()));
-    #[cfg(feature = "tools-find")]
-    tools.push(create_find_tool(env.clone()));
-    #[cfg(feature = "tools-ls")]
-    tools.push(create_ls_tool(env));
+    let tools = vec![
+        #[cfg(feature = "tools-read")]
+        create_read_tool(env.clone()),
+        #[cfg(feature = "tools-grep")]
+        create_grep_tool(env.clone()),
+        #[cfg(feature = "tools-find")]
+        create_find_tool(env.clone()),
+        #[cfg(feature = "tools-ls")]
+        create_ls_tool(env),
+    ];
     tools
 }
 

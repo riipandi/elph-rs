@@ -60,23 +60,24 @@ impl DelegateWidget for ElphTui {
     tuie::delegate_widget!(root);
 
     fn after_on_event(&mut self, event: &mut WidgetEvent) {
-        if event.of::<Input>() && event.source == self.input_id {
-            if let Some(input) = self.root.get_widget(self.input_id) {
-                let text = input.get_string().to_string();
-                if !text.trim().is_empty() {
-                    if let Some(output) = self.root.get_widget_mut(self.output_id) {
-                        let current = output.get_content();
-                        let ready: StyledString = "Ready.".into();
-                        let new_content = if current == ready {
-                            StyledString::from(format!("❯ {text}"))
-                        } else {
-                            StyledString::from(format!("{current}\n❯ {text}"))
-                        };
-                        output.set_content(new_content);
-                    }
-                    if let Some(input) = self.root.get_widget_mut(self.input_id) {
-                        input.set_content("");
-                    }
+        if event.of::<Input>()
+            && event.source == self.input_id
+            && let Some(input) = self.root.get_widget(self.input_id)
+        {
+            let text = input.get_string().to_string();
+            if !text.trim().is_empty() {
+                if let Some(output) = self.root.get_widget_mut(self.output_id) {
+                    let current = output.get_content();
+                    let ready: StyledString = "Ready.".into();
+                    let new_content = if current == ready {
+                        StyledString::from(format!("❯ {text}"))
+                    } else {
+                        StyledString::from(format!("{current}\n❯ {text}"))
+                    };
+                    output.set_content(new_content);
+                }
+                if let Some(input) = self.root.get_widget_mut(self.input_id) {
+                    input.set_content("");
                 }
             }
         }
