@@ -45,12 +45,9 @@ pub fn handle_prompt_interrupt_text(value: &str) -> PromptInterrupt {
 }
 
 /// Clears or exits based on [`handle_prompt_interrupt_text`], returning `true` when the shell should exit.
-pub fn handle_prompt_interrupt_prompt(prompt: &mut elph_tui::PromptState) -> bool {
-    match handle_prompt_interrupt_text(&prompt.value()) {
-        PromptInterrupt::Cleared => {
-            prompt.clear();
-            false
-        }
+pub fn handle_prompt_interrupt(prompt_text: &str) -> bool {
+    match handle_prompt_interrupt_text(prompt_text) {
+        PromptInterrupt::Cleared => false,
         PromptInterrupt::ShouldExit => true,
         PromptInterrupt::Ignored => false,
     }

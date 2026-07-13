@@ -1,9 +1,12 @@
 #![allow(dead_code)]
 
 use super::exit_message;
-use crate::shell;
-use elph_tui::disable_keyboard_enhancement;
-use std::sync::atomic::AtomicBool;
+use crossterm::event::{
+    DisableBracketedPaste, EnableBracketedPaste, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
+use crossterm::execute;
+use std::io::{self, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(unix)]
 use libc::{SIGTERM, getppid, kill};
@@ -34,6 +37,42 @@ pub const EXIT_CONNECTION_ERROR: ExitCode = 6;
 pub const EXIT_SERVER_ERROR: ExitCode = 7;
 pub const EXIT_INTERRUPTED: ExitCode = 130;
 
+// Keyboard enhancement helpers (previously in elph-tui).
+
+static KB_ENHANCED: AtomicBool = AtomicBool::new(false);
+static BRACKETED_PASTE_DISABLED: AtomicBool = AtomicBool::new(false);
+
+fn enable_keyboard_enhancement() -> io::Result<()> {
+    if KB_ENHANCED.swap(true, Ordering::Relaxed) {
+        return Ok(());
+    }
+    execute!(
+        io::stdout(),
+        PushKeyboardEnhancementFlags(
+            crossterm::event::KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                | crossterm::event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                | crossterm::event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+                | crossterm::event::KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+        )
+    )?;
+    execute!(io::stdout(), DisableBracketedPaste)?;
+    BRACKETED_PASTE_DISABLED.store(true, Ordering::Relaxed);
+    io::stdout().flush()?;
+    Ok(())
+}
+
+fn disable_keyboard_enhancement() -> io::Result<()> {
+    if !KB_ENHANCED.swap(false, Ordering::Relaxed) {
+        return Ok(());
+    }
+    execute!(io::stdout(), PopKeyboardEnhancementFlags)?;
+    if BRACKETED_PASTE_DISABLED.swap(false, Ordering::Relaxed) {
+        execute!(io::stdout(), EnableBracketedPaste)?;
+    }
+    io::stdout().flush()?;
+    Ok(())
+}
+
 struct KeyboardEnhancementGuard;
 
 impl Drop for KeyboardEnhancementGuard {
@@ -44,9 +83,11 @@ impl Drop for KeyboardEnhancementGuard {
     }
 }
 
-pub fn run(options: shell::TuiOptions) {
+/// Launch the TUI app.
+pub fn run(resume_id: Option<String>) {
+    let _ = enable_keyboard_enhancement();
     let _guard = KeyboardEnhancementGuard;
-    let result = shell::run_tui(options.resume_id);
+    let result = crate::tui::run_tui(resume_id);
     exit_message::print_and_clear();
     if let Err(e) = result {
         log::error!("app error: {e}");

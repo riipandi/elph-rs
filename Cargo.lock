@@ -2763,10 +2763,10 @@ dependencies = [
  "chord_macro",
  "clap",
  "clap_complete",
+ "crossterm",
  "elph-agent",
  "elph-ai",
  "elph-core",
- "elph-tui",
  "futures-util",
  "libc",
  "log",
@@ -2891,30 +2891,6 @@ dependencies = [
  "tokio",
  "tsid",
  "turso",
-]
-
-[[package]]
-name = "elph-tui"
-version = "0.0.26"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "chord_macro",
- "chrono",
- "crossterm",
- "elph-core",
- "futures",
- "libc",
- "memchr",
- "parking_lot",
- "pulldown-cmark",
- "rayon",
- "similar",
- "similar-asserts",
- "tokio",
- "tuie",
- "unicode-segmentation",
- "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -6693,15 +6669,8 @@ checksum = "e9f068eba8e7071c5f9511831b44f32c740d5adf574e990f946ddb53db2f314e"
 dependencies = [
  "bitflags 2.13.0",
  "memchr",
- "pulldown-cmark-escape",
  "unicase",
 ]
-
-[[package]]
-name = "pulldown-cmark-escape"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "pulley-interpreter"
@@ -8091,26 +8060,6 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
-
-[[package]]
-name = "similar"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6505efef05804732ed8a3f2d4f279429eb485bd69d5b0cc6b19cc02005cda16"
-dependencies = [
- "bstr",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "similar-asserts"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "997e6ca38e97437973fc9f7f50a50d1274cacd874341a4960fea90067291038c"
-dependencies = [
- "console 0.16.4",
- "similar",
-]
 
 [[package]]
 name = "simsimd"

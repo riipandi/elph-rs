@@ -2,11 +2,11 @@
 
 mod wiring;
 
+use crate::types::AgentMode;
 use anyhow::Result;
 use elph_agent::{
     AgentHarness, CollaborationMode, GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage,
 };
-use elph_tui::AgentMode;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, mpsc};
@@ -109,7 +109,7 @@ impl CodingAgentSession {
         self.apply_agent_mode(mode).await
     }
 
-    pub async fn set_thinking_level(&self, level: elph_tui::ThinkingLevel) -> Result<()> {
+    pub async fn set_thinking_level(&self, level: crate::types::ThinkingLevel) -> Result<()> {
         self.harness
             .set_thinking_level(to_agent_thinking(level))
             .await

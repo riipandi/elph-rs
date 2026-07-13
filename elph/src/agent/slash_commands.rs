@@ -1,7 +1,7 @@
 //! Built-in slash command registry and dispatch.
 
+use crate::types::SlashCommand;
 use elph_agent::ExtensionRegistry;
-use elph_tui::SlashCommand;
 
 #[derive(Debug, Clone)]
 pub struct BuiltinSlashCommand {

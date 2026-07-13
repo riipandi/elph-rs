@@ -1,7 +1,7 @@
 //! Tool exposure and approval policy for TUI agent modes.
 
+use crate::types::AgentMode;
 use elph_agent::{McpToolRegistry, is_mcp_tool, is_mutating_tool};
-use elph_tui::AgentMode;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -94,13 +94,13 @@ pub fn agent_mode_from_setting(value: &str) -> AgentMode {
     }
 }
 
-pub fn thinking_level_from_setting(value: &str) -> elph_tui::ThinkingLevel {
-    elph_tui::ThinkingLevel::from_setting(value)
+pub fn thinking_level_from_setting(value: &str) -> crate::types::ThinkingLevel {
+    crate::types::ThinkingLevel::from_setting(value)
 }
 
-pub fn to_agent_thinking(level: elph_tui::ThinkingLevel) -> elph_agent::AgentThinkingLevel {
+pub fn to_agent_thinking(level: crate::types::ThinkingLevel) -> elph_agent::AgentThinkingLevel {
+    use crate::types::ThinkingLevel;
     use elph_agent::AgentThinkingLevel;
-    use elph_tui::ThinkingLevel;
     match level {
         ThinkingLevel::Off => AgentThinkingLevel::Off,
         ThinkingLevel::Minimal => AgentThinkingLevel::Minimal,
