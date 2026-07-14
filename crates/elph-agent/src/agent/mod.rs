@@ -1,9 +1,11 @@
 //! Stateful `Agent` wrapper — elph-agent module.
 
 mod events;
+pub mod harness;
 mod queue;
 mod run;
 mod state;
+pub mod subagent;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -15,7 +17,7 @@ use tokio::sync::{Mutex, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use crate::messages::default_convert_to_llm_fn;
-use crate::runtime::prompt_encoding::PromptEncodingConfig;
+use crate::prompt::encoding::PromptEncodingConfig;
 use crate::types::{
     AgentEvent, AgentMessage, AgentState, AgentThinkingLevel, ConvertToLlmFn, QueueMode, StreamFn, ToolExecutionMode,
 };

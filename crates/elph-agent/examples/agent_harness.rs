@@ -11,11 +11,12 @@
 use std::sync::Arc;
 
 use elph_agent::{
-    LocalExecutionEnv, Skill, format_skills_for_system_prompt,
-    harness::types::{FileSystem, Result as HResult, Shell, ShellExecOptions},
-    harness::utils::{
+    FileSystem, LocalExecutionEnv, Shell,
+    agent::harness::types::{Result as HResult, ShellExecOptions, Skill},
+    agent::harness::utils::{
         TruncationOptions, execute_shell_with_capture, format_size, truncate_head, truncate_line, truncate_tail,
     },
+    format_skills_for_system_prompt,
 };
 
 #[tokio::main]

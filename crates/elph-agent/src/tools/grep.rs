@@ -6,9 +6,9 @@ use elph_ai::Tool;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::types::{FileKind, FileSystem, Result as HarnessResult};
-use crate::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_head};
+use crate::agent::harness::types::{FileKind, FileSystem, Result as HarnessResult};
+use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_head};
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, resolve_path};
 use crate::tools::fff_picker::{
     build_grep_mode, build_grep_options, build_grep_query, build_picker, format_grep_output, parse_grep_query,

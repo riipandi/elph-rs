@@ -16,8 +16,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::format_skills_for_system_prompt;
+use elph_agent::agent::harness::format_skills_for_system_prompt;
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::skills::{format_skill_invocation, load_skills_with_options};
 use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
 use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};

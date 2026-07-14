@@ -140,7 +140,7 @@ impl<S: SessionStorage> Session<S> {
 
     pub async fn append_collaboration_mode_change(
         &mut self,
-        mode: crate::mode::CollaborationMode,
+        mode: crate::collaboration::CollaborationMode,
     ) -> Result<String, SessionError> {
         self.append_typed_entry(SessionTreeEntry::CollaborationModeChange {
             id: self.storage.create_entry_id().await,

@@ -3,8 +3,9 @@
 use ignore::Match;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
-use crate::env::{LocalExecutionEnv, join_env_path, relative_env_path};
-use crate::harness::types::{FileErrorCode, FileKind, FileSystem, Result};
+use crate::agent::harness::types::{FileErrorCode, FileKind, FileSystem, Result};
+use crate::runtime::env::{join_env_path, relative_env_path};
+use crate::runtime::local_env::LocalExecutionEnv;
 
 const IGNORE_FILE_NAMES: [&str; 3] = [".gitignore", ".ignore", ".fdignore"];
 

@@ -5,7 +5,9 @@
 //! - [`invoke`] — slash-command argument parsing and placeholder substitution
 
 pub mod builtin;
+pub mod encoding;
 pub mod external;
+
 pub mod session_name;
 
 mod invoke;
@@ -30,7 +32,7 @@ pub struct PromptTemplateDiagnostic {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadPromptTemplatesResult {
-    pub prompt_templates: Vec<crate::harness::types::PromptTemplate>,
+    pub prompt_templates: Vec<crate::agent::harness::types::PromptTemplate>,
     pub diagnostics: Vec<PromptTemplateDiagnostic>,
 }
 

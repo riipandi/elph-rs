@@ -93,7 +93,7 @@ For each material bullet (skip pure docs/chore noise unless the user wants a ful
 
 **elph-ai map:** `src/types/`, `src/api/`, `src/providers/`, `src/auth/`, `models/`, `src/utils/deferred_tools.rs`, `src/utils/diagnostics.rs`, `src/utils/estimate.rs`, `src/session_resources.rs`
 
-**elph-agent map:** `src/agent/`, `src/agent_loop/`, `src/types/`, `src/session/`, `src/compaction/`, `src/harness/`
+**elph-agent map:** `src/agent/` (incl. `harness/`, `subagent/`), `src/runtime/` (engine loop + env + proxy), `src/tools/` (incl. `mcp/`), `src/types/` (global enums), `src/collaboration/`, `src/session/`, `src/compaction/`, `src/messages/`, `src/prompt/encoding/`
 (product modules belong under Phase 3 — not “gaps”)
 
 After any model-catalog port work:

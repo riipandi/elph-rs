@@ -6,8 +6,8 @@ use elph_ai::Tool;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::types::{FileSystem, Result as HarnessResult};
+use crate::agent::harness::types::{FileSystem, Result as HarnessResult};
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, ensure_parent_dir, file_error, resolve_path};
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult};

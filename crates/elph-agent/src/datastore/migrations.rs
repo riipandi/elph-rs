@@ -1,7 +1,7 @@
 use anyhow::Result;
 use turso::Connection;
 
-use crate::migration::Migration;
+use super::Migration;
 
 pub async fn run(conn: &Connection, migrations: &[Migration]) -> Result<()> {
     conn.execute(

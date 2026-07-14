@@ -3,7 +3,7 @@
 use elph_ai::{AssistantContentBlock, Message, StopReason, Usage};
 use serde_json::Value;
 
-pub use crate::harness::types::CompactionSettings;
+pub use crate::agent::harness::types::CompactionSettings;
 
 use crate::session::types::SessionTreeEntry;
 use crate::types::{AgentMessage, CustomAgentMessage};

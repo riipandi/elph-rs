@@ -8,8 +8,8 @@ mod summarization;
 mod types;
 mod utils;
 
-pub use crate::harness::types::FileOperations;
-pub use crate::harness::types::{CompactionPreparation, CompactionSettings, DEFAULT_COMPACTION_SETTINGS};
+pub use crate::agent::harness::types::FileOperations;
+pub use crate::agent::harness::types::{CompactionPreparation, CompactionSettings, DEFAULT_COMPACTION_SETTINGS};
 pub use crate::prompt::builtin::compaction::SUMMARIZATION_SYSTEM_PROMPT;
 pub use branch_summarization::{
     BranchPreparation, BranchSummaryDetails, CollectEntriesResult, GenerateBranchSummaryOptions,

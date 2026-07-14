@@ -3,10 +3,10 @@
 use std::os::unix::fs::symlink;
 use std::path::Path;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::types::{
+use elph_agent::agent::harness::types::{
     SkillLoadOptions, SkillValidationSettings, resolve_project_skills_dirs, resolve_user_skills_dirs,
 };
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::skills::{SkillDiagnosticCode, load_skills, load_skills_with_options, load_sourced_skills};
 use tempfile::TempDir;
 

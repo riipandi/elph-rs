@@ -6,8 +6,8 @@ use elph_ai::Tool;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_head};
+use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_head};
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, resolve_path};
 use crate::tools::fff_picker::{build_find_glob_pattern, build_find_options, build_picker, run_with_abort_signal};
 use crate::tools::simple_tool;

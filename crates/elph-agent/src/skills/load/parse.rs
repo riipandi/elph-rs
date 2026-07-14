@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::harness::types::{Result, err, ok};
+use crate::agent::harness::types::{Result, err, ok};
 
 const MAX_NAME_LENGTH: usize = 64;
 const MAX_DESCRIPTION_LENGTH: usize = 1024;

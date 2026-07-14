@@ -10,11 +10,11 @@
 
 use std::collections::HashMap;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::format_skills_for_system_prompt;
-use elph_agent::harness::types::{
+use elph_agent::agent::harness::format_skills_for_system_prompt;
+use elph_agent::agent::harness::types::{
     Skill, SkillLoadOptions, SkillValidationSettings, resolve_project_skills_dirs, resolve_user_skills_dirs,
 };
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::skills::{format_skill_invocation, load_skills_with_options};
 use tempfile::TempDir;
 

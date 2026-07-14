@@ -6,10 +6,10 @@ use elph_ai::Tool;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::utils::truncate::{
+use crate::agent::harness::utils::truncate::{
     DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, TruncationOptions, format_size, truncate_head,
 };
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, is_probably_image, read_file_text, resolve_path};
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult};
@@ -63,7 +63,7 @@ async fn execute_read(
 
     let content = read_file_text(&env, &absolute, signal.as_ref()).await?;
     let start_line = offset.map(|value| value.saturating_sub(1)).unwrap_or(0);
-    let selected = match crate::harness::utils::truncate::select_line_range(&content, start_line, limit) {
+    let selected = match crate::agent::harness::utils::truncate::select_line_range(&content, start_line, limit) {
         Ok(selected) => selected,
         Err(total_lines) => {
             return Err(anyhow::anyhow!(

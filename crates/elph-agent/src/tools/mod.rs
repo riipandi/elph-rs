@@ -1,6 +1,7 @@
 //! Built-in agent tools and tool registry helpers.
 
 mod common;
+pub mod types;
 
 #[cfg(feature = "tools-bash")]
 mod bash;
@@ -23,6 +24,9 @@ pub mod web;
 #[cfg(feature = "tools-write")]
 mod write;
 
+#[cfg(feature = "mcp")]
+pub mod mcp;
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -30,7 +34,7 @@ use std::sync::Arc;
 use elph_ai::Tool;
 use serde_json::Value;
 
-use crate::env::LocalExecutionEnv;
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::types::{AgentTool, AgentToolResult, ToolExecuteFn};
 
 #[cfg(feature = "tools-bash")]

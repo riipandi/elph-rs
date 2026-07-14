@@ -1,6 +1,6 @@
 //! Session tree schema migrations for Turso backends.
 
-use crate::migration::Migration;
+use crate::datastore::Migration;
 
 pub const SESSION_TREE_MIGRATIONS: [Migration; 1] = [Migration {
     version: 1,

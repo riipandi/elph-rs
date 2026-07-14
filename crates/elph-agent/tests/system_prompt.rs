@@ -1,5 +1,5 @@
-use elph_agent::harness::format_skills_for_system_prompt;
-use elph_agent::harness::types::Skill;
+use elph_agent::agent::harness::format_skills_for_system_prompt;
+use elph_agent::agent::harness::types::Skill;
 
 fn visible_skill() -> Skill {
     Skill {

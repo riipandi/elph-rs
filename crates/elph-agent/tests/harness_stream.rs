@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use elph_agent::harness::types::AgentHarnessStreamOptionsPatch;
+use elph_agent::agent::harness::types::AgentHarnessStreamOptionsPatch;
 use elph_agent::runtime::try_block_on;
 use elph_agent::session::types::HasSessionId;
 use elph_agent::{

@@ -13,7 +13,7 @@ use fff_search::types::PaginationArgs;
 use fff_search::{AiGrepConfig, FFFQuery};
 use tokio_util::sync::CancellationToken;
 
-use crate::harness::utils::truncate::{GREP_MAX_LINE_LENGTH, truncate_line};
+use crate::agent::harness::utils::truncate::{GREP_MAX_LINE_LENGTH, truncate_line};
 
 pub fn build_picker(base_path: &str) -> Result<FilePicker> {
     let mut picker = FilePicker::new(FilePickerOptions {

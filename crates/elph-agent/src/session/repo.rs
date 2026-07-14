@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::types::{FileSystem, get_or_throw};
+use crate::agent::harness::types::{FileSystem, get_or_throw};
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::session::backends::InMemorySessionStorage;
 use crate::session::backends::session_dir::{
     SUMMARY_FILE, SessionDirCreateOptions, SessionDirStorage, load_session_metadata,
@@ -186,7 +186,7 @@ impl SessionDirRepo {
             }
             let entries = get_or_throw(self.fs.list_dir(&project_dir, None).await);
             for entry in entries {
-                if entry.kind != crate::harness::types::FileKind::Directory {
+                if entry.kind != crate::agent::harness::types::FileKind::Directory {
                     continue;
                 }
                 let summary_path = get_or_throw(self.fs.join_path(&[entry.path.as_str(), SUMMARY_FILE], None).await);
@@ -213,7 +213,7 @@ impl SessionDirRepo {
             self.fs
                 .remove(
                     &metadata.dir,
-                    Some(crate::harness::types::RemoveOptions {
+                    Some(crate::agent::harness::types::RemoveOptions {
                         recursive: true,
                         force: true,
                         abort_token: None,
@@ -258,7 +258,7 @@ impl SessionDirRepo {
         let entries = get_or_throw(self.fs.list_dir(&root, None).await);
         Ok(entries
             .into_iter()
-            .filter(|entry| entry.kind == crate::harness::types::FileKind::Directory)
+            .filter(|entry| entry.kind == crate::agent::harness::types::FileKind::Directory)
             .map(|entry| entry.path)
             .collect())
     }

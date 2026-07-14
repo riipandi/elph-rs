@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
-use crate::subagent::AgentControl;
+use crate::agent::subagent::AgentControl;
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult};
 

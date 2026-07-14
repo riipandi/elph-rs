@@ -2,9 +2,10 @@
 
 use serde::Deserialize;
 
-use crate::env::{LocalExecutionEnv, basename_env_path};
-use crate::harness::types::{FileSystem, PromptTemplate, Result, err, ok};
+use crate::agent::harness::types::{FileSystem, PromptTemplate, Result, err, ok};
 use crate::prompt::{PromptTemplateDiagnostic, PromptTemplateDiagnosticCode};
+use crate::runtime::env::basename_env_path;
+use crate::runtime::local_env::LocalExecutionEnv;
 
 #[derive(Debug, Default, Deserialize)]
 pub(super) struct PromptTemplateFrontmatter {

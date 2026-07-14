@@ -26,8 +26,8 @@ description: A description of what this skill does and when to use it.
 license: MIT
 compatibility: Requires git and rust-analyzer
 metadata:
-  author: your-org
-  version: "1.0"
+    author: your-org
+    version: "1.0"
 allowed-tools: read grep bash
 ---
 
@@ -38,14 +38,14 @@ Your skill content here...
 
 ### Frontmatter Fields
 
-| Field           | Required | Constraints                                       |
-| --------------- | -------- | ------------------------------------------------- |
-| `name`          | Yes      | Max 64 chars. Lowercase, numbers, hyphens only.   |
-| `description`   | Yes      | Max 1024 chars. Non-empty.                        |
-| `license`       | No       | License name or reference to bundled file.        |
-| `compatibility` | No       | Max 500 chars. Environment requirements.          |
-| `metadata`      | No       | Arbitrary key-value mapping.                      |
-| `allowed-tools` | No       | Space-separated list of pre-approved tools.       |
+| Field           | Required | Constraints                                     |
+| --------------- | -------- | ----------------------------------------------- |
+| `name`          | Yes      | Max 64 chars. Lowercase, numbers, hyphens only. |
+| `description`   | Yes      | Max 1024 chars. Non-empty.                      |
+| `license`       | No       | License name or reference to bundled file.      |
+| `compatibility` | No       | Max 500 chars. Environment requirements.        |
+| `metadata`      | No       | Arbitrary key-value mapping.                    |
+| `allowed-tools` | No       | Space-separated list of pre-approved tools.     |
 
 ### Name Field Rules
 
@@ -148,7 +148,7 @@ for diag in &result.diagnostics {
 Format skills for inclusion in system prompt:
 
 ```rust
-use elph_agent::harness::format_skills_for_system_prompt;
+use elph_agent::agent::harness::format_skills_for_system_prompt;
 
 let prompt = format_skills_for_system_prompt(&skills);
 // <available_skills>
@@ -188,6 +188,7 @@ cargo run -p elph-agent --example agent_skills
 ```
 
 This example demonstrates:
+
 - Loading skills from multiple directories
 - Parsing all agentskills.io spec fields
 - Conflict resolution (last-wins)

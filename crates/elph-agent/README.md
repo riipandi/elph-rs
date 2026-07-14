@@ -493,16 +493,16 @@ Set provider API keys via environment variables (`BRAVE_SEARCH_API_KEY`, `EXA_AP
 
 ### Cargo features
 
-| Feature         | Default | Description                                           |
-| --------------- | ------- | ----------------------------------------------------- |
-| `builtin-tools` | no      | All built-in tool groups (enabled by `elph` binary)   |
-| `tools-core`    | no      | `read`, `bash`, `edit`, `write`                       |
-| `tools-explore` | no      | `read`, `grep`, `find`, `ls`                          |
-| `tools-web`     | no      | `websearch`, `webfetch`                               |
-| `mcp`           | yes     | MCP client                                            |
-| `extensions`    | yes     | WASM extension host                                   |
-| `obscura`       | no      | Obscura browser fallback for web tools                |
-| `tracing`       | no      | `fastrace` instrumentation                            |
+| Feature         | Default | Description                                         |
+| --------------- | ------- | --------------------------------------------------- |
+| `builtin-tools` | no      | All built-in tool groups (enabled by `elph` binary) |
+| `tools-core`    | no      | `read`, `bash`, `edit`, `write`                     |
+| `tools-explore` | no      | `read`, `grep`, `find`, `ls`                        |
+| `tools-web`     | no      | `websearch`, `webfetch`                             |
+| `mcp`           | yes     | MCP client                                          |
+| `extensions`    | yes     | WASM extension host                                 |
+| `obscura`       | no      | Obscura browser fallback for web tools              |
+| `tracing`       | no      | `fastrace` instrumentation                          |
 
 ```bash
 # Minimal agent runtime (no built-in tools, no MCP)

@@ -7,7 +7,7 @@ use elph_ai::{ImageContent, Message, SimpleStreamOptions, UserContent};
 use tokio::sync::{Mutex, oneshot};
 use tokio_util::sync::CancellationToken;
 
-use crate::agent_loop::{run_agent_loop, run_agent_loop_continue};
+use crate::runtime::{run_agent_loop, run_agent_loop_continue};
 use crate::types::{AgentContext, AgentLoopConfig, AgentMessage, AgentThinkingLevel};
 
 use super::events::{now_ms, process_event};
@@ -195,7 +195,7 @@ impl Agent {
         }
     }
 
-    fn create_emit_callback(&self, token: CancellationToken) -> crate::agent_loop::AgentEventCallback {
+    fn create_emit_callback(&self, token: CancellationToken) -> crate::runtime::AgentEventCallback {
         let state = self.state.clone();
         let listeners = self.listeners.clone();
 

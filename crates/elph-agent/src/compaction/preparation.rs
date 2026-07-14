@@ -2,10 +2,10 @@
 
 use serde_json::Value;
 
+use crate::agent::harness::types::{CompactionError, CompactionErrorCode, FileOperations};
 use crate::compaction::utils::{create_file_ops, extract_file_ops_from_message};
-use crate::harness::types::{CompactionError, CompactionErrorCode, FileOperations};
 
-pub use crate::harness::types::{CompactionPreparation, CompactionSettings};
+pub use crate::agent::harness::types::{CompactionPreparation, CompactionSettings};
 
 use crate::messages::{
     CustomMessageBlock, CustomMessageContent, create_branch_summary_message, create_compaction_summary_message,

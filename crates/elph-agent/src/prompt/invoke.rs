@@ -1,6 +1,6 @@
 //! Slash-command argument parsing and placeholder substitution.
 
-use crate::harness::types::PromptTemplate;
+use crate::agent::harness::types::PromptTemplate;
 
 /// Parse an argument string using simple shell-style single and double quotes.
 pub fn parse_command_args(args_string: &str) -> Vec<String> {

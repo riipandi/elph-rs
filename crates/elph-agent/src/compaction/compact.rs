@@ -3,10 +3,10 @@
 use elph_ai::{Model, Models, ThinkingLevel};
 use tokio_util::sync::CancellationToken;
 
+use crate::agent::harness::types::{CompactionError, CompactionErrorCode};
 use crate::compaction::utils::{compute_file_lists, format_file_operations};
-use crate::harness::types::{CompactionError, CompactionErrorCode};
 
-pub use crate::harness::types::CompactionPreparation;
+pub use crate::agent::harness::types::CompactionPreparation;
 
 use super::summarization::{generate_summary, generate_turn_prefix_summary};
 use super::types::{CompactionDetails, CompactionResult};

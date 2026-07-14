@@ -2,10 +2,10 @@
 
 use elph_ai::Message;
 
+use crate::collaboration::CollaborationMode;
 use crate::messages::{
     CustomMessageContent, create_branch_summary_message, create_compaction_summary_message, create_custom_message,
 };
-use crate::mode::CollaborationMode;
 use crate::session::types::{SessionContext, SessionModelRef, SessionTreeEntry};
 use crate::types::AgentMessage;
 

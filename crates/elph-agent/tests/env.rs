@@ -2,12 +2,12 @@
 
 use parking_lot::Mutex;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::types::{
+use elph_agent::agent::harness::types::{
     CreateDirOptions, ExecutionErrorCode, FileErrorCode, FileKind, FileSystem, ReadTextLinesOptions, RemoveOptions,
     Result, Shell, ShellExecOptions, get_or_throw,
 };
-use elph_agent::harness::utils::execute_shell_with_capture;
+use elph_agent::agent::harness::utils::execute_shell_with_capture;
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_core::utils::lines::count_lines;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
@@ -34,7 +34,7 @@ async fn reads_writes_lists_and_removes_files() {
         get_or_throw(
             env.read_text_lines(
                 "nested/child/file.txt",
-                Some(elph_agent::harness::types::ReadTextLinesOptions {
+                Some(elph_agent::agent::harness::types::ReadTextLinesOptions {
                     max_lines: Some(1),
                     abort_token: None,
                 }),
@@ -116,7 +116,7 @@ async fn creates_temporary_directories_and_files() {
     assert!(std::path::Path::new(&temp_dir).exists());
 
     let temp_file = get_or_throw(
-        env.create_temp_file(Some(elph_agent::harness::types::CreateTempFileOptions {
+        env.create_temp_file(Some(elph_agent::agent::harness::types::CreateTempFileOptions {
             prefix: "prefix-".to_string(),
             suffix: ".txt".to_string(),
             abort_token: None,
@@ -274,7 +274,7 @@ async fn returns_aborted_results_for_cancelled_file_operations() {
     let token = CancellationToken::new();
     token.cancel();
 
-    fn assert_aborted<T>(result: Result<T, elph_agent::harness::types::FileError>) {
+    fn assert_aborted<T>(result: Result<T, elph_agent::agent::harness::types::FileError>) {
         assert!(result.is_err());
         if let Result::Err(error) = result {
             assert_eq!(error.code, FileErrorCode::Aborted);
@@ -285,7 +285,7 @@ async fn returns_aborted_results_for_cancelled_file_operations() {
     assert_aborted(
         env.read_text_lines(
             "file.txt",
-            Some(elph_agent::harness::types::ReadTextLinesOptions {
+            Some(elph_agent::agent::harness::types::ReadTextLinesOptions {
                 max_lines: None,
                 abort_token: Some(token.clone()),
             }),

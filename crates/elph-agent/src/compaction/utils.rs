@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use elph_ai::{AssistantContentBlock, ContentBlock, Message, UserContent};
 use serde_json::Value;
 
-use crate::harness::types::FileOperations;
+use crate::agent::harness::types::FileOperations;
 use crate::types::AgentMessage;
 
 /// Create an empty file-operation accumulator.

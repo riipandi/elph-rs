@@ -9,10 +9,11 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::env::{LocalExecutionEnv, basename_env_path, dirname_env_path, relative_env_path};
-use crate::harness::types::{
+use crate::agent::harness::types::{
     FileErrorCode, FileInfo, FileKind, FileSystem, Result, Skill, SkillLoadOptions, SkillValidationSettings,
 };
+use crate::runtime::env::{basename_env_path, dirname_env_path, relative_env_path};
+use crate::runtime::local_env::LocalExecutionEnv;
 
 pub use types::{
     LoadSkillsResult, LoadSourcedSkillsResult, SkillDiagnostic, SkillDiagnosticCode, SourcedSkill,

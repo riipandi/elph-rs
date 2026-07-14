@@ -6,10 +6,10 @@ use elph_ai::Tool;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::types::{FileSystem, Shell, ShellExecOptions};
-use crate::harness::utils::shell_output::finalize_shell_capture;
-use crate::harness::utils::truncate::{DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES};
+use crate::agent::harness::types::{FileSystem, Shell, ShellExecOptions};
+use crate::agent::harness::utils::shell_output::finalize_shell_capture;
+use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES};
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, resolve_path};
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult};
@@ -69,8 +69,8 @@ async fn execute_bash(
         .await;
 
     let result = match result {
-        crate::harness::types::Result::Ok(result) => result,
-        crate::harness::types::Result::Err(error) => return Err(anyhow::anyhow!("{}", error.message)),
+        crate::agent::harness::types::Result::Ok(result) => result,
+        crate::agent::harness::types::Result::Err(error) => return Err(anyhow::anyhow!("{}", error.message)),
     };
 
     let mut combined = result.stdout;

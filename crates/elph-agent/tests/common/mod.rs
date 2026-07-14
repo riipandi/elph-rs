@@ -142,12 +142,12 @@ pub fn hanging_until_abort_stream_fn(model: &Model) -> elph_agent::StreamFn {
 }
 
 pub fn capture_events() -> (
-    elph_agent::agent_loop::AgentEventCallback,
+    elph_agent::runtime::AgentEventCallback,
     Arc<tokio::sync::Mutex<Vec<elph_agent::AgentEvent>>>,
 ) {
     let events = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let events_capture = events.clone();
-    let emit: elph_agent::agent_loop::AgentEventCallback = Arc::new(move |event| {
+    let emit: elph_agent::runtime::AgentEventCallback = Arc::new(move |event| {
         let events_capture = events_capture.clone();
         Box::pin(async move {
             events_capture.lock().await.push(event);

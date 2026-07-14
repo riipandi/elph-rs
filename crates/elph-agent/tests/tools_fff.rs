@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::types::{FileSystem, get_or_throw};
+use elph_agent::agent::harness::types::{FileSystem, get_or_throw};
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::tools::{create_find_tool, create_grep_tool};
 use elph_agent::types::ToolResultContent;
 use serde_json::json;
