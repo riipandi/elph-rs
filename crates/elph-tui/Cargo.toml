@@ -23,6 +23,8 @@ path = "src/lib.rs"
 anyhow.workspace = true
 chrono.workspace = true
 iocraft.workspace = true
+reqwest.workspace = true
+serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 # base64.workspace = true
 # chord_macro = "0.1"

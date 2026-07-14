@@ -3074,6 +3074,8 @@ dependencies = [
  "anyhow",
  "chrono",
  "iocraft",
+ "reqwest 0.13.4",
+ "serde",
  "tokio",
  "unicode-width 0.2.2",
 ]
