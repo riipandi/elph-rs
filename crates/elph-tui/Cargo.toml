@@ -20,11 +20,13 @@ path = "src/lib.rs"
 # the widget library is extracted back from the elph binary crate.
 
 [dependencies]
-# anyhow.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+iocraft.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 # base64.workspace = true
 # chord_macro = "0.1"
 # futures.workspace = true
-# chrono.workspace = true
 # crossterm.workspace = true
 # elph-core = { workspace = true, features = ["git"] }
 # memchr.workspace = true
@@ -32,10 +34,9 @@ path = "src/lib.rs"
 # pulldown-cmark.workspace = true
 # rayon.workspace = true
 # similar.workspace = true
-# tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
 # tuie = { workspace = true, features = ["harmonious"] }
 # unicode-segmentation.workspace = true
-# unicode-width.workspace = true
+unicode-width.workspace = true
 
 [dev-dependencies]
 # futures.workspace = true
@@ -44,6 +45,38 @@ path = "src/lib.rs"
 
 [target.'cfg(unix)'.dev-dependencies]
 # libc.workspace = true
+
+[[example]]
+name = "basic_context"
+path = "examples/basic_context.rs"
+
+[[example]]
+name = "basic_form"
+path = "examples/basic_form.rs"
+
+[[example]]
+name = "basic_input"
+path = "examples/basic_input.rs"
+
+[[example]]
+name = "basic_layout"
+path = "examples/basic_layout.rs"
+
+[[example]]
+name = "basic_output"
+path = "examples/basic_output.rs"
+
+[[example]]
+name = "basic_overlap"
+path = "examples/basic_overlap.rs"
+
+[[example]]
+name = "basic_scrolling"
+path = "examples/basic_scrolling.rs"
+
+[[example]]
+name = "basic_table"
+path = "examples/basic_table.rs"
 
 [lints.rust]
 linker_messages = "allow"
