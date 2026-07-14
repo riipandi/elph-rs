@@ -71,8 +71,8 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 padding_right: 1,
                 margin_bottom: 0,
             ) {
-                Text(color: Color::DarkGrey, content: format!("Current Time: {}", time.get().format("%r")))
-                Text(color: Color::DarkGrey, content: "Press \"q\" to quit.")
+                Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "Session: 1234567890")
+                Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "$0.00 | 0k | 0.0% (262k)")
             }
 
             View(
@@ -125,10 +125,23 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 justify_content: JustifyContent::SpaceBetween,
                 padding_left: 1,
                 padding_right: 1,
-                margin_bottom: 0,
             ) {
-                Text(color: Color::DarkGrey, content: format!("Current Time: {}", time.get().format("%r")))
-                Text(color: Color::DarkGrey, content: "Press \"q\" to quit.")
+                View(
+                    width: screen_width / 2,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Start,
+                    padding: 0,
+                ) {
+                    Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: format!("Current Time: {}", time.get().format("%r")))
+                }
+                View(
+                    width: screen_width / 2,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::End,
+                    padding: 0,
+                ) {
+                    Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "Press \"q\" to quit.")
+                }
              }
 
              View(
@@ -154,8 +167,8 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     padding_left: 1,
                     padding_right: 1,
                 ) {
-                    // View(width, margin_top: -1, margin_left: 1, position: Position::Absolute) {
-                    //     Text(content: "Overlap Example", wrap: TextWrap::NoWrap)
+                    // View(width: screen_width, margin_top: -1, margin_left: 1, position: Position::Absolute) {
+                    //     Text(content: "Plan Mode", wrap: TextWrap::NoWrap)
                     // }
                     TextInput(
                         has_focus: true,
@@ -172,8 +185,22 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     padding_left: 1,
                     padding_right: 1,
                 ) {
-                    Text(color: Color::DarkGrey, content: "STATUSBAR_TOP_LEFT")
-                    Text(color: Color::DarkGrey, content: "STATUSBAR_TOP_RIGHT")
+                    View(
+                        width: screen_width / 2,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Start,
+                        padding: 0,
+                    ) {
+                        Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "~ my-project [branch-name]")
+                    }
+                    View(
+                        width: screen_width / 2,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::End,
+                        padding: 0,
+                    ) {
+                        Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "IMG | anthropic/opus-4.8 | xhigh")
+                    }
                 }
                 // View(
                 //     width: screen_width,
