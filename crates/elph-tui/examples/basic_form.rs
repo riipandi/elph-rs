@@ -31,6 +31,7 @@ fn FormField(props: &FormFieldProps) -> impl Into<AnyElement<'static>> {
                 Text(content: format!("{}: ", props.label))
             }
             View(
+                padding: 0,
                 background_color: Color::Grey,
                 width: 30,
                 height: if props.multiline { 5 } else { 1 },

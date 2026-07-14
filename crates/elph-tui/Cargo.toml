@@ -91,6 +91,10 @@ name = "calculator"
 path = "examples/calculator.rs"
 
 [[example]]
+name = "chat_layout"
+path = "examples/chat_layout.rs"
+
+[[example]]
 name = "progress_bar"
 path = "examples/progress_bar.rs"
 
