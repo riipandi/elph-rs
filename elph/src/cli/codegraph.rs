@@ -46,8 +46,6 @@ pub enum CodegraphCommands {
     Visualize,
     /// Start MCP server for any AI agent
     Serve,
-    /// Generate markdown wiki from communities
-    Wiki,
 }
 
 pub fn handle(args: &CodegraphArgs) -> ExitCode {
@@ -105,10 +103,6 @@ pub fn handle(args: &CodegraphArgs) -> ExitCode {
         }
         CodegraphCommands::Serve => {
             help::unimplemented("codegraph serve — not yet implemented");
-            EXIT_SUCCESS
-        }
-        CodegraphCommands::Wiki => {
-            help::unimplemented("codegraph wiki — not yet implemented");
             EXIT_SUCCESS
         }
     }

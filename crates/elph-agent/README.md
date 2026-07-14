@@ -671,14 +671,15 @@ ensure_databases(&[DatabaseSpec {
 
 ### Prompt module (`prompt/`)
 
-All prompt constants, filesystem slash-command templates, and built-in formatters live under `elph-agent/src/prompt/`:
+All prompt constants, filesystem slash-command templates, built-in formatters, and TOON encoding live under `elph-agent/src/prompt/`:
 
-| Submodule             | Purpose                                                                           |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `prompt/builtin/`     | Static runtime prompts — plan mode, compaction summarization, auto session naming |
-| `prompt/external/`    | Load `.md` slash-command templates from disk (`load_prompt_templates`)            |
-| `prompt/invoke`       | Argument parsing and `$1` / `$ARGUMENTS` substitution for template invocation     |
-| `prompt/session_name` | `generate_session_name()` — LLM-generated conversation titles                     |
+| Submodule             | Purpose                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `prompt/builtin/`     | Static runtime prompts — plan mode, compaction summarization, auto session naming                                   |
+| `prompt/encoding/`    | TOON fence encoding for structured prompt payloads (`PromptEncodingConfig`, `encode_value`, `apply_to_tool_result`) |
+| `prompt/external/`    | Load `.md` slash-command templates from disk (`load_prompt_templates`)                                              |
+| `prompt/invoke`       | Argument parsing and `$1` / `$ARGUMENTS` substitution for template invocation                                       |
+| `prompt/session_name` | `generate_session_name()` — LLM-generated conversation titles                                                       |
 
 ```rust
 use elph_agent::{generate_session_name, load_prompt_templates};
