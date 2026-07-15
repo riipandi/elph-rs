@@ -15,6 +15,69 @@ pub struct SelectListProps {
     pub fast_scroll_step: usize,
 }
 
+/// Label text for one [`SelectList`] row.
+pub fn select_option_line(prefix: &str, name: &str, description: &str, show_description: bool) -> String {
+    let desc = if show_description && !description.is_empty() {
+        format!("\n   {description}")
+    } else {
+        String::new()
+    };
+    format!("{prefix}{name}{desc}")
+}
+
+/// Row prefix for a [`SelectList`] option.
+pub fn select_row_prefix(selected: bool) -> &'static str {
+    if selected { "› " } else { "  " }
+}
+
+/// Row colors for a [`SelectList`] option.
+pub fn select_row_colors(selected: bool) -> (Color, Weight) {
+    if selected {
+        (Color::Yellow, Weight::Bold)
+    } else {
+        (Color::Grey, Weight::Normal)
+    }
+}
+
+/// Clamped selected index for a non-empty option list.
+pub fn select_clamped_index(selected: usize, len: usize) -> usize {
+    if len == 0 { 0 } else { selected.min(len - 1) }
+}
+
+/// Next selection index after a key press.
+pub fn select_key_to_index(current: usize, len: usize, code: KeyCode, modifiers: KeyModifiers, step: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    let fast = modifiers.contains(KeyModifiers::SHIFT);
+    let Some(delta) = select_key_delta(code, fast, step) else {
+        return current;
+    };
+    if delta < 0 {
+        current.saturating_sub(delta.unsigned_abs())
+    } else {
+        (current + delta as usize).min(len - 1)
+    }
+}
+
+/// Selection change from a key press (`None` = no change).
+pub fn select_key_delta(code: KeyCode, fast: bool, step: usize) -> Option<isize> {
+    let delta = if fast { step as isize } else { 1 };
+    match code {
+        KeyCode::Up | KeyCode::Char('k') => Some(-delta),
+        KeyCode::Down | KeyCode::Char('j') => Some(delta),
+        _ => None,
+    }
+}
+
+/// First visible row index for a centered selection window.
+pub fn select_window_start(selected: usize, height: usize, len: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    selected.saturating_sub(height / 2).min(len.saturating_sub(1))
+}
+
 /// Keyboard-navigable option list.
 #[component]
 pub fn SelectList(props: &SelectListProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
@@ -46,24 +109,12 @@ pub fn SelectList(props: &SelectListProps, mut hooks: Hooks) -> impl Into<AnyEle
             return;
         }
 
-        let fast = modifiers.contains(KeyModifiers::SHIFT);
-        match code {
-            KeyCode::Up | KeyCode::Char('k') => {
-                let delta = if fast { step } else { 1 };
-                selected.set(selected.get().saturating_sub(delta));
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                let delta = if fast { step } else { 1 };
-                selected.set((selected.get() + delta).min(len - 1));
-            }
-            KeyCode::Enter => {}
-            _ => {}
-        }
+        selected.set(select_key_to_index(selected.get(), len, code, modifiers, step));
     });
 
     let len = options.len();
-    let index = if len == 0 { 0 } else { selected.get().min(len - 1) };
-    let window_start = index.saturating_sub(height / 2).min(len.saturating_sub(1));
+    let index = select_clamped_index(selected.get(), len);
+    let window_start = select_window_start(index, height, len);
 
     let mut rows: Vec<AnyElement<'static>> = Vec::new();
     if len == 0 {
@@ -71,19 +122,15 @@ pub fn SelectList(props: &SelectListProps, mut hooks: Hooks) -> impl Into<AnyEle
     } else {
         for (i, opt) in options.iter().enumerate().skip(window_start).take(height) {
             let selected_row = i == index;
-            let name_color = if selected_row { Color::Yellow } else { Color::Grey };
-            let prefix = if selected_row { "› " } else { "  " };
-            let desc = if show_description && !opt.description.is_empty() {
-                format!("\n   {}", opt.description)
-            } else {
-                String::new()
-            };
+            let prefix = select_row_prefix(selected_row);
+            let (name_color, weight) = select_row_colors(selected_row);
+            let line = select_option_line(prefix, &opt.name, &opt.description, show_description);
             rows.push(
                 element! {
                     Text(
-                        content: format!("{prefix}{}{desc}", opt.name),
+                        content: line,
                         color: name_color,
-                        weight: if selected_row { Weight::Bold } else { Weight::Normal },
+                        weight: weight,
                         wrap: TextWrap::NoWrap,
                     )
                 }

@@ -35,7 +35,7 @@ pub fn render_bitmap(text: &str) -> String {
     lines.join("\n")
 }
 
-fn render_figlet(text: &str) -> String {
+pub fn render_figlet(text: &str) -> String {
     if let Ok(font) = FIGfont::standard()
         && let Some(figure) = font.convert(text)
     {

@@ -12,7 +12,7 @@ pub struct MarkdownViewProps {
     pub source: String,
 }
 
-fn render_markdown_lines(source: &str) -> Vec<AnyElement<'static>> {
+pub fn render_markdown_lines(source: &str) -> Vec<AnyElement<'static>> {
     let parser = Parser::new_ext(source, Options::all());
     let mut lines: Vec<AnyElement<'static>> = Vec::new();
     let mut current = String::new();

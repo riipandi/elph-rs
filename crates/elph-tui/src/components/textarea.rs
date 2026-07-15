@@ -40,7 +40,10 @@ pub fn display_row_count(text: &str, viewport_width: u16) -> u16 {
     WrappedTextLayout::new(text, viewport_width).row_count()
 }
 
-/// Cursor offset used for viewport sizing (maps end-of-line `\n` to the empty continuation row).
+/// CRITICAL: Cursor offset for viewport sizing (maps end-of-line `\n` to the empty continuation row).
+///
+/// Do not feed the raw handle offset into [`layout_textarea`] — wrong row counts and phantom
+/// blank lines follow. See `tests/textarea.rs` first-newline regressions.
 pub fn layout_cursor_for_viewport(text: &str, cursor: usize) -> usize {
     if text.ends_with('\n') {
         let tail = text.len();
@@ -112,6 +115,16 @@ pub fn layout_textarea(
     }
 }
 
+/// CRITICAL: Remount key for iocraft [`TextInput`] when clipped viewport geometry changes.
+///
+/// Remounting clears iocraft's stale internal `scroll_offset_row`. After the first newline the
+/// viewport often grows 1→2 rows; without remount, row 0 scrolls above the clip and a phantom
+/// blank row appears below. Must stay paired with `TextInput(key: remount_key)` and the remount
+/// `use_effect` in [`Textarea`]. Do not remove for coverage or refactors — run `tests/textarea.rs`.
+pub fn textarea_remount_key(layout: &TextareaLayout) -> u32 {
+    (layout.viewport_height as u32) << 20 | (layout.show_scrollbar as u32) << 19 | layout.input_width as u32
+}
+
 /// While suppression is active, keep real keystrokes and drop only ghost trailing newlines.
 pub fn resolve_suppressed_change(new_value: String) -> String {
     if new_value.ends_with('\n') {
@@ -135,7 +148,11 @@ pub enum PlannedTextInputChange {
     Accept { value: String },
 }
 
-/// Handle/snapshot reconciliation after render (see `Textarea` cursor `use_effect`).
+/// CRITICAL: Handle/snapshot reconciliation after render (see `Textarea` cursor `use_effect`).
+///
+/// Wire newline lands the snapshot on `text.len()` while iocraft's handle may lag on the `\n`
+/// byte; [`CursorSyncAction::PushHandleToSnapshot`] fixes that. Do not push the handle earlier
+/// in [`wire_edit_apply_result`] on text changes.
 #[derive(Debug, PartialEq, Eq)]
 pub enum CursorSyncAction {
     PushHandleToSnapshot(usize),
@@ -170,6 +187,8 @@ pub fn plan_text_input_change(
         };
     }
 
+    // CRITICAL: TextInput always echoes `\n` on Enter; wire path sets `pending_newline` so we
+    // reject the duplicate instead of appending a phantom blank line.
     if is_unauthorized_newline_insert(prev, new_value) {
         if pending_newline {
             return PlannedTextInputChange::KeepWireNewline {
@@ -184,7 +203,7 @@ pub fn plan_text_input_change(
     }
 }
 
-fn apply_text_input_change(
+pub fn apply_text_input_change(
     suppress_enter_newline: Option<Ref<bool>>,
     pending_newline: Option<Ref<bool>>,
     value: &mut State<String>,
@@ -266,7 +285,9 @@ pub fn Textarea(props: &TextareaProps, mut hooks: Hooks) -> impl Into<AnyElement
     let layout = layout_textarea(&text, layout_cursor, inner_width, min_height, props.max_height);
     let wrapped = WrappedTextLayout::new(&text, layout.input_width);
     let (cursor_row, _) = wrapped.row_column_for_offset(layout_cursor);
+    let remount_key = textarea_remount_key(&layout);
 
+    // CRITICAL: Reconcile handle vs snapshot after wire newline (see `plan_cursor_sync`).
     hooks.use_effect(
         {
             let text = text.clone();
@@ -303,6 +324,22 @@ pub fn Textarea(props: &TextareaProps, mut hooks: Hooks) -> impl Into<AnyElement
         (cursor_row, layout.viewport_height, layout.content_rows),
     );
 
+    // CRITICAL: Remount clears iocraft's stale vertical scroll offset; restore cursor afterward.
+    // Removing this reintroduces first-newline scroll bugs (content hidden above, blank row below).
+    hooks.use_effect(
+        {
+            let mut input_handle = input_handle;
+            let mut scroll_offset = scroll_offset;
+            let cursor_snapshot = cursor_snapshot;
+            move || {
+                let next = update_scroll_offset(0, cursor_row, layout.viewport_height, layout.content_rows);
+                scroll_offset.set(next);
+                input_handle.write().set_cursor_offset(cursor_snapshot.get());
+            }
+        },
+        remount_key,
+    );
+
     let border_style = if show_border && has_focus {
         BorderStyle::Round
     } else if show_border {
@@ -334,7 +371,9 @@ pub fn Textarea(props: &TextareaProps, mut hooks: Hooks) -> impl Into<AnyElement
                 height: viewport,
                 overflow: Overflow::Hidden,
             ) {
+                // CRITICAL: `key` must track [`textarea_remount_key`] — see that function's doc.
                 TextInput(
+                    key: remount_key,
                     handle: Some(input_handle),
                     has_focus: has_focus,
                     multiline: true,

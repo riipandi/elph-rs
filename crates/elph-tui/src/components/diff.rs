@@ -23,7 +23,7 @@ pub struct DiffViewProps {
     pub side_by_side_min_width: u16,
 }
 
-fn diff_line_color(tag: ChangeTag) -> Color {
+pub fn diff_line_color(tag: ChangeTag) -> Color {
     match tag {
         ChangeTag::Delete => Color::DarkRed,
         ChangeTag::Insert => Color::DarkGreen,
@@ -31,7 +31,7 @@ fn diff_line_color(tag: ChangeTag) -> Color {
     }
 }
 
-fn diff_line_prefix(tag: ChangeTag) -> &'static str {
+pub fn diff_line_prefix(tag: ChangeTag) -> &'static str {
     match tag {
         ChangeTag::Delete => "- ",
         ChangeTag::Insert => "+ ",
@@ -56,7 +56,7 @@ pub fn unified_lines(old_text: &str, new_text: &str) -> Vec<AnyElement<'static>>
         .collect()
 }
 
-fn side_by_side_lines(old_text: &str, new_text: &str, half_width: u16) -> Vec<AnyElement<'static>> {
+pub fn side_by_side_lines(old_text: &str, new_text: &str, half_width: u16) -> Vec<AnyElement<'static>> {
     let old_lines: Vec<&str> = old_text.lines().collect();
     let new_lines: Vec<&str> = new_text.lines().collect();
     let rows = old_lines.len().max(new_lines.len()).max(1);

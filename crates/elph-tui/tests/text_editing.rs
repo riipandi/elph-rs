@@ -38,6 +38,13 @@ fn delete_to_line_start_on_second_line() {
 }
 
 #[test]
+fn delete_to_line_start_at_buffer_start_is_noop() {
+    let (out, pos) = delete_to_line_start("hello", 0);
+    assert_eq!(out, "hello");
+    assert_eq!(pos, 0);
+}
+
+#[test]
 fn prev_word_stays_on_same_line() {
     assert_eq!(prev_word_offset("hello\n", "hello\n".len()), 6);
     assert_eq!(prev_word_offset("hello\nworld", "hello\nworld".len()), 6);
@@ -270,4 +277,313 @@ fn match_super_delete_deletes_to_line_end() {
 fn match_word_delete_forward() {
     let action = match_key_to_action(KeyCode::Delete, KeyModifiers::ALT, false, false);
     assert_eq!(action, Some(TextEditAction::DeleteWordForward));
+}
+
+#[test]
+fn prev_word_at_line_start_stays() {
+    assert_eq!(prev_word_offset("hello", 0), 0);
+}
+
+#[test]
+fn prev_word_skips_punctuation_runs() {
+    assert_eq!(prev_word_offset("one--two", 7), 5);
+}
+
+#[test]
+fn next_word_skips_punctuation_runs() {
+    assert_eq!(next_word_offset("one--two", 0), 5);
+}
+
+#[test]
+fn delete_word_backward_no_op_without_preceding_word() {
+    let (text, cursor) = delete_word_backward("hello", 0);
+    assert_eq!(text, "hello");
+    assert_eq!(cursor, 0);
+}
+
+#[test]
+fn delete_word_forward_no_op_at_eof() {
+    let (text, cursor) = delete_word_forward("hello", 5);
+    assert_eq!(text, "hello");
+    assert_eq!(cursor, 5);
+}
+
+#[test]
+fn delete_to_line_end_no_op_when_already_at_line_end() {
+    let (text, cursor) = delete_to_line_end("hello", 5);
+    assert_eq!(text, "hello");
+    assert_eq!(cursor, 5);
+}
+
+#[test]
+fn delete_preceding_newline_when_cursor_at_line_start() {
+    let text = "line one\nline two";
+    let cursor = "line one\n".len();
+    let (out, pos) = delete_word_backward(text, cursor);
+    assert_eq!(out, "line oneline two");
+    assert_eq!(pos, "line one".len());
+}
+
+#[test]
+fn apply_wire_edit_key_word_left_moves_cursor_only() {
+    let result = apply_wire_edit_key(
+        KeyCode::Left,
+        KeyEventKind::Press,
+        KeyModifiers::ALT,
+        false,
+        false,
+        false,
+        "hello world",
+        11,
+    )
+    .unwrap();
+    assert_eq!(result.text, "hello world");
+    assert_eq!(result.cursor, 6);
+    assert!(result.cursor_only);
+}
+
+#[test]
+fn apply_wire_edit_key_esc_sets_pending() {
+    let result = apply_wire_edit_key(
+        KeyCode::Esc,
+        KeyEventKind::Press,
+        KeyModifiers::empty(),
+        false,
+        false,
+        false,
+        "hi",
+        2,
+    )
+    .unwrap();
+    assert!(result.pending_esc);
+    assert_eq!(result.text, "hi");
+}
+
+#[test]
+fn apply_wire_edit_key_release_is_ignored() {
+    assert!(
+        apply_wire_edit_key(
+            KeyCode::Backspace,
+            KeyEventKind::Release,
+            KeyModifiers::ALT,
+            false,
+            false,
+            false,
+            "hi",
+            2,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn wire_edit_cursor_only_must_not_touch_value_string() {
+    let mut value = "hello world".to_string();
+    let prev = value.clone();
+    let mut cursor = 11usize;
+    let mut esc = false;
+    let mut newline = false;
+    let mut handle = TextInputHandle::default();
+
+    assert!(wire_edit_handle_key(
+        KeyCode::Left,
+        KeyEventKind::Press,
+        KeyModifiers::ALT,
+        false,
+        &mut esc,
+        &mut newline,
+        &mut value,
+        &mut cursor,
+        &mut handle,
+    ));
+    assert_eq!(value, prev);
+    assert_eq!(cursor, 6);
+}
+
+#[test]
+fn wire_edit_text_change_updates_handle_cursor() {
+    let mut value = "hi".to_string();
+    let mut cursor = 2usize;
+    let mut esc = false;
+    let mut newline = false;
+    let mut handle = TextInputHandle::default();
+
+    assert!(wire_edit_handle_key(
+        KeyCode::Enter,
+        KeyEventKind::Press,
+        KeyModifiers::SHIFT,
+        true,
+        &mut esc,
+        &mut newline,
+        &mut value,
+        &mut cursor,
+        &mut handle,
+    ));
+    assert_eq!(value, "hi\n");
+    assert_eq!(cursor, 3);
+}
+
+#[test]
+fn apply_wire_edit_key_shift_enter_sets_pending_newline() {
+    let result = apply_wire_edit_key(
+        KeyCode::Enter,
+        KeyEventKind::Press,
+        KeyModifiers::SHIFT,
+        true,
+        false,
+        false,
+        "hi",
+        2,
+    )
+    .unwrap();
+    assert_eq!(result.text, "hi\n");
+    assert!(result.pending_newline);
+}
+
+#[test]
+fn apply_wire_edit_key_super_backspace_deletes_line_start() {
+    let result = apply_wire_edit_key(
+        KeyCode::Backspace,
+        KeyEventKind::Press,
+        KeyModifiers::SUPER,
+        false,
+        false,
+        false,
+        "hello world",
+        11,
+    )
+    .unwrap();
+    assert_eq!(result.text, "");
+    assert_eq!(result.cursor, 0);
+    assert!(!result.cursor_only);
+}
+
+#[test]
+fn apply_wire_edit_key_after_esc_word_left() {
+    let result = apply_wire_edit_key(
+        KeyCode::Left,
+        KeyEventKind::Press,
+        KeyModifiers::empty(),
+        false,
+        true,
+        false,
+        "hello world",
+        11,
+    )
+    .unwrap();
+    assert_eq!(result.cursor, 6);
+    assert!(!result.pending_esc);
+}
+
+#[test]
+fn apply_wire_edit_key_after_esc_falls_back_without_after_esc_match() {
+    let result = apply_wire_edit_key(
+        KeyCode::Char('q'),
+        KeyEventKind::Press,
+        KeyModifiers::empty(),
+        false,
+        true,
+        false,
+        "hi",
+        1,
+    );
+    assert!(result.is_none());
+}
+
+#[test]
+fn apply_wire_edit_key_all_edit_actions() {
+    let del_word = apply_wire_edit_key(
+        KeyCode::Backspace,
+        KeyEventKind::Press,
+        KeyModifiers::ALT,
+        false,
+        false,
+        false,
+        "hello world",
+        11,
+    )
+    .unwrap();
+    assert_eq!(del_word.text, "hello ");
+
+    let del_fwd = apply_wire_edit_key(
+        KeyCode::Delete,
+        KeyEventKind::Press,
+        KeyModifiers::ALT,
+        false,
+        false,
+        false,
+        "hello world",
+        0,
+    )
+    .unwrap();
+    assert_eq!(del_fwd.text, "world");
+
+    let del_end = apply_wire_edit_key(
+        KeyCode::Delete,
+        KeyEventKind::Press,
+        KeyModifiers::SUPER,
+        false,
+        false,
+        false,
+        "hello world",
+        5,
+    )
+    .unwrap();
+    assert_eq!(del_end.text, "hello");
+
+    let word_right = apply_wire_edit_key(
+        KeyCode::Right,
+        KeyEventKind::Press,
+        KeyModifiers::ALT,
+        false,
+        false,
+        false,
+        "hello world",
+        0,
+    )
+    .unwrap();
+    assert_eq!(word_right.cursor, 6);
+}
+
+#[test]
+fn apply_wire_edit_key_unmatched_returns_none() {
+    assert!(
+        apply_wire_edit_key(
+            KeyCode::Char('q'),
+            KeyEventKind::Press,
+            KeyModifiers::empty(),
+            false,
+            false,
+            false,
+            "hi",
+            1,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn apply_wire_edit_key_ctrl_j_clears_pending_newline() {
+    let result = apply_wire_edit_key(
+        KeyCode::Char('j'),
+        KeyEventKind::Press,
+        KeyModifiers::CONTROL,
+        true,
+        false,
+        true,
+        "hi",
+        2,
+    )
+    .unwrap();
+    assert_eq!(result.text, "hi\n");
+    assert!(!result.pending_newline);
+}
+
+#[test]
+fn delete_to_line_start_on_middle_blank_run() {
+    let text = "keep\n\n\n\nrest";
+    let cursor = "keep\n\n\n\n".len();
+    let (out, pos) = delete_to_line_start(text, cursor);
+    assert_eq!(out, "keep\n\n\nrest");
+    assert_eq!(pos, "keep\n\n".len() + 1);
 }

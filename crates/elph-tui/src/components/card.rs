@@ -14,7 +14,7 @@ pub enum CardBorderStyle {
 }
 
 impl CardBorderStyle {
-    fn to_iocraft(self) -> BorderStyle {
+    pub fn to_iocraft(self) -> BorderStyle {
         match self {
             Self::Single => BorderStyle::Single,
             Self::Double => BorderStyle::Double,

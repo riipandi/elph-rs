@@ -8,14 +8,35 @@ pub fn scroll_view_max_offset(content_height: u16, viewport_height: u16) -> i32 
     (content_height as i32).saturating_sub(viewport_height as i32).max(0)
 }
 
+/// Target scroll offset after scrolling up while pinned to the bottom.
+pub fn scroll_view_pinned_up_offset(content_height: u16, viewport_height: u16, step: i32) -> i32 {
+    let step = step.max(1);
+    let max = scroll_view_max_offset(content_height, viewport_height);
+    max.saturating_sub(step)
+}
+
+/// Whether scrolling down should re-pin to the bottom.
+pub fn scroll_view_down_reaches_bottom(
+    scroll_offset: i32,
+    content_height: u16,
+    viewport_height: u16,
+    step: i32,
+) -> bool {
+    let step = step.max(1);
+    let max = scroll_view_max_offset(content_height, viewport_height);
+    scroll_offset + step >= max
+}
+
 /// Scroll up by `step` lines without jumping when pinned to the bottom via auto-scroll.
 pub fn scroll_view_up(handle: &mut ScrollViewHandle, step: i32) {
-    let step = step.max(1);
     if handle.is_auto_scroll_pinned() {
-        let max = scroll_view_max_offset(handle.content_height(), handle.viewport_height());
-        handle.scroll_to(max.saturating_sub(step));
+        handle.scroll_to(scroll_view_pinned_up_offset(
+            handle.content_height(),
+            handle.viewport_height(),
+            step,
+        ));
     } else {
-        handle.scroll_by(-step);
+        handle.scroll_by(-step.max(1));
     }
 }
 
@@ -25,8 +46,8 @@ pub fn scroll_view_down(handle: &mut ScrollViewHandle, step: i32) {
     if handle.is_auto_scroll_pinned() {
         return;
     }
-    let max = scroll_view_max_offset(handle.content_height(), handle.viewport_height());
-    if handle.scroll_offset() + step >= max {
+    if scroll_view_down_reaches_bottom(handle.scroll_offset(), handle.content_height(), handle.viewport_height(), step)
+    {
         handle.scroll_to_bottom();
     } else {
         handle.scroll_by(step);

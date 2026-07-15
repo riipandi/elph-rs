@@ -3,6 +3,33 @@
 use crate::types::TabItem;
 use iocraft::prelude::*;
 
+/// Tab chrome for one tab label.
+pub fn tab_select_tab_styles(active: bool) -> (BorderStyle, Color, Weight) {
+    if active {
+        (BorderStyle::Round, Color::Cyan, Weight::Bold)
+    } else {
+        (BorderStyle::None, Color::DarkGrey, Weight::Normal)
+    }
+}
+
+/// Active tab index clamped to list bounds.
+pub fn tab_select_clamped_index(selected: usize, len: usize) -> usize {
+    if len == 0 { 0 } else { selected.min(len - 1) }
+}
+
+/// Next tab index after a key press.
+pub fn tab_select_key_to_index(current: usize, len: usize, code: KeyCode) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    match code {
+        KeyCode::Left | KeyCode::Char('h') => current.saturating_sub(1),
+        KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => (current + 1).min(len - 1),
+        KeyCode::BackTab => current.saturating_sub(1),
+        _ => current,
+    }
+}
+
 /// Props for [`TabSelect`].
 #[derive(Clone, Default, Props)]
 pub struct TabSelectProps {
@@ -31,21 +58,10 @@ pub fn TabSelect(props: &TabSelectProps, mut hooks: Hooks) -> impl Into<AnyEleme
         if kind == KeyEventKind::Release {
             return;
         }
-        match code {
-            KeyCode::Left | KeyCode::Char('h') => {
-                selected.set(selected.get().saturating_sub(1));
-            }
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => {
-                selected.set((selected.get() + 1).min(len - 1));
-            }
-            KeyCode::BackTab => {
-                selected.set(selected.get().saturating_sub(1));
-            }
-            _ => {}
-        }
+        selected.set(tab_select_key_to_index(selected.get(), len, code));
     });
 
-    let index = if len == 0 { 0 } else { selected.get().min(len - 1) };
+    let index = tab_select_clamped_index(selected.get(), len);
     let active_content = tabs.get(index).map(|t| t.content.clone()).unwrap_or_default();
 
     let tab_labels: Vec<_> = tabs
@@ -53,17 +69,18 @@ pub fn TabSelect(props: &TabSelectProps, mut hooks: Hooks) -> impl Into<AnyEleme
         .enumerate()
         .map(|(i, tab)| {
             let active_tab = i == index;
+            let (border_style, color, weight) = tab_select_tab_styles(active_tab);
             element! {
                 View(
-                    border_style: if active_tab { BorderStyle::Round } else { BorderStyle::None },
-                    border_color: if active_tab { Color::Cyan } else { Color::DarkGrey },
+                    border_style: border_style,
+                    border_color: color,
                     padding_left: 1,
                     padding_right: 1,
                 ) {
                     Text(
                         content: tab.label.clone(),
-                        color: if active_tab { Color::Cyan } else { Color::DarkGrey },
-                        weight: if active_tab { Weight::Bold } else { Weight::Normal },
+                        color: color,
+                        weight: weight,
                         wrap: TextWrap::NoWrap,
                     )
                 }

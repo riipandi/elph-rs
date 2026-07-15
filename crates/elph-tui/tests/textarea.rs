@@ -303,6 +303,16 @@ fn cursor_left_from_empty_row_targets_prior_line_content() {
 }
 
 #[test]
+fn remount_key_changes_when_viewport_grows_on_first_newline() {
+    let before = layout_textarea("hello", 5, 20, 1, None);
+    let (text, cursor) = wire_insert_newline("hello", 5);
+    let after = layout_textarea(&text, layout_cursor_for_viewport(&text, cursor), 20, 1, None);
+    assert_eq!(before.viewport_height, 1);
+    assert_eq!(after.viewport_height, 2);
+    assert_ne!(textarea_remount_key(&before), textarea_remount_key(&after));
+}
+
+#[test]
 fn scroll_follows_cursor_to_empty_continuation_row() {
     let text = "a\nb\nc\nd\ne\n";
     let layout = layout_textarea(text, text.len(), 20, 1, Some(3));

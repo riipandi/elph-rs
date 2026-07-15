@@ -55,6 +55,12 @@ fn update_scroll_offset_zero_viewport() {
 }
 
 #[test]
+fn wrap_empty_line_segment() {
+    let layout = WrappedTextLayout::new("a\n\nb", 10);
+    assert!(layout.row_count() >= 3);
+}
+
+#[test]
 fn update_scroll_offset_clamps_to_max() {
     assert_eq!(update_scroll_offset(0, 9, 3, 5), 2);
 }

@@ -199,10 +199,11 @@ pub fn insert_newline_at_cursor(text: &str, cursor: usize) -> (String, usize) {
     (out, cursor + '\n'.len_utf8())
 }
 
-/// Newline insert via [`wire_editing_shortcuts`] (Shift+Enter / Ctrl+J).
+/// CRITICAL: Newline insert via [`wire_editing_shortcuts`] (Shift+Enter / Ctrl+J).
 ///
 /// Appending at EOF places the cursor on the empty continuation row (`text.len()`), not on the
 /// `\n` byte — avoids the one-frame "empty row below" layout glitch when the handle lags.
+/// [`TextEditAction::InsertNewline`] must route through this, not [`insert_newline_at_cursor`].
 pub fn wire_insert_newline(text: &str, cursor: usize) -> (String, usize) {
     let cursor = cursor.min(text.len());
     let (new_text, mut new_cursor) = insert_newline_at_cursor(text, cursor);
@@ -288,8 +289,135 @@ pub fn apply_action(action: TextEditAction, text: &str, cursor: usize) -> (Strin
         TextEditAction::DeleteWordForward => delete_word_forward(text, cursor),
         TextEditAction::DeleteToLineStart => delete_to_line_start(text, cursor),
         TextEditAction::DeleteToLineEnd => delete_to_line_end(text, cursor),
-        TextEditAction::InsertNewline => insert_newline_at_cursor(text, cursor),
+        TextEditAction::InsertNewline => wire_insert_newline(text, cursor),
     }
+}
+
+/// Result of handling one wire-editing key press.
+#[derive(Debug, PartialEq, Eq)]
+pub struct WireEditResult {
+    pub text: String,
+    pub cursor: usize,
+    pub pending_esc: bool,
+    pub pending_newline: bool,
+    pub cursor_only: bool,
+}
+
+/// Apply GUI-style editing shortcuts to `text` at `cursor` (byte offset).
+pub fn apply_wire_edit_key(
+    code: KeyCode,
+    kind: KeyEventKind,
+    modifiers: KeyModifiers,
+    multiline: bool,
+    pending_esc: bool,
+    pending_newline: bool,
+    text: &str,
+    cursor: usize,
+) -> Option<WireEditResult> {
+    if kind == KeyEventKind::Release {
+        return None;
+    }
+
+    let (action, next_pending_esc) = if pending_esc {
+        (
+            match_key_to_action(code, modifiers, multiline, true)
+                .or_else(|| match_key_to_action(code, modifiers, multiline, false)),
+            false,
+        )
+    } else if code == KeyCode::Esc && modifiers.is_empty() {
+        return Some(WireEditResult {
+            text: text.to_string(),
+            cursor,
+            pending_esc: true,
+            pending_newline,
+            cursor_only: false,
+        });
+    } else {
+        (match_key_to_action(code, modifiers, multiline, false), false)
+    };
+
+    let action = action?;
+
+    let cursor = cursor.min(text.len());
+    let (mut new_text, mut new_cursor) = apply_action(action, text, cursor);
+    let shift_enter = matches!(code, KeyCode::Enter) && modifiers.contains(KeyModifiers::SHIFT);
+    let mut next_pending_newline = pending_newline;
+    if action == TextEditAction::InsertNewline {
+        if new_text.ends_with('\n') && cursor >= text.len() {
+            new_cursor = new_text.len();
+        }
+        next_pending_newline = true;
+    }
+    let text_changed = new_text != text;
+    let changed = text_changed || new_cursor != cursor;
+    if !changed {
+        return None;
+    }
+    if !text_changed {
+        new_text = text.to_string();
+    }
+    if action == TextEditAction::InsertNewline && !shift_enter {
+        next_pending_newline = false;
+    }
+    Some(WireEditResult {
+        text: new_text,
+        cursor: new_cursor,
+        pending_esc: next_pending_esc,
+        pending_newline: next_pending_newline,
+        cursor_only: !text_changed,
+    })
+}
+
+/// Apply a [`WireEditResult`] to live editor state.
+pub fn wire_edit_apply_result(
+    result: WireEditResult,
+    value: &mut String,
+    cursor_snapshot: &mut usize,
+    input_handle: &mut TextInputHandle,
+    pending_esc: &mut bool,
+    pending_newline: &mut bool,
+) {
+    *pending_esc = result.pending_esc;
+    *pending_newline = result.pending_newline;
+    if result.cursor_only {
+        *cursor_snapshot = result.cursor;
+        input_handle.set_cursor_offset(result.cursor);
+    } else {
+        *value = result.text;
+        *cursor_snapshot = result.cursor;
+        // CRITICAL: Do not call `input_handle.set_cursor_offset` on text changes.
+        // Defer to [`plan_cursor_sync`] and [`textarea_remount_key`] in `Textarea`.
+        // Pushing the handle here caused first-newline regressions (blank row below,
+        // previous line scrolled above the clip).
+    }
+}
+
+/// Handle one wire-editing key against plain string state (no hooks).
+pub fn wire_edit_handle_key(
+    code: KeyCode,
+    kind: KeyEventKind,
+    modifiers: KeyModifiers,
+    multiline: bool,
+    pending_esc: &mut bool,
+    pending_newline: &mut bool,
+    value: &mut String,
+    cursor_snapshot: &mut usize,
+    input_handle: &mut TextInputHandle,
+) -> bool {
+    let Some(result) = apply_wire_edit_key(
+        code,
+        kind,
+        modifiers,
+        multiline,
+        *pending_esc,
+        *pending_newline,
+        value,
+        *cursor_snapshot,
+    ) else {
+        return false;
+    };
+    wire_edit_apply_result(result, value, cursor_snapshot, input_handle, pending_esc, pending_newline);
+    true
 }
 
 /// Wire GUI-style shortcuts into a [`TextInput`] backed by `value` and `input_handle`.
@@ -319,54 +447,37 @@ pub fn wire_editing_shortcuts(
             else {
                 return;
             };
-            if kind == KeyEventKind::Release {
+
+            let prev = value.read().clone();
+            let mut text = prev.clone();
+            let mut cursor = cursor_snapshot.get();
+            let mut esc = pending_esc.get();
+            let mut newline = pending_newline.as_ref().is_some_and(|p| p.get());
+            let mut handle = input_handle.write();
+            if !wire_edit_handle_key(
+                code,
+                kind,
+                modifiers,
+                multiline,
+                &mut esc,
+                &mut newline,
+                &mut text,
+                &mut cursor,
+                &mut handle,
+            ) {
                 return;
             }
-
-            let action = if pending_esc.get() {
-                pending_esc.set(false);
-                match_key_to_action(code, modifiers, multiline, true)
-                    .or_else(|| match_key_to_action(code, modifiers, multiline, false))
-            } else if code == KeyCode::Esc && modifiers.is_empty() {
-                pending_esc.set(true);
-                return;
-            } else {
-                match_key_to_action(code, modifiers, multiline, false)
-            };
-
-            let Some(action) = action else {
-                return;
-            };
-
-            let cursor = cursor_snapshot.get().min(value.read().len());
-            let text = value.read().clone();
-            let (new_text, mut new_cursor) = apply_action(action, &text, cursor);
-            let shift_enter = matches!(code, KeyCode::Enter) && modifiers.contains(KeyModifiers::SHIFT);
-            if action == TextEditAction::InsertNewline {
-                if new_text.ends_with('\n') && cursor >= text.len() {
-                    new_cursor = new_text.len();
-                }
-                if let Some(mut pending) = pending_newline {
-                    pending.set(true);
-                }
+            drop(handle);
+            pending_esc.set(esc);
+            if let Some(mut pending) = pending_newline {
+                pending.set(newline);
             }
-            let text_changed = new_text != text;
-            let changed = text_changed || new_cursor != cursor;
-            if text_changed {
-                value.set(new_text);
+            // CRITICAL: Cursor-only edits must not re-push `value` — that re-renders TextInput
+            // and resets the cursor (Alt+arrow / Esc+arrow word motion breaks).
+            if text != prev {
+                value.set(text);
             }
-            if changed {
-                cursor_snapshot.set(new_cursor);
-                if !text_changed {
-                    input_handle.write().set_cursor_offset(new_cursor);
-                }
-            }
-            if action == TextEditAction::InsertNewline
-                && !shift_enter
-                && let Some(mut pending) = pending_newline
-            {
-                pending.set(false);
-            }
+            cursor_snapshot.set(cursor);
         }
     });
 }
