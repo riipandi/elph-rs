@@ -449,6 +449,63 @@ fn EditorLike(props: &mut EditorLikeProps) -> impl Into<AnyElement<'static>> {
     }
 }
 
+#[derive(Default, Props)]
+struct ChromeLikeProps {
+    width: u16,
+    draft: Option<State<String>>,
+    suppress_enter_newline: Option<Ref<bool>>,
+    on_submit: HandlerMut<'static, String>,
+}
+
+#[component]
+fn ChromeLike(props: &mut ChromeLikeProps) -> impl Into<AnyElement<'static>> {
+    element! {
+        EditorLike(
+            width: props.width,
+            draft: props.draft,
+            suppress_enter_newline: props.suppress_enter_newline,
+            on_submit: props.on_submit.take(),
+        )
+    }
+}
+
+#[apply(test!)]
+async fn textarea_enter_submits_through_chrome_and_editor_chain() {
+    #[component]
+    fn SubmitHost(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+        let mut system = hooks.use_context_mut::<SystemContext>();
+        let mut submitted = hooks.use_state(|| false);
+        let suppress = hooks.use_ref(|| false);
+        let draft = hooks.use_state(String::new);
+
+        if submitted.get() {
+            system.exit();
+        }
+
+        element! {
+            ChromeLike(
+                width: 32u16,
+                draft: Some(draft),
+                suppress_enter_newline: Some(suppress),
+                on_submit: move |_text| {
+                    submitted.set(true);
+                },
+            )
+        }
+    }
+
+    let frames = element!(SubmitHost)
+        .mock_terminal_render_loop(MockTerminalConfig::with_events(stream::iter(vec![
+            key(KeyCode::Char('h')),
+            key(KeyCode::Char('i')),
+            key(KeyCode::Enter),
+        ])))
+        .map(|c| c.to_string())
+        .collect::<Vec<_>>()
+        .await;
+    assert!(!frames.is_empty());
+}
+
 #[apply(test!)]
 async fn textarea_enter_submits_through_editor_like_chain() {
     #[component]

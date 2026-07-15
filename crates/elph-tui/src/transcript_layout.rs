@@ -1,6 +1,21 @@
 //! Row layout and sticky-turn helpers for transcript-style scroll regions.
 
-use crate::text_input_layout::{WrappedTextLayout, text_input_wrap_width};
+use std::hash::{Hash, Hasher};
+
+use crate::text_input_layout::WrappedTextLayout;
+
+/// Cheap fingerprint for memoizing transcript layout across scroll-only re-renders.
+pub fn transcript_messages_revision(messages: &[(&str, bool)], screen_width: u16) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    screen_width.hash(&mut hasher);
+    messages.len().hash(&mut hasher);
+    for (content, is_user) in messages {
+        content.len().hash(&mut hasher);
+        content.hash(&mut hasher);
+        is_user.hash(&mut hasher);
+    }
+    hasher.finish()
+}
 
 /// Default wrapped body lines shown in a sticky user prompt (CSS `line-clamp` analogue).
 pub const STICKY_DEFAULT_LINE_CLAMP: u16 = 4;
@@ -15,17 +30,32 @@ pub struct TranscriptRowLayout {
     pub row_count: u32,
 }
 
-/// Line-wrap width for transcript body text (matches `screen_width - 3` bubbles).
+/// Outer bubble width (`screen_width - 3`) for transcript message chrome.
 pub fn transcript_text_width(screen_width: u16) -> u16 {
     screen_width.saturating_sub(3).max(1)
 }
 
+/// Inner [`Text`] wrap width inside a transcript bubble (outer width minus horizontal padding).
+pub fn transcript_bubble_inner_width(screen_width: u16, horizontal_pad_each_side: u16) -> u16 {
+    transcript_text_width(screen_width)
+        .saturating_sub(horizontal_pad_each_side.saturating_mul(2))
+        .max(1)
+}
+
 /// Build contiguous row layouts for transcript entries separated by `gap_rows`.
 pub fn layout_transcript_rows(texts: &[&str], wrap_width: u16, gap_rows: u16) -> Vec<TranscriptRowLayout> {
+    let widths: Vec<u16> = texts.iter().map(|_| wrap_width).collect();
+    layout_transcript_rows_widths(texts, &widths, gap_rows)
+}
+
+/// Like [`layout_transcript_rows`] with per-message inner wrap widths.
+pub fn layout_transcript_rows_widths(texts: &[&str], wrap_widths: &[u16], gap_rows: u16) -> Vec<TranscriptRowLayout> {
     let mut layouts = Vec::with_capacity(texts.len());
     let mut cursor = 0u32;
+    let fallback = wrap_widths.first().copied().unwrap_or(1).max(1);
     for (i, text) in texts.iter().enumerate() {
-        let row_count = WrappedTextLayout::new(text, wrap_width).row_count() as u32;
+        let wrap_width = wrap_widths.get(i).copied().unwrap_or(fallback).max(1);
+        let row_count = WrappedTextLayout::new_for_overlay_editor(text, wrap_width).row_count() as u32;
         layouts.push(TranscriptRowLayout {
             start_row: cursor,
             row_count,
@@ -72,8 +102,9 @@ pub fn sticky_body_line_clamp(panel_height: u16, min_scroll_rows: u16) -> u16 {
 
 /// Clamp transcript text to at most `max_body_lines` wrapped rows (ellipsis on last line).
 pub fn clamp_wrapped_transcript_lines(text: &str, wrap_width: u16, max_body_lines: u16) -> (String, u16, bool) {
-    let layout = WrappedTextLayout::new(text, wrap_width);
-    layout.clamp_display_lines(text, max_body_lines, text_input_wrap_width(wrap_width))
+    let layout = WrappedTextLayout::new_for_overlay_editor(text, wrap_width);
+    let line_width = wrap_width.max(1) as usize;
+    layout.clamp_display_lines(text, max_body_lines, line_width)
 }
 
 /// Terminal rows for sticky chrome: clamped body + bubble padding + optional hint row.

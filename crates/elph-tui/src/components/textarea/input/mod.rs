@@ -69,22 +69,33 @@ pub fn handle_textarea_terminal_event(
         ctx.paste_burst.suppress_submit_until = None;
     }
 
+    let in_burst = crate::text_editing::key_event_in_paste_burst(*ctx.last_key_at, now);
+    let plain_submit_enter = is_plain_submit_enter(true, ctx.submit_on_enter, code, kind, modifiers);
+    let raw_paste_blocks_submit = raw_paste_stream_blocks_submit(ctx.paste_burst, in_burst);
+    // Long raw paste streams treat plain Enter as pasted newline, not submit — do not merge early.
+    let continues_burst = in_burst
+        && crate::paste::raw_burst_accepts_key(code, kind, modifiers, true)
+        && (!plain_submit_enter || raw_paste_blocks_submit);
+    let merged_idle_burst =
+        ctx.paste_burst.active && !continues_burst && paste_burst::merge_idle_burst(ctx.paste_burst, state);
+
     if is_transcript_scroll_key(code, kind, modifiers) {
-        return TextareaInputResult::Consumed;
+        return if merged_idle_burst {
+            TextareaInputResult::Changed
+        } else {
+            TextareaInputResult::Consumed
+        };
     }
 
     if ctx.paste_burst.suppress_raw_keys_until.is_some_and(|t| now < t)
         && kind != KeyEventKind::Release
         && is_paste_echo_key(code, modifiers)
     {
-        return TextareaInputResult::Consumed;
-    }
-
-    let in_burst = crate::text_editing::key_event_in_paste_burst(*ctx.last_key_at, now);
-    let plain_submit_enter = is_plain_submit_enter(true, ctx.submit_on_enter, code, kind, modifiers);
-
-    if ctx.paste_burst.active && !in_burst {
-        paste_burst::merge_idle_burst(ctx.paste_burst, state);
+        return if merged_idle_burst {
+            TextareaInputResult::Changed
+        } else {
+            TextareaInputResult::Consumed
+        };
     }
 
     if plain_submit_enter
@@ -96,7 +107,7 @@ pub fn handle_textarea_terminal_event(
             state,
             submit_on_enter: ctx.submit_on_enter,
             suppress_enter_newline: ctx.suppress_enter_newline,
-            raw_paste_burst_active: raw_paste_stream_blocks_submit(ctx.paste_burst, in_burst),
+            raw_paste_burst_active: raw_paste_blocks_submit,
             suppress_submit_until: ctx.paste_burst.suppress_submit_until,
         })
     {
@@ -125,6 +136,10 @@ pub fn handle_textarea_terminal_event(
     }
 
     if state.input_basic_key(code, kind, modifiers, ctx.input_width) {
+        return TextareaInputResult::Changed;
+    }
+
+    if merged_idle_burst {
         return TextareaInputResult::Changed;
     }
 
@@ -224,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn rapid_paste_stream_updates_text_on_every_key() {
+    fn rapid_paste_stream_coalesces_until_idle() {
         let paste = "# Elph — OpenWiki Quickstart";
         let mut state = TextareaState::default();
         let mut esc = false;
@@ -244,13 +259,28 @@ mod tests {
             let result = handle_textarea_terminal_event(key_press(KeyCode::Char(ch)), &mut state, ctx);
             if i == 0 {
                 assert_eq!(result, TextareaInputResult::Changed);
+                assert_eq!(state.text, "#");
             } else {
-                assert_eq!(result, TextareaInputResult::Changed, "char {i}: {ch}");
+                assert_eq!(result, TextareaInputResult::Consumed, "char {i}: {ch}");
             }
-            let expected: String = paste.chars().take(i + 1).collect();
-            assert_eq!(state.text, expected, "after char {i}: {ch}");
         }
-        assert_eq!(state.text, paste);
+
+        thread::sleep(Duration::from_millis(110));
+        let ctx = TextareaInputContext {
+            has_focus: true,
+            input_width: 40,
+            submit_on_enter: false,
+            suppress_enter_newline: None,
+            pending_esc: &mut esc,
+            paste_burst: &mut burst,
+            last_key_at: &mut last,
+        };
+        assert_eq!(
+            handle_textarea_terminal_event(key_press(KeyCode::Char('!')), &mut state, ctx),
+            TextareaInputResult::Changed
+        );
+        assert_eq!(state.text, format!("{paste}!"));
+        assert!(!burst.active);
     }
 
     fn shift_key_press(code: KeyCode) -> TerminalEvent {
@@ -336,6 +366,9 @@ mod tests {
             let ctx = test_context(&mut esc, &mut burst, &mut last, false);
             handle_textarea_terminal_event(key_press(KeyCode::Char(ch)), &mut state, ctx);
         }
+        thread::sleep(Duration::from_millis(110));
+        let ctx = test_context(&mut esc, &mut burst, &mut last, false);
+        handle_textarea_terminal_event(shift_key_press(KeyCode::Up), &mut state, ctx);
         assert_eq!(state.text, ELPH_PASTE);
         assert_eq!(state.cursor, ELPH_PASTE.len());
     }
@@ -354,6 +387,9 @@ mod tests {
             let ctx = test_context(&mut esc, &mut burst, &mut last, false);
             handle_textarea_terminal_event(key_press(KeyCode::Char(ch)), &mut state, ctx);
         }
+        thread::sleep(Duration::from_millis(110));
+        let ctx = test_context(&mut esc, &mut burst, &mut last, false);
+        handle_textarea_terminal_event(shift_key_press(KeyCode::Up), &mut state, ctx);
         assert_eq!(state.text, ELPH_PASTE);
         assert_eq!(state.cursor, ELPH_PASTE.len());
     }
@@ -453,6 +489,33 @@ mod tests {
             handle_textarea_terminal_event(key_press(KeyCode::Enter), &mut state, ctx),
             TextareaInputResult::Submit(ELPH_PASTE.into())
         );
+    }
+
+    #[test]
+    fn long_raw_paste_trailing_enter_does_not_submit() {
+        let mut state = TextareaState::default();
+        let mut esc = false;
+        let mut burst = PasteBurstState::default();
+        let mut last = None;
+
+        for ch in ELPH_PASTE.chars() {
+            let ctx = test_context(&mut esc, &mut burst, &mut last, true);
+            handle_textarea_terminal_event(key_press(KeyCode::Char(ch)), &mut state, ctx);
+        }
+
+        let ctx = test_context(&mut esc, &mut burst, &mut last, true);
+        assert_eq!(
+            handle_textarea_terminal_event(key_press(KeyCode::Enter), &mut state, ctx),
+            TextareaInputResult::Consumed
+        );
+        assert!(burst.active);
+        assert!(burst.buffer.ends_with('\n'));
+
+        thread::sleep(Duration::from_millis(110));
+        let ctx = test_context(&mut esc, &mut burst, &mut last, true);
+        handle_textarea_terminal_event(shift_key_press(KeyCode::Up), &mut state, ctx);
+        assert_eq!(state.text, format!("{ELPH_PASTE}\n"));
+        assert_eq!(state.cursor, ELPH_PASTE.len() + 1);
     }
 
     #[test]

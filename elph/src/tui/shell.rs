@@ -1,6 +1,6 @@
 //! Root shell: layout zones, global keyboard handling, and session state.
 
-use chrono::Local;
+use elph_tui::rgb;
 use iocraft::prelude::*;
 use std::time::Duration;
 
@@ -28,21 +28,31 @@ pub struct MainShellProps {
 pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let (screen_width, screen_height) = hooks.use_terminal_size();
     let mut system = hooks.use_context_mut::<SystemContext>();
-    let mut time = hooks.use_state(Local::now);
     let mut should_exit = hooks.use_state(|| false);
     let mut agent_mode = hooks.use_state(|| props.initial_agent_mode);
     let mut thinking_level = hooks.use_state(|| props.initial_thinking_level);
     let mut draft = hooks.use_state(String::new);
     let mut live_draft = hooks.use_ref(String::new);
     let mut messages = hooks.use_state(seed_transcript_messages);
+    let mut messages_revision = hooks.use_state(|| 0u64);
     let mut suppress_enter_newline = hooks.use_ref(|| false);
+    let mut busy = hooks.use_state(|| false);
+    let mut busy_generation = hooks.use_state(|| 0u64);
+    let mut activity_label = hooks.use_state(|| "Working".to_string());
     let session_label = session_label(props.resume_id.as_deref());
     let paths = hooks.use_state(|| Paths::resolve().expect("resolve elph paths"));
 
     hooks.use_future(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            time.set(Local::now());
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            if !busy.get() {
+                continue;
+            }
+            let generation = busy_generation.get();
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            if busy.get() && busy_generation.get() == generation {
+                busy.set(false);
+            }
         }
     });
 
@@ -80,7 +90,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         system.exit();
     }
 
-    let time_label = format!("Current Time: {}", time.get().format("%r"));
+    let (accent_r, accent_g, accent_b) = agent_mode.get().label_rgb();
+    let scanner_accent = rgb(accent_r, accent_g, accent_b);
 
     element! {
         View(
@@ -100,12 +111,15 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             )
             TranscriptPanel(
                 screen_width: screen_width,
-                messages: messages.read().clone(),
+                messages: Some(messages),
+                messages_revision: messages_revision.get(),
                 sticky_scroll: props.sticky_scroll,
             )
             StatusRow(
                 screen_width: screen_width,
-                time_label: time_label,
+                busy: busy.get(),
+                activity_label: activity_label.read().clone(),
+                accent: scanner_accent,
             )
             PromptChrome(
                 screen_width: screen_width,
@@ -136,6 +150,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         });
                         list
                     });
+                    messages_revision.set(messages_revision.get().wrapping_add(1));
+                    busy.set(true);
+                    busy_generation.set(busy_generation.get().saturating_add(1));
+                    activity_label.set("Working".to_string());
                     draft.set(String::new());
                     live_draft.set(String::new());
                     suppress_enter_newline.set(true);

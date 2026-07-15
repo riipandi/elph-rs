@@ -1,6 +1,15 @@
 use elph_tui::components::*;
 
 #[test]
+fn transcript_messages_revision_changes_when_content_changes() {
+    let a = transcript_messages_revision(&[("hello", true)], 80);
+    let b = transcript_messages_revision(&[("hello!", true)], 80);
+    assert_ne!(a, b);
+    let c = transcript_messages_revision(&[("hello", true)], 80);
+    assert_eq!(a, c);
+}
+
+#[test]
 fn layouts_accumulate_with_gap() {
     let layouts = layout_transcript_rows(&["a", "bb\ncc"], 20, 1);
     assert_eq!(layouts[0].start_row, 0);
@@ -26,6 +35,22 @@ fn transcript_text_width_reserves_bubble_padding() {
     assert_eq!(transcript_text_width(80), 77);
     assert_eq!(transcript_text_width(2), 1);
     assert_eq!(transcript_text_width(0), 1);
+}
+
+#[test]
+fn transcript_bubble_inner_width_subtracts_horizontal_padding() {
+    assert_eq!(transcript_bubble_inner_width(80, 1), 75);
+    assert_eq!(transcript_bubble_inner_width(80, 0), 77);
+}
+
+#[test]
+fn clamp_wrapped_transcript_lines_joins_soft_wrapped_rows() {
+    let long = "word ".repeat(12);
+    let (text, rows, truncated) = clamp_wrapped_transcript_lines(long.trim(), 20, 6);
+    assert!(!truncated);
+    assert!(rows > 1);
+    assert!(text.contains('\n'));
+    assert_eq!(text.matches('\n').count() + 1, rows as usize);
 }
 
 #[test]

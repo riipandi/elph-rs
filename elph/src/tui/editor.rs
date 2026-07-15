@@ -5,7 +5,7 @@ use iocraft::prelude::*;
 
 use crate::types::AgentMode;
 
-use super::theme::{EDITOR_BORDER, rgb_color};
+use super::theme::{EDITOR_BORDER, EDITOR_CURSOR, rgb_color};
 
 fn editor_max_height(screen_height: u16) -> u16 {
     (screen_height / 4).clamp(4, 12)
@@ -39,7 +39,6 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
             padding_bottom: 0,
             padding_left: 1,
             padding_right: 1,
-            overflow: Overflow::Hidden,
         ) {
             Textarea(
                 width: props.screen_width.saturating_sub(2),
@@ -53,7 +52,7 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
                 submit_on_enter: true,
                 on_submit: props.on_submit.take(),
                 text_color: Some(Color::Grey),
-                cursor_color: Some(Color::DarkGrey),
+                cursor_color: Some(EDITOR_CURSOR),
             )
             View(
                 position: Position::Absolute,

@@ -1,12 +1,100 @@
 //! iocraft [`Textarea`] — thin shell around [`TextareaState`] + direct render.
 
+use std::sync::Arc;
+
 use super::TextareaProps;
 use super::input::{TextareaInputContext, TextareaInputResult, handle_textarea_terminal_event};
-use super::layout::{layout_cursor_for_viewport, layout_textarea_measured};
+use super::layout::{layout_cursor_for_viewport, layout_metrics_from_wrapped, layout_textarea_measured};
 use super::state::TextareaState;
 use crate::components::scroll_bar::{ScrollbarStyle, VerticalScrollbar};
-use crate::text_input_layout::update_scroll_offset;
+use crate::text_input_layout::overlay_editor_wrap_width;
+use crate::text_input_layout::{WrappedTextLayout, update_scroll_offset};
 use iocraft::prelude::*;
+
+/// Prefer viewport slicing above this source length (paste-sized buffers).
+const VIEWPORT_SLICE_MIN_CHARS: usize = 2_048;
+
+#[derive(Clone)]
+struct TextareaLayoutCache {
+    text: String,
+    inner_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+    wrapped: Arc<WrappedTextLayout>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct ViewportRenderCache {
+    text: String,
+    scroll_row: u16,
+    viewport_rows: u16,
+    content: String,
+}
+
+fn resolve_textarea_layout(
+    cache: &mut Ref<Option<TextareaLayoutCache>>,
+    text: &str,
+    layout_cursor: usize,
+    inner_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> (super::layout::TextareaLayout, Arc<WrappedTextLayout>) {
+    let wrap_width = overlay_editor_wrap_width(inner_width);
+    let dims_match = |cached: &TextareaLayoutCache| {
+        cached.inner_width == inner_width && cached.min_height == min_height && cached.max_height == max_height
+    };
+
+    let cached_snapshot = cache.read().clone();
+    if let Some(cached) = cached_snapshot.as_ref() {
+        if dims_match(cached) && cached.text == text {
+            let layout =
+                layout_metrics_from_wrapped(&cached.wrapped, text, layout_cursor, inner_width, min_height, max_height);
+            return (layout, Arc::clone(&cached.wrapped));
+        }
+        if dims_match(cached) {
+            if let Some(wrapped) = WrappedTextLayout::try_extend_suffix(&cached.wrapped, &cached.text, text, wrap_width)
+            {
+                let layout =
+                    layout_metrics_from_wrapped(&wrapped, text, layout_cursor, inner_width, min_height, max_height);
+                let wrapped = Arc::new(wrapped);
+                cache.set(Some(TextareaLayoutCache {
+                    text: text.to_string(),
+                    inner_width,
+                    min_height,
+                    max_height,
+                    wrapped: Arc::clone(&wrapped),
+                }));
+                return (layout, wrapped);
+            }
+            if let Some(wrapped) =
+                WrappedTextLayout::try_truncate_suffix(&cached.wrapped, &cached.text, text, wrap_width)
+            {
+                let layout =
+                    layout_metrics_from_wrapped(&wrapped, text, layout_cursor, inner_width, min_height, max_height);
+                let wrapped = Arc::new(wrapped);
+                cache.set(Some(TextareaLayoutCache {
+                    text: text.to_string(),
+                    inner_width,
+                    min_height,
+                    max_height,
+                    wrapped: Arc::clone(&wrapped),
+                }));
+                return (layout, wrapped);
+            }
+        }
+    }
+
+    let (layout, wrapped) = layout_textarea_measured(text, layout_cursor, inner_width, min_height, max_height);
+    let wrapped = Arc::new(wrapped);
+    cache.set(Some(TextareaLayoutCache {
+        text: text.to_string(),
+        inner_width,
+        min_height,
+        max_height,
+        wrapped: Arc::clone(&wrapped),
+    }));
+    (layout, wrapped)
+}
 
 /// Pull parent draft when unfocused, or when the parent explicitly sets non-empty text.
 ///
@@ -38,6 +126,8 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
     let paste_burst = hooks.use_ref(crate::paste::PasteBurstState::default);
     let last_key_at = hooks.use_ref(|| None::<std::time::Instant>);
     let mut scroll_row = hooks.use_ref(|| 0u16);
+    let mut layout_cache = hooks.use_ref(|| None::<TextareaLayoutCache>);
+    let mut viewport_cache = hooks.use_ref(|| None::<ViewportRenderCache>);
     let generation = hooks.use_state(|| 0u32);
     let on_submit = props.on_submit.take();
 
@@ -50,14 +140,46 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
     let inner_width = props.width.saturating_sub(h_pad);
     let ed = editor.read();
     let _generation = generation.get();
-    let text = ed.text.clone();
     let layout_cursor = layout_cursor_for_viewport(&ed.text, ed.cursor);
-    let (layout, wrapped) =
-        layout_textarea_measured(&ed.text, layout_cursor, inner_width, min_height, props.max_height);
+    let (layout, wrapped) = resolve_textarea_layout(
+        &mut layout_cache,
+        &ed.text,
+        layout_cursor,
+        inner_width,
+        min_height,
+        props.max_height,
+    );
     let display_cursor = layout_cursor_for_viewport(&ed.text, ed.cursor);
     let (cursor_row, cursor_col) = wrapped.row_column_for_offset(&ed.text, display_cursor);
     let next_scroll = update_scroll_offset(scroll_row.get(), cursor_row, layout.viewport_height, layout.content_rows);
-    scroll_row.set(next_scroll);
+    if next_scroll != scroll_row.get() {
+        scroll_row.set(next_scroll);
+    }
+    let use_viewport_slice = ed.text.len() >= VIEWPORT_SLICE_MIN_CHARS;
+    let visible_row_count = layout.viewport_height.saturating_add(1);
+    let (rendered_text, text_wrap, content_scroll_offset, cursor_display_row) = if use_viewport_slice {
+        let slice_key = (ed.text.clone(), next_scroll, visible_row_count);
+        let content = if viewport_cache
+            .read()
+            .as_ref()
+            .is_some_and(|c| c.text == slice_key.0 && c.scroll_row == slice_key.1 && c.viewport_rows == slice_key.2)
+        {
+            viewport_cache.read().as_ref().expect("viewport cache").content.clone()
+        } else {
+            let content = wrapped.display_text_for_row_range(&ed.text, next_scroll, visible_row_count);
+            viewport_cache.set(Some(ViewportRenderCache {
+                text: slice_key.0,
+                scroll_row: slice_key.1,
+                viewport_rows: slice_key.2,
+                content: content.clone(),
+            }));
+            content
+        };
+        (content, TextWrap::NoWrap, 0i32, cursor_row.saturating_sub(next_scroll))
+    } else {
+        viewport_cache.set(None);
+        (ed.text.clone(), TextWrap::Wrap, next_scroll as i32, cursor_row)
+    };
     let cursor_col_clamped = if layout.input_width > 0 {
         cursor_col.min(layout.input_width.saturating_sub(1))
     } else {
@@ -76,6 +198,7 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
         let input_width = layout.input_width;
         move |event| {
             let mut esc = pending_esc.get();
+            let text_before = editor.read().text.clone();
             let result = {
                 let mut ed = editor.write();
                 let mut burst = paste_burst.write();
@@ -112,12 +235,19 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                     ed.clear_after_submit();
                     sync_live_draft("");
                     value.set(String::new());
+                    layout_cache.set(None);
+                    viewport_cache.set(None);
                     generation.set(generation.get().wrapping_add(1));
                 }
                 TextareaInputResult::Changed => {
-                    sync_live_draft(&editor.read().text);
+                    if !paste_burst.read().active {
+                        sync_live_draft(&editor.read().text);
+                    }
                     if let Some(mut suppress) = suppress_enter_newline {
                         suppress.set(false);
+                    }
+                    if text_before != editor.read().text {
+                        viewport_cache.set(None);
                     }
                     generation.set(generation.get().wrapping_add(1));
                 }
@@ -161,7 +291,7 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
             ) {
                 View(
                     position: Position::Absolute,
-                    top: -(next_scroll as i32),
+                    top: -content_scroll_offset,
                     left: 0,
                     width: layout.input_width,
                 ) {
@@ -169,7 +299,7 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                         Some(element! {
                             View(
                                 position: Position::Absolute,
-                                top: cursor_row,
+                                top: cursor_display_row,
                                 left: cursor_col_clamped,
                                 width: 1,
                                 height: 1,
@@ -180,8 +310,8 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                         None
                     })
                     Text(
-                        content: text,
-                        wrap: TextWrap::Wrap,
+                        content: rendered_text,
+                        wrap: text_wrap,
                         color: text_color,
                     )
                 }

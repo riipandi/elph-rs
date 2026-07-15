@@ -3,8 +3,8 @@
 mod message;
 
 use elph_tui::{
-    active_sticky_user_message_index, layout_sticky_header, layout_transcript_rows, scroll_view_down, scroll_view_up,
-    transcript_text_width,
+    TranscriptRowLayout, active_sticky_user_message_index, layout_sticky_header, layout_transcript_rows_widths,
+    scroll_view_down, scroll_view_up, transcript_bubble_inner_width,
 };
 use iocraft::prelude::*;
 
@@ -14,31 +14,70 @@ pub use message::{TranscriptMessage, TranscriptStyle, seed_transcript_messages};
 
 use message::{transcript_message_bubble, transcript_sticky_overlay};
 
-const TRANSCRIPT_SCROLL_STEP: i32 = 2;
+const TRANSCRIPT_SCROLL_STEP: i32 = 3;
 /// Minimum scrollable lines below a sticky user prompt.
 const STICKY_MIN_SCROLL_ROWS: u16 = 3;
 
 #[derive(Clone, Default, Props)]
 pub struct TranscriptPanelProps {
     pub screen_width: u16,
-    pub messages: Vec<TranscriptMessage>,
+    pub messages: Option<State<Vec<TranscriptMessage>>>,
+    /// Bumped when `messages` changes — avoids re-hashing on scroll-only re-renders.
+    pub messages_revision: u64,
     pub sticky_scroll: bool,
+}
+
+struct TranscriptRenderCache {
+    revision: u64,
+    screen_width: u16,
+    row_layouts: Vec<TranscriptRowLayout>,
+    is_user: Vec<bool>,
 }
 
 #[component]
 pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let scroll_handle = hooks.use_ref_default::<ScrollViewHandle>();
     let mut panel_viewport = hooks.use_ref(|| 0u16);
-    // At least viewport tall so short transcripts stay bottom-anchored; grows with content.
+    let mut render_cache = hooks.use_ref(|| None::<TranscriptRenderCache>);
+    let scroll_generation = hooks.use_state(|| 0u32);
+    let empty_messages = hooks.use_state(Vec::<TranscriptMessage>::new);
+    let messages_state = props.messages.unwrap_or(empty_messages);
+    let messages = messages_state.read();
+    let _scroll_generation = scroll_generation.get();
+    let cache_key = (props.messages_revision, props.screen_width);
+
+    if render_cache
+        .read()
+        .as_ref()
+        .is_none_or(|c| c.revision != cache_key.0 || c.screen_width != cache_key.1)
+    {
+        let texts: Vec<&str> = messages.iter().map(|m| m.content.as_str()).collect();
+        let wrap_widths: Vec<u16> = messages
+            .iter()
+            .map(|m| transcript_bubble_inner_width(props.screen_width, m.style.horizontal_padding()))
+            .collect();
+        let row_layouts = layout_transcript_rows_widths(&texts, &wrap_widths, 1);
+        let is_user: Vec<_> = messages.iter().map(|m| m.style.is_user()).collect();
+        render_cache.set(Some(TranscriptRenderCache {
+            revision: cache_key.0,
+            screen_width: cache_key.1,
+            row_layouts,
+            is_user,
+        }));
+    }
+
+    let cache = render_cache.read();
+    let cached = cache.as_ref().expect("transcript render cache");
+    let row_layouts = &cached.row_layouts;
+    let is_user = &cached.is_user;
+    let bubbles: Vec<_> = messages
+        .iter()
+        .map(|message| transcript_message_bubble(props.screen_width, message))
+        .collect();
+
     let handle = scroll_handle.read();
     let scroll_viewport = handle.viewport_height().max(1);
     let min_content_height = scroll_viewport;
-    let row_layouts = layout_transcript_rows(
-        &props.messages.iter().map(|m| m.content.as_str()).collect::<Vec<_>>(),
-        transcript_text_width(props.screen_width),
-        1,
-    );
-    let is_user: Vec<_> = props.messages.iter().map(|m| m.style.is_user()).collect();
     let sticky_idx = props
         .sticky_scroll
         .then(|| {
@@ -61,22 +100,18 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
     };
     let sticky_header = sticky_idx.and_then(|idx| {
         layout_sticky_header(
-            &props.messages[idx].content,
-            transcript_text_width(props.screen_width),
-            props.messages[idx].style.bubble_padding_rows(),
+            &messages[idx].content,
+            transcript_bubble_inner_width(props.screen_width, messages[idx].style.horizontal_padding()),
+            messages[idx].style.bubble_padding_rows(),
             panel_height,
             STICKY_MIN_SCROLL_ROWS,
         )
     });
     let sticky_rows = sticky_header.as_ref().map(|h| h.height).unwrap_or(0);
-    let bubbles: Vec<_> = props
-        .messages
-        .iter()
-        .map(|message| transcript_message_bubble(props.screen_width, message))
-        .collect();
 
     hooks.use_terminal_events({
         let mut scroll_handle = scroll_handle;
+        let mut scroll_generation = scroll_generation;
         move |event| {
             let TerminalEvent::Key(KeyEvent {
                 code, kind, modifiers, ..
@@ -87,10 +122,19 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
             if kind == KeyEventKind::Release || !modifiers.contains(KeyModifiers::SHIFT) {
                 return;
             }
-            match code {
-                KeyCode::Up => scroll_view_up(&mut scroll_handle.write(), TRANSCRIPT_SCROLL_STEP),
-                KeyCode::Down => scroll_view_down(&mut scroll_handle.write(), TRANSCRIPT_SCROLL_STEP),
-                _ => {}
+            let scrolled = match code {
+                KeyCode::Up => {
+                    scroll_view_up(&mut scroll_handle.write(), TRANSCRIPT_SCROLL_STEP);
+                    true
+                }
+                KeyCode::Down => {
+                    scroll_view_down(&mut scroll_handle.write(), TRANSCRIPT_SCROLL_STEP);
+                    true
+                }
+                _ => false,
+            };
+            if scrolled {
+                scroll_generation.set(scroll_generation.get().wrapping_add(1));
             }
         }
     });
@@ -151,7 +195,7 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
                     Some(transcript_sticky_overlay(
                         props.screen_width,
                         header.height,
-                        &props.messages[idx],
+                        &messages[idx],
                         &header.display_text,
                         header.truncated,
                     ))

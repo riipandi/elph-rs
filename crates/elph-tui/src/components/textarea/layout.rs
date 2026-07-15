@@ -66,6 +66,32 @@ pub struct TextareaLayout {
     pub show_scrollbar: bool,
 }
 
+/// Viewport metrics from an existing wrap pass (cursor only affects growth-without-cap mode).
+pub fn layout_metrics_from_wrapped(
+    wrapped: &WrappedTextLayout,
+    text: &str,
+    cursor: usize,
+    outer_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> TextareaLayout {
+    let scrollbar_reserved = max_height.is_some();
+    let input_width = outer_width.saturating_sub(if scrollbar_reserved { 1 } else { 0 });
+    let content_rows = wrapped.row_count();
+    let visible_rows = match max_height {
+        Some(_) => content_rows,
+        None => visible_row_count_from_layout(wrapped, text, cursor),
+    };
+    let viewport_height = compute_viewport_height(visible_rows, min_height, max_height);
+    let show_scrollbar = scrollbar_reserved && content_rows > viewport_height;
+    TextareaLayout {
+        input_width,
+        content_rows,
+        viewport_height,
+        show_scrollbar,
+    }
+}
+
 /// Layout metrics plus a single shared wrap pass for cursor/scroll rendering.
 pub fn layout_textarea_measured(
     text: &str,
@@ -77,22 +103,8 @@ pub fn layout_textarea_measured(
     let scrollbar_reserved = max_height.is_some();
     let input_width = outer_width.saturating_sub(if scrollbar_reserved { 1 } else { 0 });
     let wrapped = WrappedTextLayout::new_for_overlay_editor(text, input_width);
-    let content_rows = wrapped.row_count();
-    let visible_rows = match max_height {
-        Some(_) => content_rows,
-        None => visible_row_count_from_layout(&wrapped, text, cursor),
-    };
-    let viewport_height = compute_viewport_height(visible_rows, min_height, max_height);
-    let show_scrollbar = scrollbar_reserved && content_rows > viewport_height;
-    (
-        TextareaLayout {
-            input_width,
-            content_rows,
-            viewport_height,
-            show_scrollbar,
-        },
-        wrapped,
-    )
+    let layout = layout_metrics_from_wrapped(&wrapped, text, cursor, outer_width, min_height, max_height);
+    (layout, wrapped)
 }
 
 pub fn layout_textarea(

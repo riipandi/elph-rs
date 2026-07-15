@@ -6,6 +6,7 @@
 
 pub mod color;
 pub mod components;
+pub mod loader;
 pub mod paste;
 pub mod text_editing;
 pub mod text_input_layout;
@@ -15,6 +16,7 @@ pub mod utils;
 
 pub use color::{from_hex, rgb};
 pub use components::*;
+pub use loader::{KittScanner, KittScannerConfig, LoaderCell, SpinnerLoader};
 pub use types::{SelectOption, TabItem};
 
 /// Convenience re-exports for application authors.

@@ -6,6 +6,7 @@ pub mod frame_buffer;
 pub mod input;
 pub mod line_numbers;
 pub mod markdown;
+pub mod progress_indicator;
 pub mod qr_code;
 pub mod scroll_bar;
 pub mod scroll_box;
@@ -19,9 +20,12 @@ pub use crate::transcript_layout::{
     STICKY_DEFAULT_LINE_CLAMP, STICKY_MAX_LINE_CLAMP, StickyHeaderLayout, active_sticky_user_message_index,
     clamp_sticky_header_rows, clamp_wrapped_transcript_lines, layout_sticky_header, scroll_viewport_height,
     sticky_body_line_clamp, sticky_header_display_rows, sticky_header_row_count, sticky_user_message_index,
-    transcript_text_width,
+    transcript_bubble_inner_width, transcript_text_width,
 };
-pub use crate::transcript_layout::{TranscriptRowLayout, effective_scroll_offset, layout_transcript_rows};
+pub use crate::transcript_layout::{
+    TranscriptRowLayout, effective_scroll_offset, layout_transcript_rows, layout_transcript_rows_widths,
+    transcript_messages_revision,
+};
 pub use ascii_font::{AsciiText, AsciiTextProps};
 pub use card::{Card, CardBorderStyle, CardProps};
 pub use code::{CodeBlock, CodeBlockProps};
@@ -30,6 +34,7 @@ pub use frame_buffer::{FrameBuffer, FrameBufferView, FrameBufferViewProps};
 pub use input::{Input, InputProps};
 pub use line_numbers::{LineNumbers, LineNumbersProps};
 pub use markdown::{MarkdownView, MarkdownViewProps};
+pub use progress_indicator::{KittScannerView, KittScannerViewProps, SpinnerLoaderView, SpinnerLoaderViewProps};
 pub use qr_code::{QrCodeView, QrCodeViewProps};
 pub use scroll_bar::{ScrollIndicator, ScrollIndicatorProps, ScrollbarStyle};
 pub use scroll_bar::{VerticalScrollbar, VerticalScrollbarProps};

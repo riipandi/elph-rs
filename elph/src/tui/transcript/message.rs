@@ -2,7 +2,7 @@
 
 use iocraft::prelude::*;
 
-use crate::tui::theme::{BUBBLE_BG, TOOL_BG};
+use crate::tui::theme::{BORDER_MUTED, BUBBLE_BG, TOOL_BG};
 
 const LOREM_IPSUM: &str = "Lorem ipsum odor amet, consectetuer adipiscing elit. \
 Lobortis hendrerit nec ipsum dapibus quam. Donec malesuada tincidunt elementum \
@@ -38,6 +38,11 @@ impl TranscriptStyle {
     /// Extra terminal rows from top + bottom bubble padding.
     pub fn bubble_padding_rows(self) -> u16 {
         self.padding().saturating_mul(2)
+    }
+
+    /// Horizontal inset on each side inside the bubble (`View` padding).
+    pub fn horizontal_padding(self) -> u16 {
+        self.padding()
     }
 
     fn text_color(self) -> Color {
@@ -107,7 +112,7 @@ pub fn transcript_message_bubble(screen_width: u16, message: &TranscriptMessage)
             margin_bottom: 0,
             padding: style.padding(),
         ) {
-            Text(color: style.text_color(), wrap: TextWrap::Wrap, content: message.content.clone())
+            Text(color: style.text_color(), wrap: TextWrap::Wrap, content: message.content.as_str())
         }
     }
     .into()
@@ -126,7 +131,7 @@ pub fn transcript_sticky_bubble(
             margin_bottom: 0,
             padding: style.padding(),
         ) {
-            Text(color: style.text_color(), wrap: TextWrap::NoWrap, content: display_content.to_string())
+            Text(color: style.text_color(), wrap: TextWrap::Wrap, content: display_content.to_string())
         }
     }
     .into()
@@ -149,10 +154,14 @@ pub fn transcript_sticky_overlay(
             height: height,
             overflow: Overflow::Hidden,
             background_color: Color::Reset,
+            border_style: BorderStyle::Single,
+            border_edges: Edges::Bottom,
+            border_color: BORDER_MUTED,
             padding_left: 1,
             padding_right: 1,
             flex_direction: FlexDirection::Column,
             justify_content: JustifyContent::FlexStart,
+            gap: 0,
         ) {
             #(bubble)
             #(if truncated {

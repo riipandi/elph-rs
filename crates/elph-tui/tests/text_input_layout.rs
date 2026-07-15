@@ -14,6 +14,76 @@ fn row_column_on_second_line() {
 }
 
 #[test]
+fn display_text_for_row_range_slices_viewport() {
+    let text = "alpha\nbeta gamma delta\nzeta";
+    let layout = WrappedTextLayout::new_for_overlay_editor(text, 6);
+    let slice = layout.display_text_for_row_range(text, 1, 2);
+    assert!(!slice.is_empty());
+    assert!(slice.lines().count() <= 2);
+}
+
+const ELPH_PASTE: &str = "**Elph** is a Rust workspace for AI agent applications: a coding agent CLI, shared agent runtime libraries, and terminal UI components. It is a port of the [pi](https://pi.dev) TypeScript ecosystem to Rust, with additional MCP (Model Context Protocol) support, WASM extensions, and an iocraft-based interactive TUI.";
+const BULLET_PASTE: &str = "- **TOON Encoding** — Optional structured-data encoding for tool results (reduces token usage on tabular payloads).\n- **MCP** — Model Context Protocol client supporting stdio, streamable HTTP, and SSE transports with OAuth 2.1 and AES-256-GCM credential encryption.\n- **Agent** — `elph::agent` wraps `elph-agent`'s `AgentHarness` with session orchestration for the coding use case.\n";
+
+fn assert_extend_matches_full(width: u16, base: &str, suffix: &str) {
+    let wrap = width as usize;
+    let mut text = base.to_string();
+    let mut layout = WrappedTextLayout::new_for_overlay_editor(&text, width);
+    for ch in suffix.chars() {
+        let next = format!("{text}{ch}");
+        let extended = WrappedTextLayout::try_extend_suffix(&layout, &text, &next, wrap)
+            .unwrap_or_else(|| panic!("extend failed after char {ch:?}"));
+        let full = WrappedTextLayout::new_for_overlay_editor(&next, width);
+        assert_eq!(extended.row_count(), full.row_count(), "row_count after {ch:?}");
+        assert_eq!(
+            extended.row_column_for_offset(&next, next.len()),
+            full.row_column_for_offset(&next, next.len()),
+            "eof cursor after {ch:?}"
+        );
+        let scroll = extended.row_count().saturating_sub(3);
+        assert_eq!(
+            extended.display_text_for_row_range(&next, scroll, 4),
+            full.display_text_for_row_range(&next, scroll, 4),
+            "viewport slice after {ch:?}"
+        );
+        text = next;
+        layout = extended;
+    }
+}
+
+#[test]
+fn try_extend_suffix_matches_full_layout() {
+    assert_extend_matches_full(20, "", "hello world");
+}
+
+#[test]
+fn try_extend_suffix_after_medium_paste() {
+    assert_extend_matches_full(78, ELPH_PASTE, " and more typing");
+    assert_extend_matches_full(40, ELPH_PASTE, " extra");
+}
+
+#[test]
+fn try_extend_suffix_after_multiline_paste() {
+    assert_extend_matches_full(40, BULLET_PASTE, "\n- new item");
+}
+
+#[test]
+fn try_extend_suffix_after_paste_near_viewport_threshold() {
+    let base = format!("{ELPH_PASTE}{}", "x".repeat(1800));
+    assert_extend_matches_full(78, &base, "yz");
+}
+
+#[test]
+fn display_text_for_row_range_at_eof_is_non_empty() {
+    let text = "line one\n".repeat(80);
+    let layout = WrappedTextLayout::new_for_overlay_editor(&text, 20);
+    let scroll = layout.row_count().saturating_sub(5);
+    let slice = layout.display_text_for_row_range(&text, scroll, 5);
+    assert!(!slice.is_empty());
+    assert!(slice.contains("line"));
+}
+
+#[test]
 fn wrap_width_reserves_cursor_column() {
     assert_eq!(text_input_wrap_width(10), 9);
     assert_eq!(text_input_wrap_width(0), 0);

@@ -65,6 +65,58 @@ impl WrappedTextLayout {
         Self { rows }
     }
 
+    /// Incremental update when `new_text` extends `old_text` by a small suffix (typing at EOF).
+    pub fn try_extend_suffix(prev: &Self, old_text: &str, new_text: &str, max_width: usize) -> Option<Self> {
+        if new_text.len() < old_text.len() || !new_text.starts_with(old_text) {
+            return None;
+        }
+        let suffix = &new_text[old_text.len()..];
+        if suffix.is_empty() || suffix.len() > 8 {
+            return None;
+        }
+        Some(prev.rewrap_tail(old_text.len(), new_text, max_width))
+    }
+
+    /// Incremental update when `new_text` is a small backspace/delete from `old_text` at EOF.
+    pub fn try_truncate_suffix(prev: &Self, old_text: &str, new_text: &str, max_width: usize) -> Option<Self> {
+        if new_text.len() >= old_text.len() || !old_text.starts_with(new_text) {
+            return None;
+        }
+        let removed = old_text.len() - new_text.len();
+        if removed == 0 || removed > 8 {
+            return None;
+        }
+        Some(prev.rewrap_tail(new_text.len(), new_text, max_width))
+    }
+
+    fn rewrap_tail(&self, tail_anchor: usize, text: &str, max_width: usize) -> Self {
+        let line_start = text[..tail_anchor.min(text.len())]
+            .rfind('\n')
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let truncate_from = self
+            .rows
+            .iter()
+            .position(|row| row.offset >= line_start)
+            .unwrap_or(self.rows.len());
+        let mut rows: Vec<TextRow> = self.rows[..truncate_from].to_vec();
+        let mut segment_start = line_start;
+        for (newline_idx, _) in text[line_start..].match_indices('\n') {
+            let newline_idx = line_start + newline_idx;
+            Self::push_wrapped_line(text, segment_start, newline_idx, max_width, &mut rows);
+            segment_start = newline_idx + 1;
+        }
+        Self::push_wrapped_line(text, segment_start, text.len(), max_width, &mut rows);
+        if rows.is_empty() {
+            rows.push(TextRow {
+                offset: 0,
+                len: 0,
+                width: 0,
+            });
+        }
+        Self { rows }
+    }
+
     fn push_wrapped_line(text: &str, start: usize, end: usize, max_width: usize, rows: &mut Vec<TextRow>) {
         let slice = &text[start..end];
         if slice.is_empty() {
@@ -195,20 +247,39 @@ impl WrappedTextLayout {
         r.offset + r.len
     }
 
+    /// Pre-wrapped row text for a viewport slice (`TextWrap::NoWrap`, one source row per display line).
+    pub fn display_text_for_row_range(&self, text: &str, scroll_row: u16, viewport_rows: u16) -> String {
+        if self.rows.is_empty() || viewport_rows == 0 {
+            return String::new();
+        }
+        let start = (scroll_row as usize).min(self.rows.len().saturating_sub(1));
+        let end = (start + viewport_rows as usize).min(self.rows.len());
+        if start >= end {
+            return String::new();
+        }
+        self.rows[start..end]
+            .iter()
+            .map(|row| &text[row.offset..row.offset + row.len])
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     /// First `max_lines` wrapped rows as explicit newlines; ellipsis on the last line when clipped.
     pub fn clamp_display_lines(&self, text: &str, max_lines: u16, max_line_width: usize) -> (String, u16, bool) {
         let max = max_lines.max(1) as usize;
-        if self.rows.len() <= max {
-            return (text.to_string(), self.row_count(), false);
+        let truncated = self.rows.len() > max;
+        let take = if truncated { max } else { self.rows.len() };
+        let mut lines: Vec<String> = Vec::with_capacity(take);
+        for (i, row) in self.rows.iter().take(take).enumerate() {
+            let segment = &text[row.offset..row.offset + row.len];
+            if truncated && i + 1 == take {
+                lines.push(mark_clamped_line(segment, max_line_width));
+            } else {
+                lines.push(segment.to_string());
+            }
         }
-        let mut lines: Vec<String> = Vec::with_capacity(max);
-        for row in self.rows.iter().take(max.saturating_sub(1)) {
-            lines.push(text[row.offset..row.offset + row.len].to_string());
-        }
-        let last = &self.rows[max - 1];
-        let last_line = &text[last.offset..last.offset + last.len];
-        lines.push(mark_clamped_line(last_line, max_line_width));
-        (lines.join("\n"), max_lines, true)
+        let rows = take.min(u16::MAX as usize) as u16;
+        (lines.join("\n"), rows, truncated)
     }
 }
 

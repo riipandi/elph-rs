@@ -115,6 +115,17 @@ pub fn paste_burst_begin_with_rewind(state: &mut PasteBurstState, text: &str, cu
     state.buffer = text[rewind..cursor].to_string();
 }
 
+/// Whether a key can extend an in-progress raw paste burst.
+pub fn raw_burst_accepts_key(code: KeyCode, kind: KeyEventKind, modifiers: KeyModifiers, multiline: bool) -> bool {
+    if kind == KeyEventKind::Release {
+        return false;
+    }
+    if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::META) {
+        return false;
+    }
+    matches!(code, KeyCode::Char(_) | KeyCode::Tab | KeyCode::Enter if multiline)
+}
+
 /// Append one pasteable key to an active burst. Returns false for non-paste keys.
 pub fn paste_burst_append_key(
     state: &mut PasteBurstState,
@@ -123,10 +134,7 @@ pub fn paste_burst_append_key(
     modifiers: KeyModifiers,
     multiline: bool,
 ) -> bool {
-    if kind == KeyEventKind::Release {
-        return false;
-    }
-    if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::META) {
+    if !raw_burst_accepts_key(code, kind, modifiers, multiline) {
         return false;
     }
     match code {
@@ -134,7 +142,7 @@ pub fn paste_burst_append_key(
             state.buffer.push(c);
             true
         }
-        KeyCode::Enter if multiline => {
+        KeyCode::Enter => {
             state.buffer.push('\n');
             true
         }
