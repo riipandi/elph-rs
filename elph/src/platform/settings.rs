@@ -117,6 +117,11 @@ impl Settings {
         let raw = std::fs::read_to_string(paths.settings_path())?;
         Ok(serde_json::from_str(&raw)?)
     }
+
+    /// Persist settings to disk.
+    pub fn save(paths: &Paths, settings: &Self) -> Result<()> {
+        write_json_file(&paths.settings_path(), settings)
+    }
 }
 
 fn default_embed_model() -> String {

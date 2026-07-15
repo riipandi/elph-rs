@@ -31,6 +31,16 @@ impl AgentMode {
         }
     }
 
+    /// Label color in the TUI (see `docs/tui.md` agent mode palette).
+    pub const fn label_rgb(self) -> (u8, u8, u8) {
+        match self {
+            Self::Plan => (6, 182, 212),
+            Self::Ask => (59, 130, 246),
+            Self::Brave => (239, 68, 68),
+            Self::Build => (107, 114, 128),
+        }
+    }
+
     pub fn next(self) -> Self {
         match self {
             Self::Build => Self::Plan,
@@ -62,6 +72,17 @@ impl ThinkingLevel {
             Self::Medium => "medium",
             Self::High => "high",
             Self::Xhigh => "xhigh",
+        }
+    }
+
+    /// Editor border color in the TUI (see `docs/tui.md` thinking level palette).
+    pub const fn border_rgb(self) -> (u8, u8, u8) {
+        match self {
+            Self::Off | Self::Minimal => (107, 114, 128),
+            Self::Low => (34, 197, 94),
+            Self::Medium => (234, 179, 8),
+            Self::High => (249, 115, 22),
+            Self::Xhigh => (239, 68, 68),
         }
     }
 
