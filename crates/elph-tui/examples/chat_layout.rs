@@ -253,6 +253,13 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    element!(MainShell).fullscreen().await?;
+    // element!(MainShell).render_loop().fullscreen().await?;
+    // element!(MainShell).fullscreen().await?;
+    element!(MainShell)
+        .render_loop()
+        .fullscreen()
+        .disable_mouse_capture()
+        .ignore_ctrl_c()
+        .await?;
     Ok(())
 }
