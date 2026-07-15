@@ -53,9 +53,10 @@ pub use agent::{Agent, AgentListener, AgentOptions, AgentSubscription, PartialAg
 pub use builder::InitProgress;
 pub use builder::{AgentBuilder, AgentInit, BuiltinToolsBuilder};
 pub use collaboration::{
-    CollaborationMode, PlanConfirmationChoice, assistant_message_text, extract_proposed_plan, filter_active_tools,
-    implement_prompt, is_collaboration_tool, is_mcp_read_only_bridge_tool, is_mcp_tool, is_mutating_tool,
-    plan_mode_block_reason, plan_mode_blocks_tool, plan_mode_system_prompt,
+    CollaborationMode, EXPLORATION_BUILTIN_TOOLS, PlanConfirmationChoice, assistant_message_text,
+    extract_proposed_plan, filter_active_tools, filter_ask_mode_tools, implement_prompt, is_ask_mode_tool,
+    is_collaboration_tool, is_exploration_builtin_tool, is_mcp_read_only_bridge_tool, is_mcp_tool, is_mutating_tool,
+    is_read_only_mcp_tool, plan_mode_block_reason, plan_mode_blocks_tool, plan_mode_system_prompt,
 };
 pub use compaction::{
     BranchPreparation, BranchSummaryDetails, CollectEntriesResult, CompactionDetails, CompactionPreparation,

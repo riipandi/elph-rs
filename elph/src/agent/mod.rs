@@ -17,6 +17,7 @@ mod session_manager;
 mod slash_commands;
 mod system_prompt;
 mod tool_policy;
+mod tools_catalog;
 
 pub use events::{AgentUiEvent, ToolApprovalChoice};
 pub use overlays::{list_model_select_items, list_session_select_items, list_tree_select_items};

@@ -4,6 +4,7 @@
 //!
 //! @ref: https://opentui.com/docs/getting-started
 
+pub mod cli_progress;
 pub mod color;
 pub mod components;
 pub mod loader;
@@ -14,6 +15,7 @@ pub mod transcript_layout;
 pub mod types;
 pub mod utils;
 
+pub use cli_progress::{CliProgress, CliSpinner, progress_enabled, progress_spinner};
 pub use color::{from_hex, rgb};
 pub use components::*;
 pub use loader::{KittScanner, KittScannerConfig, LoaderCell, SpinnerLoader};

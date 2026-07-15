@@ -122,5 +122,13 @@ path = "examples/demo_diff.rs"
 name = "demo_special"
 path = "examples/demo_special.rs"
 
+[[example]]
+name = "demo_loading_indicator"
+path = "examples/demo_loading_indicator.rs"
+
+[[example]]
+name = "demo_progress_indicator"
+path = "examples/demo_progress_indicator.rs"
+
 [lints.rust]
 linker_messages = "allow"

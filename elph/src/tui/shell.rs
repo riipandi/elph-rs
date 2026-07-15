@@ -7,7 +7,7 @@ use elph_tui::rgb;
 use iocraft::prelude::*;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::agent::{AgentUiEvent, CodingAgentSession};
+use crate::agent::{AgentUiEvent, CodingAgentSession, ToolApprovalChoice};
 use crate::platform::Paths;
 use crate::types::{AgentMode, ThinkingLevel, is_quit_command};
 
@@ -19,7 +19,9 @@ use super::labels::{project_footer_label, session_label};
 use super::prompt_chrome::PromptChrome;
 use super::session_prefs::persist_session_prefs;
 use super::status_row::{StatusRow, format_elapsed_secs};
+use super::tool_approval::{PendingToolApproval, ToolApprovalPrompt, choice_from_key};
 use super::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle, seed_transcript_messages};
+use super::footer::Footer;
 
 const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
@@ -117,6 +119,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut prompt_queue = hooks.use_ref(PromptQueue::default);
     let mut event_applier = hooks.use_ref(|| TranscriptEventApplier::new(props.show_thinking));
     let mut demo_busy_generation = hooks.use_ref(|| 0u64);
+    let mut pending_tool_approval = hooks.use_ref(|| None::<PendingToolApproval>);
 
     let agent_session = props.agent_session.clone();
     let agent_session_for_loop = agent_session.clone();
@@ -181,6 +184,22 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         if let AgentUiEvent::RunCompleted { .. } = &event {
                             run_completed = true;
                         }
+
+                        if let AgentUiEvent::ToolApprovalRequired(req) = event {
+                            let tool_name = req.tool_name.clone();
+                            activity_label.set(format!("Approve: {tool_name}"));
+                            pending_tool_approval.set(Some(PendingToolApproval::from_request(req)));
+                            {
+                                let mut msgs = messages.write();
+                                msgs.push(TranscriptMessage::text(
+                                    format!("Tool approval required: {tool_name} (y/n/a)"),
+                                    TranscriptStyle::Meta,
+                                ));
+                            }
+                            transcript_changed = true;
+                            continue;
+                        }
+
                         if let Some(label) = activity_label_for_event(&event, show_thinking) {
                             activity_label.set(label);
                         }
@@ -244,6 +263,20 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             };
             if kind == KeyEventKind::Release {
+                return;
+            }
+
+            if pending_tool_approval.read().is_some()
+                && let Some(choice) = choice_from_key(modifiers, code)
+            {
+                if let Some(pending) = pending_tool_approval.take() {
+                    pending.respond(choice);
+                }
+                activity_label.set(match choice {
+                    ToolApprovalChoice::Approve => "Running approved tool…".to_string(),
+                    ToolApprovalChoice::AllowSession => "Running tool (session allow)…".to_string(),
+                    ToolApprovalChoice::Reject => "Tool denied".to_string(),
+                });
                 return;
             }
 
@@ -339,18 +372,41 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 spinner_tick: spinner_tick.get(),
                 elapsed_secs: elapsed_secs.get(),
             )
-            PromptChrome(
-                screen_width: screen_width,
-                screen_height: screen_height,
-                agent_mode: agent_mode.get(),
-                thinking_level: thinking_level.get(),
-                project_label: project_label.read().clone(),
-                model_label: model_label,
-                supports_images: supports_images,
-                draft: Some(draft),
-                live_draft: Some(live_draft),
-                suppress_enter_newline: Some(suppress_enter_newline),
-                on_submit: move |text: String| {
+            #(if let Some(pending) = pending_tool_approval.read().as_ref() {
+                element! {
+                    View(
+                        width: screen_width,
+                        flex_shrink: 0f32,
+                        flex_direction: FlexDirection::Column,
+                    ) {
+                        ToolApprovalPrompt(
+                            screen_width: screen_width,
+                            tool_name: pending.tool_name.clone(),
+                            args_summary: pending.args_summary.clone(),
+                        )
+                        Footer(
+                            screen_width: screen_width,
+                            project_label: project_label.read().clone(),
+                            model_label: model_label.clone(),
+                            thinking_level: thinking_level.get(),
+                            supports_images: supports_images,
+                        )
+                    }
+                }
+            } else {
+                element! {
+                    PromptChrome(
+                        screen_width: screen_width,
+                        screen_height: screen_height,
+                        agent_mode: agent_mode.get(),
+                        thinking_level: thinking_level.get(),
+                        project_label: project_label.read().clone(),
+                        model_label: model_label.clone(),
+                        supports_images: supports_images,
+                        draft: Some(draft),
+                        live_draft: Some(live_draft),
+                        suppress_enter_newline: Some(suppress_enter_newline),
+                        on_submit: move |text: String| {
                     if text.trim().is_empty() {
                         return;
                     }
@@ -397,7 +453,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     live_draft.set(String::new());
                     suppress_enter_newline.set(true);
                 },
-            )
+                    )
+                }
+            })
         }
     }
 }

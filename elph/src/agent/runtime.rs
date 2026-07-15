@@ -9,6 +9,7 @@ use elph_agent::{
 use elph_core::utils::path::AppPaths;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use super::model_registry::resolve_model;
 use super::resource_loader::load_resources;
@@ -16,8 +17,8 @@ use super::session::{CodingAgentSession, CodingAgentSessionParams};
 use super::session_manager::SessionManager;
 use super::system_prompt::{agents_md_for_cwd, build_system_prompt};
 use super::tool_policy::{agent_mode_from_setting, thinking_level_from_setting, to_agent_thinking};
+use super::tools_catalog::reconcile_harness_tools;
 use crate::platform::{Paths, Settings};
-
 pub struct CreateSessionOptions<'a> {
     pub paths: &'a Paths,
     pub settings: &'a Settings,
@@ -98,10 +99,23 @@ pub async fn create_coding_session_with_events(
         thinking_level: thinking,
         agent_graph: Some(agent_graph),
     };
-    let tool_names: Vec<String> = tools.iter().map(|t| t.name().to_string()).collect();
-    let agents_md = agents_md_for_cwd(options.cwd);
-    let system_prompt = build_system_prompt(options.cwd, &resources, &tool_names, agents_md.as_deref());
+
     let agent_mode = agent_mode_from_setting(&options.settings.session.agent_mode);
+    let mode_state = Arc::new(Mutex::new(agent_mode));
+    let cwd = options.cwd.to_path_buf();
+    let agents_md = agents_md_for_cwd(options.cwd);
+    let mode_for_prompt = Arc::clone(&mode_state);
+
+    let system_prompt = SystemPrompt::Dynamic(Arc::new(move |ctx| {
+        let cwd = cwd.clone();
+        let agents_md = agents_md.clone();
+        let mode_state = Arc::clone(&mode_for_prompt);
+        Box::pin(async move {
+            let mode = *mode_state.lock().await;
+            let tool_names: Vec<String> = ctx.active_tools.iter().map(|t| t.name().to_string()).collect();
+            build_system_prompt(&cwd, &ctx.resources, &tool_names, agents_md.as_deref(), mode)
+        })
+    }));
 
     let model = selection.model.clone();
     let models = Arc::clone(&selection.models);
@@ -111,7 +125,7 @@ pub async fn create_coding_session_with_events(
         models,
         tools,
         resources,
-        system_prompt: SystemPrompt::Static(system_prompt),
+        system_prompt,
         stream_options: AgentHarnessStreamOptions::default(),
         model,
         thinking_level: thinking,
@@ -133,6 +147,7 @@ pub async fn create_coding_session_with_events(
         session_id,
         selection,
         agent_mode,
+        mode_state: Arc::clone(&mode_state),
         show_thinking: options.settings.show_thinking,
         goal_runtime,
         mcp_registry: Some(Arc::clone(&mcp_registry)),
@@ -143,13 +158,22 @@ pub async fn create_coding_session_with_events(
     // Catalog hot-reload + progress → TUI status (after ui channel exists).
     {
         let harness_for_reload = Arc::clone(&session.harness());
+        let mode_state = session.mode_state();
+        let mcp_registry = Arc::clone(&mcp_registry);
         let ui_tx = session.ui_event_sender();
         let started = mcp_registry.spawn_event_loop(
             move |registry| {
                 let harness = Arc::clone(&harness_for_reload);
+                let mode_state = Arc::clone(&mode_state);
+                let registry = Arc::clone(&registry);
                 tokio::spawn(async move {
                     if let Err(error) = apply_mcp_tools_to_harness(&harness, &registry).await {
                         log::warn!("failed to apply MCP hot-reload tools: {error}");
+                        return;
+                    }
+                    let mode = *mode_state.lock().await;
+                    if let Err(error) = reconcile_harness_tools(&harness, mode, Some(registry.as_ref())).await {
+                        log::warn!("failed to reconcile tools after MCP hot-reload: {error}");
                     } else {
                         log::info!("MCP tools hot-reloaded into agent harness");
                     }
@@ -172,7 +196,6 @@ async fn apply_mcp_tools_to_harness(
     registry: &Arc<McpToolRegistry>,
 ) -> Result<()> {
     let mcp_tools = registry.create_agent_tools();
-    let mcp_names: Vec<String> = mcp_tools.iter().map(|t| t.name().to_string()).collect();
     let mut kept: Vec<_> = harness
         .get_tools()
         .await
@@ -181,23 +204,8 @@ async fn apply_mcp_tools_to_harness(
         .collect();
     kept.extend(mcp_tools);
 
-    let prev_active: Vec<String> = harness
-        .get_active_tools()
-        .await
-        .into_iter()
-        .map(|t| t.name().to_string())
-        .collect();
-    // Empty active list means "all tools active" — preserve that convention.
-    let active_opt = if prev_active.is_empty() {
-        None
-    } else {
-        let mut next: Vec<String> = prev_active.into_iter().filter(|n| !n.starts_with("mcp_")).collect();
-        next.extend(mcp_names);
-        Some(next)
-    };
-
     harness
-        .set_tools(kept, active_opt)
+        .set_tools(kept, None)
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(())

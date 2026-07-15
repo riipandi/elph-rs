@@ -11,17 +11,16 @@
 //! cargo run -p elph-agent --example agent_skill_math -- --question "What is 15 * 23?"
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use elph_agent::agent::harness::format_skills_for_system_prompt;
 use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::skills::{format_skill_invocation, load_skills_with_options};
 use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
 use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_tui::progress_spinner;
 use tempfile::TempDir;
 
 const PROVIDER: &str = "opencode";
@@ -289,28 +288,4 @@ fn print_help() {
     println!("  cargo run -p elph-agent --example agent_skill_math");
     println!("  cargo run -p elph-agent --example agent_skill_math -- --question 'What is 15 * 23?'");
     println!("  cargo run -p elph-agent --example agent_skill_math -q '100 / 4'");
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !progress_enabled() {
-        eprintln!("{message}");
-        return ProgressBar::hidden();
-    }
-
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid spinner template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
-}
-
-fn progress_enabled() -> bool {
-    if std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return false;
-    }
-    stderr().is_terminal()
 }

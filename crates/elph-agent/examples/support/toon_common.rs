@@ -2,10 +2,9 @@
 
 #![allow(dead_code)]
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 pub use elph_agent::encode_value;
 use elph_agent::{
@@ -13,7 +12,7 @@ use elph_agent::{
     PromptEncodingMode, ToolResultContent,
 };
 use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_tui::progress_spinner;
 use serde_json::{Value, json};
 
 pub const PROVIDER: &str = "opencode";
@@ -344,28 +343,4 @@ fn print_comparison_summary(meta: &RunMeta<'_>, message: &elph_ai::AssistantMess
     }
     println!();
     println!("Pair with the matching example (toon_* vs default_*) using the same --rows/--repo flags.");
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !progress_enabled() {
-        eprintln!("{message}");
-        return ProgressBar::hidden();
-    }
-
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid spinner template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
-}
-
-fn progress_enabled() -> bool {
-    if std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return false;
-    }
-    stderr().is_terminal()
 }

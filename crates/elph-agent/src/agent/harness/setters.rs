@@ -6,7 +6,7 @@ use elph_ai::Model;
 
 use crate::agent::harness::types::{
     AgentHarnessOwnEvent, AgentHarnessPhase, AgentHarnessResources, AgentHarnessStreamOptions, ModelUpdateSource,
-    PendingSessionWrite, clone_stream_options,
+    PendingSessionWrite, SystemPrompt, clone_stream_options,
 };
 use crate::types::{AgentThinkingLevel, AgentTool};
 
@@ -184,5 +184,10 @@ where
 
     pub async fn set_stream_options(&self, stream_options: AgentHarnessStreamOptions) {
         *self.shared.stream_options.lock().await = clone_stream_options(&stream_options);
+    }
+
+    pub async fn set_system_prompt(&self, prompt: SystemPrompt<S>) -> HarnessOpResult<()> {
+        *self.shared.system_prompt.lock().await = prompt;
+        Ok(())
     }
 }

@@ -15,6 +15,7 @@ mod session_prefs;
 mod shell;
 mod status_row;
 mod theme;
+mod tool_approval;
 mod transcript;
 
 use std::sync::{Arc, Mutex};

@@ -1,23 +1,31 @@
 //! System prompt assembly for coding sessions.
 
+use crate::types::AgentMode;
 use elph_agent::{AgentHarnessResources, Skill, format_skills_for_system_prompt, now_iso_timestamp};
 use std::path::Path;
+
+use super::tool_policy::mode_tool_guidance;
 
 pub fn build_system_prompt(
     cwd: &Path,
     resources: &AgentHarnessResources,
     tool_names: &[String],
     agents_md: Option<&str>,
+    mode: AgentMode,
 ) -> String {
     let date = now_iso_timestamp().chars().take(10).collect::<String>();
     let mut parts = vec![
         "You are Elph, a helpful AI coding agent.".to_string(),
         format!("Working directory: {}", cwd.display()),
         format!("Current date: {date}"),
+        mode_tool_guidance(mode).to_string(),
     ];
 
     if !tool_names.is_empty() {
-        parts.push(format!("Active tools: {}", tool_names.join(", ")));
+        parts.push(format!(
+            "Tools available in this turn (only call names from this list): {}",
+            tool_names.join(", ")
+        ));
     }
 
     if let Some(agents_md) = agents_md.filter(|s| !s.trim().is_empty()) {

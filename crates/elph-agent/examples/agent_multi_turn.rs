@@ -7,14 +7,13 @@
 //! cargo run -p elph-agent --example agent_multi_turn
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
 use elph_ai::{AssistantContentBlock, Message, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";
 const MODEL_ID: &str = "big-pickle";
@@ -169,21 +168,6 @@ fn check_api_key() -> anyhow::Result<()> {
         );
     }
     Ok(())
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !stderr().is_terminal() || std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return ProgressBar::hidden();
-    }
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
 }
 
 fn print_usage(state: &elph_agent::AgentState) {

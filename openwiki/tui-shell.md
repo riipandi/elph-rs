@@ -22,29 +22,29 @@ In the `elph` binary TUI (`/elph/src/tui/transcript/message.rs`), the transcript
 
 ### Examples (21 total in `crates/elph-tui/examples/`)
 
-| Example             | Description                                           |
-| ------------------- | ----------------------------------------------------- |
-| `weather`           | Async data loading from remote APIs with iocraft      |
-| `calculator`        | Calculator app with iocraft UI                        |
-| `chat_layout`       | Chat layout with scrollable content, input, tool cards|
-| `progress_bar`      | Animated progress bar demo                            |
-| `basic_context`     | Context API usage example                             |
-| `basic_counter`     | Simple counter with state management                  |
-| `basic_form`        | Form with input validation                            |
-| `basic_input`       | Text input handling demo                              |
-| `basic_layout`      | Layout composition demo                               |
-| `basic_output`      | Text output display                                   |
-| `basic_overlap`     | Overlapping elements demo                             |
-| `basic_scrolling`   | Scrollable content                                    |
-| `basic_table`       | Table layout demo                                     |
-| `demo_code`         | Code block rendering                                  |
-| `demo_diff`         | Diff output rendering                                 |
-| `demo_input`        | Input widget demo                                     |
-| `demo_markdown`     | Markdown rendering                                    |
-| `demo_scroll`        | Scroll container demo                                 |
-| `demo_select`       | Select widget demo                                    |
-| `demo_special`      | Special elements demo                                 |
-| `demo_text_card`    | Text card rendering                                   |
+| Example           | Description                                            |
+| ----------------- | ------------------------------------------------------ |
+| `weather`         | Async data loading from remote APIs with iocraft       |
+| `calculator`      | Calculator app with iocraft UI                         |
+| `chat_layout`     | Chat layout with scrollable content, input, tool cards |
+| `progress_bar`    | Animated progress bar demo                             |
+| `basic_context`   | Context API usage example                              |
+| `basic_counter`   | Simple counter with state management                   |
+| `basic_form`      | Form with input validation                             |
+| `basic_input`     | Text input handling demo                               |
+| `basic_layout`    | Layout composition demo                                |
+| `basic_output`    | Text output display                                    |
+| `basic_overlap`   | Overlapping elements demo                              |
+| `basic_scrolling` | Scrollable content                                     |
+| `basic_table`     | Table layout demo                                      |
+| `demo_code`       | Code block rendering                                   |
+| `demo_diff`       | Diff output rendering                                  |
+| `demo_input`      | Input widget demo                                      |
+| `demo_markdown`   | Markdown rendering                                     |
+| `demo_scroll`     | Scroll container demo                                  |
+| `demo_select`     | Select widget demo                                     |
+| `demo_special`    | Special elements demo                                  |
+| `demo_text_card`  | Text card rendering                                    |
 
 Run examples with: `cargo run -p elph-tui --example <name>`
 

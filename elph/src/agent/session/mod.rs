@@ -4,9 +4,7 @@ mod wiring;
 
 use crate::types::AgentMode;
 use anyhow::Result;
-use elph_agent::{
-    AgentHarness, CollaborationMode, GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage,
-};
+use elph_agent::{AgentHarness, GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, mpsc};
@@ -15,6 +13,7 @@ use super::events::AgentUiEvent;
 use super::model_registry::ModelSelection;
 use super::session_manager::SessionManager;
 use super::tool_policy::{AgentModePolicy, to_agent_thinking};
+use super::tools_catalog::reconcile_harness_tools;
 
 /// Constructor inputs for [`CodingAgentSession::new`] (avoids a long positional arg list).
 pub struct CodingAgentSessionParams {
@@ -23,6 +22,7 @@ pub struct CodingAgentSessionParams {
     pub session_id: String,
     pub selection: ModelSelection,
     pub agent_mode: AgentMode,
+    pub mode_state: Arc<Mutex<AgentMode>>,
     pub show_thinking: bool,
     pub goal_runtime: Arc<GoalRuntime>,
     pub mcp_registry: Option<Arc<McpToolRegistry>>,
@@ -35,6 +35,7 @@ pub struct CodingAgentSession {
     session_id: String,
     selection: ModelSelection,
     policy: Arc<Mutex<AgentModePolicy>>,
+    mode_state: Arc<Mutex<AgentMode>>,
     ui_tx: mpsc::UnboundedSender<AgentUiEvent>,
     show_thinking: bool,
     goal_runtime: Arc<GoalRuntime>,
@@ -49,6 +50,7 @@ impl CodingAgentSession {
             session_id,
             selection,
             agent_mode,
+            mode_state,
             show_thinking,
             goal_runtime,
             mcp_registry,
@@ -64,6 +66,7 @@ impl CodingAgentSession {
             session_id,
             selection,
             policy: Arc::new(Mutex::new(policy)),
+            mode_state,
             ui_tx: ui_tx.clone(),
             show_thinking,
             goal_runtime,
@@ -72,6 +75,16 @@ impl CodingAgentSession {
         session.wire_harness(ui_tx).await?;
         session.apply_agent_mode(agent_mode).await?;
         Ok(session)
+    }
+
+    pub fn mode_state(&self) -> Arc<Mutex<AgentMode>> {
+        self.mode_state.clone()
+    }
+
+    /// Re-apply tool permissions after MCP hot-reload or tool set changes.
+    pub async fn reconcile_tool_surface(&self) -> Result<()> {
+        let mode = *self.mode_state.lock().await;
+        self.apply_agent_mode(mode).await
     }
 
     pub fn mcp_registry(&self) -> Option<Arc<McpToolRegistry>> {
@@ -114,6 +127,7 @@ impl CodingAgentSession {
     }
 
     pub async fn set_agent_mode(&self, mode: AgentMode) -> Result<()> {
+        *self.mode_state.lock().await = mode;
         self.policy.lock().await.set_mode(mode);
         self.apply_agent_mode(mode).await
     }
@@ -190,45 +204,20 @@ impl CodingAgentSession {
         self.harness
             .resolve_plan_confirmation(choice)
             .await
-            .map_err(|e| anyhow::anyhow!("{e}"))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        // Implementing a plan exits harness Plan mode — restore Build tool surface.
+        if matches!(
+            choice,
+            PlanConfirmationChoice::Implement | PlanConfirmationChoice::ImplementFresh
+        ) {
+            *self.mode_state.lock().await = AgentMode::Build;
+            self.policy.lock().await.set_mode(AgentMode::Build);
+            self.apply_agent_mode(AgentMode::Build).await?;
+        }
+        Ok(())
     }
 
     async fn apply_agent_mode(&self, mode: AgentMode) -> Result<()> {
-        match mode {
-            AgentMode::Plan => {
-                self.harness
-                    .enter_plan_mode()
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-            }
-            AgentMode::Ask => {
-                self.harness
-                    .set_collaboration_mode(CollaborationMode::Default)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-                self.harness
-                    .set_active_tools(AgentModePolicy::read_only_tool_names())
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-            }
-            AgentMode::Build | AgentMode::Brave => {
-                self.harness
-                    .set_collaboration_mode(CollaborationMode::Default)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-                let tools: Vec<String> = self
-                    .harness
-                    .get_tools()
-                    .await
-                    .into_iter()
-                    .map(|t| t.name().to_string())
-                    .collect();
-                self.harness
-                    .set_active_tools(tools)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{e}"))?;
-            }
-        }
-        Ok(())
+        reconcile_harness_tools(&self.harness, mode, self.mcp_registry.as_deref()).await
     }
 }

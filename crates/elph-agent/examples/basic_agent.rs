@@ -8,14 +8,13 @@
 //! cargo run -p elph-agent --example basic_agent -- --prompt "Explain async in Rust briefly."
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
 use elph_ai::{AssistantContentBlock, Message, StopReason, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";
 const MODEL_ID: &str = "big-pickle";
@@ -171,30 +170,6 @@ fn print_help() {
     println!("Examples:");
     println!("  cargo run -p elph-agent --example basic_agent");
     println!("  cargo run -p elph-agent --example basic_agent -- --prompt 'Hello!'");
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !progress_enabled() {
-        eprintln!("{message}");
-        return ProgressBar::hidden();
-    }
-
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid spinner template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
-}
-
-fn progress_enabled() -> bool {
-    if std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return false;
-    }
-    stderr().is_terminal()
 }
 
 fn print_usage(message: &elph_ai::AssistantMessage) {
