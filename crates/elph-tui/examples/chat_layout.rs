@@ -99,6 +99,14 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     margin_bottom: 0,
                     padding: 1,
                 ) {
+                    Text(color: Color::DarkGrey, content: LOREM_IPSUM)
+                }
+                View(
+                    width: screen_width - 2,
+                    background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                    margin_bottom: 0,
+                    padding: 1,
+                ) {
                     Text(color: Color::White, content: LOREM_IPSUM)
                 }
                 View(
@@ -106,6 +114,22 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     background_color: Color::Rgb { r: (48), g: (48), b: (48) },
                     margin_bottom: 0,
                     padding: 1,
+                ) {
+                    Text(color: Color::DarkGreen, content: LOREM_IPSUM)
+                }
+                View(
+                    width: screen_width - 2,
+                    background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                    margin_bottom: 0,
+                    padding: 1,
+                ) {
+                    Text(color: Color::DarkRed, content: LOREM_IPSUM)
+                }
+                View(
+                    width: screen_width - 2,
+                    background_color: Color::Reset,
+                    margin_bottom: 0,
+                    padding: 0,
                 ) {
                     Text(color: Color::DarkGrey, content: LOREM_IPSUM)
                 }
@@ -115,7 +139,7 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     margin_bottom: 0,
                     padding: 0,
                 ) {
-                    Text(color: Color::Green, content: LOREM_IPSUM)
+                    Text(color: Color::White, content: LOREM_IPSUM)
                 }
             }
 
