@@ -143,7 +143,7 @@ Key dependencies:
 - `rmcp` — MCP client (gated behind `mcp` feature)
 - `wasmtime` — WASM runtime (gated behind `extensions` feature)
 - `embed_anything` — Local embedding models for memory
-- `tuie` — TUI framework
+- `iocraft` — TUI framework
 - `toon-format` — Prompt encoding
 
 ## CI/CD

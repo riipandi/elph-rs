@@ -1,92 +1,273 @@
-//! Minimal tuie-based TUI for Elph.
+//! iocraft-based TUI for Elph.
 //!
-//! ans: basic implementation based on tuie-demo
-//! (https://github.com/riipandi/tuie-demo) and tuie reference
-//! (https://github.com/jake-stewart/tuie).
-//! Will be expanded as the TUI is rebuilt.
+//! Placeholder layout based on `crates/elph-tui/examples/chat_layout.rs`.
+//! Color reference: https://www.ditig.com/256-colors-cheat-sheet
 
-use tuie::prelude::*;
+use anyhow::Result;
+use chrono::Local;
+use iocraft::prelude::*;
+use std::time::Duration;
 
-/// A simple demo app to verify the tuie integration works.
-struct ElphTui {
-    root: Box<Pane>,
-    input_id: WidgetId<Input>,
-    output_id: WidgetId<Text>,
-    #[allow(dead_code)]
-    resume_id: Option<String>,
-}
+const LOREM_IPSUM: &str = "Lorem ipsum odor amet, consectetuer adipiscing elit. \
+Lobortis hendrerit nec ipsum dapibus quam. Donec malesuada tincidunt elementum \
+mollis vehicula quisque purus. Est volutpat integer, donec sagittis placerat \
+fermentum phasellus ipsum sollicitudin. Tempus laoreet ad tempus aptent proin \
+per donec lectus. Quisque auctor urna; phasellus urna tortor ligula. Class \
+pharetra bibendum tristique, quisque consectetur placerat potenti. Imperdiet ut \
+torquent vestibulum eleifend bibendum et. Dictumst vulputate interdum iaculis \
+at conubia venenatis.";
 
-impl ElphTui {
-    fn new(resume_id: Option<String>) -> Box<Self> {
-        let mut input_id = WidgetId::EMPTY;
-        let mut output_id = WidgetId::EMPTY;
-
-        let header = Pane::new()
-            .x_align(FlexAlign::Center)
-            .padding(Spacing::balanced(1))
-            .child(
-                Text::new()
-                    .content("Elph · coding agent companion")
-                    .style(Style::new().bold()),
-            );
-
-        let output = Pane::new()
-            .border(Border::SINGLE)
-            .flex(1)
-            .child(Text::new().content("Ready.").id(&mut output_id));
-
-        let input = Pane::new().border(Border::SINGLE).child(
-            Input::new()
-                .placeholder(Text::new().content("type a message…".dim()))
-                .id(&mut input_id),
-        );
-
-        let root =
-            Pane::new()
-                .vertical()
-                .padding(Spacing::balanced(1))
-                .children([header as Box<dyn Widget>, output, input]);
-
-        Box::new(Self {
-            root,
-            input_id,
-            output_id,
-            resume_id,
-        })
+fn session_header(resume_id: Option<&str>) -> String {
+    match resume_id {
+        Some(id) => format!("Session: {id} | turn: 0"),
+        None => "Session: 019f631516e6g29o | turn: 0".to_string(),
     }
 }
 
-impl DelegateWidget for ElphTui {
-    tuie::delegate_widget!(root);
+#[derive(Default, Props)]
+struct MainShellProps {
+    resume_id: Option<String>,
+}
 
-    fn after_on_event(&mut self, event: &mut WidgetEvent) {
-        if event.of::<Input>()
-            && event.source == self.input_id
-            && let Some(input) = self.root.get_widget(self.input_id)
-        {
-            let text = input.get_string().to_string();
-            if !text.trim().is_empty() {
-                if let Some(output) = self.root.get_widget_mut(self.output_id) {
-                    let current = output.get_content();
-                    let ready: StyledString = "Ready.".into();
-                    let new_content = if current == ready {
-                        StyledString::from(format!("❯ {text}"))
-                    } else {
-                        StyledString::from(format!("{current}\n❯ {text}"))
-                    };
-                    output.set_content(new_content);
-                }
-                if let Some(input) = self.root.get_widget_mut(self.input_id) {
-                    input.set_content("");
+#[component]
+fn MainShell(props: &MainShellProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let (screen_width, screen_height) = hooks.use_terminal_size();
+    let mut system = hooks.use_context_mut::<SystemContext>();
+    let mut time = hooks.use_state(|| Local::now());
+    let mut should_exit = hooks.use_state(|| false);
+    let session_label = session_header(props.resume_id.as_deref());
+
+    hooks.use_future(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            time.set(Local::now());
+        }
+    });
+
+    hooks.use_terminal_events({
+        move |event| match event {
+            TerminalEvent::Key(KeyEvent { code, kind, .. }) if kind != KeyEventKind::Release => match code {
+                KeyCode::Char('q') => should_exit.set(true),
+                _ => {}
+            },
+            _ => {}
+        }
+    });
+
+    if should_exit.get() {
+        system.exit();
+    }
+
+    element! {
+        View(
+            width: screen_width,
+            height: screen_height,
+            background_color: Color::Reset,
+            border_style: BorderStyle::None,
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::FlexEnd,
+            align_items: AlignItems::Center,
+            margin: 0,
+            padding: 0,
+        ) {
+            View(
+                width: screen_width,
+                background_color: Color::Reset,
+                border_style: BorderStyle::Single,
+                border_edges: Edges::Top,
+                border_color: Color::Rgb { r: (88), g: (88), b: (88) },
+                position: Position::Relative,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding_left: 1,
+                padding_right: 1,
+                margin_bottom: 0,
+            ) {
+                Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: session_label)
+                Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "$0.00 | 0k | 0.0% (262k)")
+            }
+
+            View(
+                width: screen_width,
+                height: screen_height,
+                border_style: BorderStyle::Single,
+                border_edges: Edges::Top,
+                border_color: Color::Rgb { r: (88), g: (88), b: (88) },
+                margin_bottom: 1,
+            ) {
+                ScrollView(
+                    scroll_step: 2,
+                    scrollbar: true,
+                    scrollbar_thumb_color: Color::Rgb { r: (88), g: (88), b: (88) },
+                    scrollbar_track_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                    keyboard_scroll: true,
+                    auto_scroll: false,
+                ) {
+                    View(
+                        width: screen_width,
+                        height: screen_height - 3,
+                        background_color: Color::Reset,
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::End,
+                        align_items: AlignItems::Baseline,
+                        padding_top: 0,
+                        padding_bottom: 0,
+                        padding_left: 1,
+                        padding_right: 1,
+                        gap: 1,
+                    ) {
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::DarkGrey, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::White, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::DarkGreen, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::DarkRed, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Reset,
+                            margin_bottom: 0,
+                            padding: 0,
+                        ) {
+                            Text(color: Color::DarkGrey, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Reset,
+                            margin_bottom: 0,
+                            padding: 0,
+                        ) {
+                            Text(color: Color::White, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (0), g: (95), b: (175) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::White, content: "read_file : /U/a/b/c/d/project-dir/examples/chat_layout.rs")
+                        }
+                    }
                 }
             }
+
+            View(
+                width: screen_width,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                padding_left: 1,
+                padding_right: 1,
+            ) {
+                View(
+                    width: screen_width / 2,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Start,
+                    padding: 0,
+                ) {
+                    Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: format!("Current Time: {}", time.get().format("%r")))
+                }
+                View(
+                    width: screen_width / 2,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::End,
+                    padding: 0,
+                ) {
+                    Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "Press \"q\" to quit.")
+                }
+             }
+
+             View(
+                width: screen_width,
+                border_style: BorderStyle::None,
+                align_items: AlignItems::Baseline,
+                flex_direction: FlexDirection::Column,
+                margin_bottom: 0,
+                padding_top: 0,
+                padding_bottom: 0,
+                padding_left: 0,
+                padding_right: 0,
+             ) {
+                View(
+                    width: screen_width,
+                    min_height: 3,
+                    border_style: BorderStyle::Round,
+                    border_color: Color::Rgb { r: (108), g: (108), b: (108) },
+                    align_items: AlignItems::Baseline,
+                    margin_bottom: 0,
+                    padding_top: 0,
+                    padding_bottom: 0,
+                    padding_left: 1,
+                    padding_right: 1,
+                ) {
+                    TextInput(
+                        has_focus: true,
+                        multiline: true,
+                        color: Color::Grey,
+                        cursor_color: Color::DarkGrey,
+                        value: "Ask anything... \"Fix broken tests\"",
+                    )
+                }
+                View(
+                    width: screen_width,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    padding_left: 1,
+                    padding_right: 1,
+                ) {
+                    View(
+                        width: screen_width / 2,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Start,
+                        padding: 0,
+                    ) {
+                        Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "~ my-project [branch-name]")
+                    }
+                    View(
+                        width: screen_width / 2,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::End,
+                        padding: 0,
+                    ) {
+                        Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: "IMG | anthropic/opus-4.8 | xhigh")
+                    }
+                }
+             }
         }
     }
 }
 
 /// Launch the Elph TUI.
-pub fn run_tui(resume_id: Option<String>) -> std::io::Result<()> {
-    let app = ElphTui::new(resume_id);
-    let _code = tuie::start_tui(app)?;
+pub async fn run_tui(resume_id: Option<String>) -> Result<()> {
+    element!(MainShell(resume_id: resume_id))
+        .render_loop()
+        .fullscreen()
+        .enable_mouse_capture()
+        .ignore_ctrl_c()
+        .await?;
     Ok(())
 }

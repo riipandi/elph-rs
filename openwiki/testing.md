@@ -94,9 +94,9 @@ Core utility tests — path resolution, logger, floppy memory store, tracing.
 
 > Tracing tests require the `tracing` feature: `cargo test -p elph-core --features tracing`
 
-### `elph-tui` (no tests — crate disabled)
+### `elph-tui` (no dedicated tests — crate has examples)
 
-The elph-tui crate is temporarily disabled. Former test files `tuie_shell.rs` and `agent_demo.rs` were removed along with the crate content.
+The elph-tui crate is now active with 16 component stubs and 13 examples, but has no dedicated integration test suite. Tests are run via `cargo test -p elph-tui` when implementing components.
 
 ### `elph` (2 test files)
 

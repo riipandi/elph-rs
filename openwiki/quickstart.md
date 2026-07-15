@@ -1,6 +1,6 @@
 # Elph — OpenWiki Quickstart
 
-**Elph** is a Rust workspace for AI agent applications: a coding agent CLI, shared agent runtime libraries, and terminal UI components. It is a port of the [pi](https://pi.dev) TypeScript ecosystem to Rust, with additional MCP (Model Context Protocol) support, WASM extensions, and a tuie-based interactive TUI.
+**Elph** is a Rust workspace for AI agent applications: a coding agent CLI, shared agent runtime libraries, and terminal UI components. It is a port of the [pi](https://pi.dev) TypeScript ecosystem to Rust, with additional MCP (Model Context Protocol) support, WASM extensions, and an iocraft-based interactive TUI.
 
 ## Repository overview
 
@@ -10,7 +10,7 @@
 | **Runtime** | `crates/elph-agent` | App-agnostic agent runtime: turn loop, session persistence, compaction, goals, subagents, skills, MCP client, WASM plugins |
 | **AI**      | `crates/elph-ai`    | Unified LLM provider layer: model catalog, provider abstraction, OAuth, image generation, web tools                        |
 | **Core**    | `crates/elph-core`  | Shared primitives: `floppy` memory store (Turso vector DB), logger, path resolution, filesystem helpers                    |
-| **TUI**     | `crates/elph-tui`   | Temporarily disabled — TUI lives in `elph` binary (`tui.rs`)                                                               |
+| **TUI**     | `crates/elph-tui`   | iocraft component stubs + examples; primary TUI in `elph` binary (`tui.rs`)                                                |
 | **Swarm**   | `crates/elph-swarm` | Multi-agent coordination (early stage)                                                                                     |
 
 ## Key concepts
@@ -27,21 +27,22 @@
 - **TOON Encoding** — Optional structured-data encoding for tool results (reduces token usage on tabular payloads).
 - **Extensions** — WASM-based dynamic plugins compiled with `wasmtime`.
 
-## Project state (HEAD `d8eaf06`)
+## Project state (HEAD `6110a13`)
 
 This repository is under **active development**. Recent milestones:
 
+- **TUI framework migration** — Migrated from `tuie` to `iocraft` for the interactive TUI in the `elph` binary; rewrote `tui.rs` with `iocraft` components (`6110a13`).
+- **elph-tui re-enabled** — Crate now has 16 component stubs (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `markdown`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`) and 13 examples including weather, calculator, chat layout, and progress bar (`98ecfd2`).
+- **`tools` CLI subcommand** — New `elph tools` command lists available agent tools with optional group and verbose flags (`d1d8843`).
+- **New tools** — Added `list_available_tools` (meta-tool for agent tool discovery) and `ask_user` (interactive user prompt). Renamed `multi_agent.rs` → `collaboration.rs` for collaboration tooling (`b7fd91f`).
 - **Tool reorganization** — Renamed tools for clarity (`read`→`read_file`, `edit`→`edit_file`, `write`→`write_file`, `ls`→`list_dir`, `find`→`find_path`, `websearch`→`web_search`, `webfetch`→`web_fetch`), added new filesystem tools (`create_dir`, `copy_path`, `delete_path`, `move_path`), and added `diagnostics` tool for `cargo check` integration (`d8eaf06`).
 - **Module reorganization** — Flattened harness structure: `harness/` → `agent/harness/`, `subagent/` → `agent/subagent/`, `mode/` → `collaboration/`, `mcp/` → `tools/mcp/`, `env/` → `runtime/local_env/`, `agent_loop/` → `runtime/`, prompt encoding → `prompt/encoding/` (`c3bb9fd`).
-- **TUI reset** — Moved TUI into `elph` binary; `elph-tui` crate temporarily disabled (`874eb24`).
 - **Refactored** from a monolithic layout to layered crates (`elph-agent`, `elph-ai`, `elph-core`, `elph-tui`, `elph-swarm`).
 - **MCP** — Full client integration: stdio, streamable HTTP, SSE, OAuth, encrypted credentials, tool policy, session pools, hot reload.
 - **Observability** — Replaced `tracing` crate with `logforth` (structured logging) + `fastrace` (distributed tracing), including `JsonlReporter` and W3C `traceparent` propagation (`3ef42b8`).
 - **BuiltinToolsBuilder** — Feature-gated built-in tools with granular Cargo feature flags and a builder API for compile-time tool selection (`7b34c5b`).
 - **Workspace consolidation** — Removed `owly` and `eclaw` crates; unified CI (openwiki-update.yml) (`04c7352`).
-- **TUI** — Migrated from `superlighttui` to `tuie` framework (commit `b06c134`).
 - **Prompt encoding** — Optional TOON encoding for tool results (`0a0753c`).
-- **Diagnostics tool** — New `diagnostics` tool runs `cargo check` to surface compile-time errors (`d8eaf06`).
 - **Auto session naming** — Model-generated thread titles (`2e0297f`).
 - **Conditional tracing** — Tracing gated behind `ELPH_TRACE` env var (`04309cd`).
 - **Embeddings** — Replaced `fastembed` with `embed_anything` for local embedding models (`eb217f2`).
@@ -55,7 +56,7 @@ This repository is under **active development**. Recent milestones:
 | [agent-runtime.md](agent-runtime.md)                 | Agent harness, sessions, turn loop, compaction, goals, subagents, skills |
 | [ai-providers.md](ai-providers.md)                   | Model catalog, provider APIs, auth/OAuth, image generation               |
 | [mcp-integration.md](mcp-integration.md)             | MCP client, transports, OAuth, encryption, validation, policy            |
-| [tui-shell.md](tui-shell.md)                         | tuie widgets, elph shell app, slash commands, prompt encoding            |
+| [tui-shell.md](tui-shell.md)                         | iocraft TUI, elph-tui components, slash commands, prompt encoding        |
 | [operations.md](operations.md)                       | CLI commands, settings, paths, CI/CD, publishing                         |
 | [testing.md](testing.md)                             | Test structure, key patterns, running tests                              |
 
@@ -68,7 +69,7 @@ For new contributors or future agents:
 3. **elph/src/cli/mod.rs** — CLI subcommand definitions
 4. **crates/elph-agent/src/lib.rs** — agent runtime public API surface
 5. **crates/elph-ai/src/lib.rs** — AI provider layer public API
-6. **crates/elph-tui/src/lib.rs** — TUI widget public API
+6. **crates/elph-tui/src/lib.rs** — TUI component stubs (16 component modules); examples in `crates/elph-tui/examples/`
 7. **crates/elph-core/src/lib.rs** — core library surface
 
 ## Quick build & test

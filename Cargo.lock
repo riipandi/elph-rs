@@ -1114,16 +1114,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axis2d"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf6c17bb125d62090a520cbb06dfe8c371252c8fb22c4588f515d0da4e51c15e"
-dependencies = [
- "num",
- "sign",
-]
-
-[[package]]
 name = "axum"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2294,7 +2284,7 @@ dependencies = [
  "mio",
  "parking_lot",
  "rustix 1.1.4",
- "signal-hook 0.3.18",
+ "signal-hook",
  "signal-hook-mio",
  "winapi",
 ]
@@ -2933,6 +2923,7 @@ dependencies = [
  "agent-client-protocol",
  "anyhow",
  "chord_macro",
+ "chrono",
  "clap",
  "clap_complete",
  "crossterm",
@@ -2940,6 +2931,7 @@ dependencies = [
  "elph-ai",
  "elph-core",
  "futures-util",
+ "iocraft",
  "libc",
  "log",
  "parking_lot",
@@ -2948,7 +2940,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tsid",
- "tuie",
 ]
 
 [[package]]
@@ -6172,12 +6163,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nonmax"
-version = "0.5.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "610a5acd306ec67f907abe5567859a3c693fb9886eb1f012ab8f2a47bef3db51"
-
-[[package]]
 name = "noop_proc_macro"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8466,26 +8451,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "sign"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c0463041449de02f00a4be609a7bf85b7b4d7cb67a8e905aeaac876312b9ab"
-
-[[package]]
 name = "signal-hook"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2"
-dependencies = [
- "libc",
- "signal-hook-registry",
-]
-
-[[package]]
-name = "signal-hook"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d"
 dependencies = [
  "libc",
  "signal-hook-registry",
@@ -8499,7 +8468,7 @@ checksum = "b75a19a7a740b25bc7944bdee6172368f988763b744e3d4dfe753f6b4ece40cc"
 dependencies = [
  "libc",
  "mio",
- "signal-hook 0.3.18",
+ "signal-hook",
 ]
 
 [[package]]
@@ -9630,24 +9599,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tuie"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86e05e0239e0f798206bd13ce50aae8d3ae1f83f6fb66a90e5d72c72f8fb3c28"
-dependencies = [
- "axis2d",
- "base64-simd",
- "chord_macro",
- "libc",
- "nonmax",
- "paste",
- "sign",
- "signal-hook 0.4.4",
- "unicode-display-width",
- "unicode-segmentation",
-]
-
-[[package]]
 name = "tungstenite"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9912,15 +9863,6 @@ name = "unicode-bidi"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
-
-[[package]]
-name = "unicode-display-width"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a43273b656140aa2bb8e65351fe87c255f0eca706b2538a9bd4a590a3490bf3"
-dependencies = [
- "unicode-segmentation",
-]
 
 [[package]]
 name = "unicode-general-category"

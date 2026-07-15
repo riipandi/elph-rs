@@ -3,7 +3,7 @@ name = "elph-tui"
 version = "0.0.26"
 license = "MIT"
 description = "Terminal UI components for Elph agent"
-keywords = ["tui", "terminal", "prompt", "tuie", "elph"]
+keywords = ["tui", "terminal", "prompt", "iocraft", "elph"]
 categories = ["command-line-utilities", "gui"]
 homepage.workspace = true
 repository.workspace = true
@@ -16,7 +16,7 @@ name = "elph_tui"
 path = "src/lib.rs"
 
 # ans: all dependencies removed during TUI reset — crate is a placeholder until TUI API stabilises.
-# tuie, crossterm, pulldown-cmark, similar, etc. will be re-added when
+# iocraft, crossterm, pulldown-cmark, similar, etc. will be re-added when
 # the widget library is extracted back from the elph binary crate.
 
 [dependencies]
@@ -27,6 +27,7 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
+unicode-width.workspace = true
 # base64.workspace = true
 # chord_macro = "0.1"
 # futures.workspace = true
@@ -37,9 +38,7 @@ tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sign
 # pulldown-cmark.workspace = true
 # rayon.workspace = true
 # similar.workspace = true
-# tuie = { workspace = true, features = ["harmonious"] }
 # unicode-segmentation.workspace = true
-unicode-width.workspace = true
 
 [dev-dependencies]
 mexprp = { version = "0.3.1", default-features = false }

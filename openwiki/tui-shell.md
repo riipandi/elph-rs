@@ -1,20 +1,40 @@
 # TUI & Shell
 
-The TUI system currently lives directly in the `elph` binary crate while the tuie-based shell is being rebuilt iteratively.
+The TUI system currently lives directly in the `elph` binary crate while the iocraft-based shell is being rebuilt iteratively.
 
-The `elph-tui` library crate is **temporarily disabled** (the crate contains only a notice). All former TUI widgets and shell infrastructure were either moved into the `elph` binary or removed. Once the public API stabilises, the reusable widget library will be extracted back into `elph-tui` and published to crates.io.
+The `elph-tui` library crate provides iocraft component stubs (16 modules) and 13 examples, but no stable public API yet. Once the public API stabilises, the reusable widget library will be extracted back into `elph-tui` and published to crates.io.
 
-**TUI source**: `/elph/src/tui.rs` — Minimal tuie-based demo app.
+**TUI source**: `/elph/src/tui.rs` — iocraft-based demo app (`MainShell` component).
 **Shell source**: `/elph/src/shell/mod.rs` — Only `TuiOptions` (launch configuration).
 
-## elph-tui (Widget Library — Temporarily Disabled)
+## elph-tui (Widget Library — Component Stubs)
 
 **Path**: `/crates/elph-tui/`
 
-The crate is currently empty except for `lib.rs` which contains a notice that the TUI lives directly in the `elph` binary while iterating on the tuie-based shell. All former modules (`agent/`, `chrome/`, `diff/`, `keymap/`, `prompt/`, `runtime/`, `shell/`, `terminal/`, `theme/`, `transcript/`, `widgets/`, `utils/`) were removed.
+The crate provides `lib.rs` with 16 component stubs under `components/` (each module is a 1-byte placeholder awaiting implementation):
 
-**TUI source**: `/elph/src/tui.rs` — Minimal tuie-based demo app (`ElphTui` struct).
-**Shell source**: `/elph/src/shell/mod.rs` — Only `TuiOptions` (resume session ID).
+- `ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `line_numbers`
+- `markdown`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`
+
+### Examples (13 total in `crates/elph-tui/examples/`)
+
+| Example           | Description                                             |
+| ----------------- | ------------------------------------------------------- |
+| `weather`         | Async data loading from remote APIs with iocraft        |
+| `calculator`      | Calculator app with iocraft UI                          |
+| `chat_layout`     | Chat-like layout with scrollable content and input area |
+| `progress_bar`    | Animated progress bar demo                              |
+| `basic_context`   | Context API usage example                               |
+| `basic_counter`   | Simple counter with state management                    |
+| `basic_form`      | Form with input validation                              |
+| `basic_input`     | Text input handling demo                                |
+| `basic_layout`    | Layout composition demo                                 |
+| `basic_output`    | Text output display                                     |
+| `basic_overlap`   | Overlapping elements demo                               |
+| `basic_scrolling` | Scrollable content                                      |
+| `basic_table`     | Table layout demo                                       |
+
+Run examples with: `cargo run -p elph-tui --example <name>`
 
 ## Slash Commands
 
@@ -78,6 +98,8 @@ The encoding typically achieves 30–70% token savings on tabular data. The heur
 | Shell options     | `/elph/src/shell/`                        |
 | Agent interaction | `/elph/src/agent/`                        |
 | Diagnostics tool  | `/elph/src/agent/diagnostics.rs`          |
+| ui-components     | `/crates/elph-tui/src/components/`        |
+| TUI examples      | `/crates/elph-tui/examples/`              |
 | Prompt encoding   | `/crates/elph-agent/src/prompt/encoding/` |
 | Slash commands    | `/elph/src/agent/slash_commands.rs`       |
 | Agent runtime     | `/elph/src/agent/runtime.rs`              |
@@ -85,6 +107,8 @@ The encoding typically achieves 30–70% token savings on tabular data. The heur
 ## Change guidance
 
 - **New slash command**: Implement in `/elph/src/agent/slash_commands.rs`
-- **TUI development**: Modify `/elph/src/tui.rs`
+- **TUI development**: Modify `/elph/src/tui.rs` (iocraft-based)
+- **New TUI example**: Add to `/crates/elph-tui/examples/` and register in the crate's `Cargo.toml`
+- **New component stub**: Add module to `/crates/elph-tui/src/components/` and register in `mod.rs`
 - **Prompt encoding**: Test in `/crates/elph-agent/tests/prompt_encoding.rs`
-- **TUI tests**: No separate tests (elph-tui tests removed; TUI is being rebuilt)
+- **TUI tests**: No separate test suite yet

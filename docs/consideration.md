@@ -10,7 +10,7 @@ Design log for evaluating third-party libraries. Verdicts guide adoption — imp
 | --------------- | ----------------------------------------------------------- |
 | LLM / providers | `genai`, `schemars`                                         |
 | Agent runtime   | `fff-search` (done), `rmcp`, `jsonschema`                   |
-| TUI             | `tuie`, `syntect`, `anstyle-syntect`, `pulldown-cmark`      |
+| TUI             | `iocraft`, `syntect`, `anstyle-syntect`, `pulldown-cmark`   |
 | Config          | `figment`, `jsonc-parser`                                   |
 | Shared          | `log` + `logforth`, `fastrace`, `tokio`, `chrono`, `memchr` |
 
@@ -41,11 +41,11 @@ Design log for evaluating third-party libraries. Verdicts guide adoption — imp
 
 ## TUI, markdown & prompts
 
-Two layers: tuie agent shell + rich diff/overlay components.
+Two layers: iocraft agent shell + rich diff/overlay components.
 
 | Verdict   | Item                                                                                                      | Rationale                                    |
 | --------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **Keep**  | [tuie](https://crates.io/crates/tuie)                                                                     | Agent shell for elph                         |
+| **Keep**  | [iocraft](https://crates.io/crates/iocraft)                                                               | Agent shell for elph                         |
 | **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark)                                        | Markdown line rendering                      |
 | **Adopt** | [syntect](https://crates.io/crates/syntect) + [anstyle-syntect](https://crates.io/crates/anstyle-syntect) | Code-block highlighting                      |
 | **Defer** | anstyle-git, termimad                                                                                     | Git diff colors; full markdown TUI redundant |

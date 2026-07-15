@@ -11,7 +11,8 @@ Elph is a Rust workspace of layered crates designed for building AI agent applic
 │  Platform (paths, settings, databases, extensions)   │
 ├─────────────────────────────────────────────────────┤
 │                  elph-tui (crate)                    │
-│  (temporarily disabled — TUI in elph binary)        │
+│  iocraft component stubs · 13 examples              │
+│  (primary TUI in elph binary)                       │
 ├─────────────────────────────────────────────────────┤
 │                 elph-agent (crate)                   │
 │  AgentHarness · Session · Compaction · Goals ·      │
@@ -48,7 +49,7 @@ Key modules:
 
 - `src/cli/` — Subcommands: `run`, `acp`, `codegraph`, `completions`, `doctor`, `export`, `import`, `mcp`, `memory`, `models`, `provider`, `server`, `session`, `stats`, `update`, `worktree` (`/elph/src/cli/mod.rs`)
 - `src/shell/` — TUI launch options (`TuiOptions`) — minimal; actual rendering lives in `crate::tui` (`/elph/src/shell/mod.rs`)
-- `src/tui.rs` — Minimal tuie-based TUI implementation, being rebuilt iteratively (`/elph/src/tui.rs`)
+- `src/tui.rs` — Minimal iocraft-based TUI implementation, being rebuilt iteratively (`/elph/src/tui.rs`)
 - `src/agent/` — Pi coding-agent equivalent: session orchestration, runtime wiring, diagnostics tool, ask_user tool, slash commands, tool policy, run mode (`/elph/src/agent/mod.rs`)
 - `src/platform/` — Host environment: paths, settings, bootstrap, datastore, MCP config, migrations, hooks, interrupt handling (`/elph/src/platform/mod.rs`)
 - `src/extensions/` — WASM extension host (`/elph/src/extensions/mod.rs`)
@@ -109,13 +110,13 @@ Key modules:
 - `utils/` — Path resolution (`AppPaths`), project key, filesystem utilities (`/crates/elph-core/src/utils/`)
 - `fs.rs` — `ensure_dirs`, `write_file_if_missing`, `write_json_file`, `write_private_file` (`/crates/elph-core/src/fs.rs`)
 
-### `elph-tui` (library crate — temporarily disabled)
+### `elph-tui` (library crate — iocraft component stubs)
 
 Path: `/crates/elph-tui/`
 
-> **Note**: The elph-tui crate is currently disabled. The TUI implementation lives directly in the `elph` binary crate (`elph/src/tui.rs`) while iterating on the tuie-based shell. Once the public API stabilises, the reusable widget library will be extracted back into this crate and published to crates.io.
+> **Note**: The elph-tui crate provides iocraft-based component stubs (16 component modules) and 13 examples but no stable public API yet. The primary TUI implementation lives in the `elph` binary crate (`elph/src/tui.rs`). Once the widget library stabilises, reusable widgets will be extracted back into this crate and published to crates.io.
 
-Key modules (current — `/crates/elph-tui/src/`): `lib.rs` only (empty crate with a notice). All former modules (`agent/`, `chrome/`, `diff/`, `keymap/`, `prompt/`, `runtime/`, `shell/`, `terminal/`, `theme/`, `transcript/`, `widgets/`, `utils/`) were moved directly into the `elph` binary or removed.
+Key modules (current — `/crates/elph-tui/src/`): `lib.rs` with 16 component stubs under `components/` (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `line_numbers`, `markdown`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`). Examples in `examples/` (weather, calculator, chat_layout, progress_bar, basic_counter, basic_form, basic_input, basic_layout, basic_output, basic_overlap, basic_scrolling, basic_table, basic_context).
 
 ### `elph-swarm` (library crate)
 
@@ -128,7 +129,7 @@ Multi-agent coordination. Early stage — minimal public API.
 | Decision                  | Commit              | Rationale                                                                       |
 | ------------------------- | ------------------- | ------------------------------------------------------------------------------- |
 | Layered crate layout      | `95ff396`           | Restructure from monolithic to `elph-agent`, `elph-ai`, `elph-core`, `elph-tui` |
-| Migrate TUI to `tuie`     | `b06c134`           | Replace `superlighttui` with richer widget framework                            |
+| Migrate TUI to `iocraft`  | `b06c134`           | Replace `superlighttui` with richer widget framework                            |
 | MCP client integration    | `810f72a`–`c15ac90` | Add streamable HTTP, session pool, OAuth, encrypted creds, validation           |
 | TOON prompt encoding      | `0a0753c`           | Optional structured-data encoding for tool results to reduce tokens             |
 | Auto session naming       | `2e0297f`           | Model-generated thread titles for session resumption UX                         |
@@ -157,7 +158,7 @@ When modifying any major area:
 - **Agent runtime**: Tests in `/crates/elph-agent/tests/{agent_loop, harness, e2e, session, goals, subagent}.rs`
 - **AI providers**: Tests in `/crates/elph-ai/tests/` — check provider-specific payloads
 - **MCP**: Tests in `/crates/elph-agent/tests/{mcp_deepwiki, encrypt_string}.rs`
-- **TUI**: No separate tests (elph-tui crate disabled; TUI in `elph/src/tui.rs`, tests in `elph/tests/`)
+- **TUI**: iocraft rendering in `elph/src/tui.rs`; elph-tui examples in `crates/elph-tui/examples/`; no separate test suite
 - **Skills**: Tests in `/crates/elph-agent/tests/skills.rs`
 - **Prompt encoding**: Tests in `/crates/elph-agent/tests/prompt_encoding.rs`
 - **CLI**: Tests in `/elph/tests/{cli, bootstrap}.rs`
