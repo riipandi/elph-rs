@@ -80,76 +80,89 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
             View(
                 width: screen_width,
                 height: screen_height,
-                background_color: Color::Reset,
                 border_style: BorderStyle::Single,
                 border_edges: Edges::Top,
                 border_color: Color::Rgb { r: (88), g: (88), b: (88) },
-                flex_direction: FlexDirection::Column,
-                justify_content: JustifyContent::FlexEnd,
-                align_items: AlignItems::Baseline,
-                overflow: Overflow::Scroll,
-                padding_top: 1,
-                padding_bottom: 1,
-                padding_left: 1,
-                padding_right: 1,
-                gap: 1,
+                margin_bottom: 1,
             ) {
-                // Content stream (chat transcription)
-                // View(
-                //     width: screen_width - 2,
-                //     background_color: Color::Rgb { r: (48), g: (48), b: (48) },
-                //     margin_bottom: 0,
-                //     padding: 1,
-                // ) {
-                //     Text(color: Color::DarkGrey, content: LOREM_IPSUM)
-                // }
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Rgb { r: (48), g: (48), b: (48) },
-                    margin_bottom: 0,
-                    padding: 1,
+                ScrollView(
+                    scroll_step: 2,
+                    scrollbar: true,
+                    scrollbar_thumb_color: Color::Rgb { r: (88), g: (88), b: (88) },
+                    scrollbar_track_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                    keyboard_scroll: true,
+                    auto_scroll: false,
                 ) {
-                    Text(color: Color::White, content: LOREM_IPSUM)
-                }
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Rgb { r: (48), g: (48), b: (48) },
-                    margin_bottom: 0,
-                    padding: 1,
-                ) {
-                    Text(color: Color::DarkGreen, content: LOREM_IPSUM)
-                }
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Rgb { r: (48), g: (48), b: (48) },
-                    margin_bottom: 0,
-                    padding: 1,
-                ) {
-                    Text(color: Color::DarkRed, content: LOREM_IPSUM)
-                }
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Reset,
-                    margin_bottom: 0,
-                    padding: 0,
-                ) {
-                    Text(color: Color::DarkGrey, content: LOREM_IPSUM)
-                }
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Reset,
-                    margin_bottom: 0,
-                    padding: 0,
-                ) {
-                    Text(color: Color::White, content: LOREM_IPSUM)
-                }
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Rgb { r: (0), g: (95), b: (175) },
-                    margin_bottom: 0,
-                    padding: 1,
-                ) {
-                    Text(color: Color::White, content: "read_file : /U/a/b/c/d/project-dir/examples/chat_layout.rs")
+                    View(
+                        width: screen_width,
+                        height: screen_height - 3,
+                        background_color: Color::Reset,
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::End,
+                        align_items: AlignItems::Baseline,
+                        padding_top: 1,
+                        padding_bottom: 1,
+                        padding_left: 1,
+                        padding_right: 1,
+                        gap: 1,
+                    ) {
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::DarkGrey, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::White, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::DarkGreen, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::DarkRed, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Reset,
+                            margin_bottom: 0,
+                            padding: 0,
+                        ) {
+                            Text(color: Color::DarkGrey, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Reset,
+                            margin_bottom: 0,
+                            padding: 0,
+                        ) {
+                            Text(color: Color::White, content: LOREM_IPSUM)
+                        }
+                        View(
+                            width: screen_width - 3,
+                            background_color: Color::Rgb { r: (0), g: (95), b: (175) },
+                            margin_bottom: 0,
+                            padding: 1,
+                        ) {
+                            Text(color: Color::White, content: "read_file : /U/a/b/c/d/project-dir/examples/chat_layout.rs")
+                        }
+                    }
                 }
             }
 
@@ -258,7 +271,7 @@ async fn main() -> Result<()> {
     element!(MainShell)
         .render_loop()
         .fullscreen()
-        .disable_mouse_capture()
+        .enable_mouse_capture()
         .ignore_ctrl_c()
         .await?;
     Ok(())
