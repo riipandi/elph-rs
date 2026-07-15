@@ -24,7 +24,9 @@ pub use input::{Input, InputProps};
 pub use line_numbers::{LineNumbers, LineNumbersProps};
 pub use markdown::{MarkdownView, MarkdownViewProps};
 pub use qr_code::{QrCodeView, QrCodeViewProps};
-pub use scroll_bar::{ScrollIndicator, ScrollIndicatorProps, ScrollbarStyle};
+pub use scroll_bar::{
+    ScrollIndicator, ScrollIndicatorProps, ScrollbarStyle, VerticalScrollbar, VerticalScrollbarProps,
+};
 pub use scroll_box::{ScrollBox, ScrollBoxProps};
 pub use select::{SelectList, SelectListProps};
 pub use slider::{Slider, SliderProps};

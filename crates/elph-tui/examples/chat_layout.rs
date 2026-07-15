@@ -347,9 +347,14 @@ fn StatusRow(props: &StatusRowProps) -> impl Into<AnyElement<'static>> {
     }
 }
 
+fn editor_max_height(screen_height: u16) -> u16 {
+    (screen_height / 4).clamp(4, 12)
+}
+
 #[derive(Clone, Copy, Default, Props)]
 struct EditorProps {
     screen_width: u16,
+    screen_height: u16,
     agent_mode: AgentMode,
     draft: Option<State<String>>,
     suppress_enter_newline: Option<Ref<bool>>,
@@ -366,16 +371,18 @@ fn Editor(props: &EditorProps) -> impl Into<AnyElement<'static>> {
             border_style: BorderStyle::Round,
             border_color: Color::Rgb { r: (108), g: (108), b: (108) },
             position: Position::Relative,
-            align_items: AlignItems::Baseline,
+            align_items: AlignItems::FlexStart,
             margin_bottom: 0,
             padding_top: 0,
             padding_bottom: 0,
             padding_left: 1,
             padding_right: 1,
+            overflow: Overflow::Hidden,
         ) {
             Textarea(
                 width: props.screen_width.saturating_sub(2),
                 min_height: 1u16,
+                max_height: Some(editor_max_height(props.screen_height)),
                 show_border: Some(false),
                 has_focus: true,
                 value: props.draft,
@@ -477,6 +484,7 @@ fn Footer(props: &FooterProps) -> impl Into<AnyElement<'static>> {
 #[derive(Clone, Default, Props)]
 struct PromptChromeProps {
     screen_width: u16,
+    screen_height: u16,
     agent_mode: AgentMode,
     thinking_level: ThinkingLevel,
     project_label: String,
@@ -492,7 +500,7 @@ fn PromptChrome(props: &PromptChromeProps) -> impl Into<AnyElement<'static>> {
             width: props.screen_width,
             flex_shrink: 0f32,
             border_style: BorderStyle::None,
-            align_items: AlignItems::Baseline,
+            align_items: AlignItems::FlexStart,
             flex_direction: FlexDirection::Column,
             margin_bottom: 0,
             padding_top: 0,
@@ -502,6 +510,7 @@ fn PromptChrome(props: &PromptChromeProps) -> impl Into<AnyElement<'static>> {
         ) {
             Editor(
                 screen_width: props.screen_width,
+                screen_height: props.screen_height,
                 agent_mode: props.agent_mode,
                 draft: props.draft,
                 suppress_enter_newline: props.suppress_enter_newline,
@@ -613,6 +622,7 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
             )
             PromptChrome(
                 screen_width: screen_width,
+                screen_height: screen_height,
                 agent_mode: agent_mode.get(),
                 thinking_level: thinking_level.get(),
                 project_label: "~ my-project [branch-name]".to_string(),

@@ -27,6 +27,55 @@ pub struct ScrollIndicatorProps {
     pub width: u16,
 }
 
+/// Props for [`VerticalScrollbar`].
+#[derive(Clone, Copy, Default, Props)]
+pub struct VerticalScrollbarProps {
+    pub viewport_height: u16,
+    pub content_height: u16,
+    pub scroll_offset: u16,
+    pub style: Option<ScrollbarStyle>,
+}
+
+/// One-column vertical scrollbar (iocraft [`ScrollView`] style).
+#[component]
+pub fn VerticalScrollbar(props: &VerticalScrollbarProps) -> impl Into<AnyElement<'static>> {
+    let style = props.style.unwrap_or_else(ScrollbarStyle::dark);
+    let thumb_color = style.thumb_color.unwrap_or(Color::White);
+    let track_color = style.track_color.unwrap_or(Color::DarkGrey);
+
+    let vh = props.viewport_height as usize;
+    let ch = props.content_height as usize;
+    let rows: Vec<_> = if vh == 0 || ch <= vh {
+        Vec::new()
+    } else {
+        let thumb_size = (vh * vh / ch).max(1);
+        let max_off = (ch - vh) as usize;
+        let thumb_pos = if max_off > 0 {
+            props.scroll_offset as usize * (vh.saturating_sub(thumb_size)) / max_off
+        } else {
+            0
+        };
+        (0..vh)
+            .map(|y| {
+                let on_thumb = y >= thumb_pos && y < thumb_pos + thumb_size;
+                element! {
+                    Text(
+                        content: if on_thumb { "\u{2503}" } else { "\u{2502}" },
+                        color: if on_thumb { thumb_color } else { track_color },
+                        wrap: TextWrap::NoWrap,
+                    )
+                }
+            })
+            .collect()
+    };
+
+    element! {
+        View(width: 1, height: props.viewport_height, flex_shrink: 0f32) {
+            #(rows)
+        }
+    }
+}
+
 /// Read-only scroll position indicator (e.g. `12/40`).
 #[component]
 pub fn ScrollIndicator(props: &ScrollIndicatorProps) -> impl Into<AnyElement<'static>> {
