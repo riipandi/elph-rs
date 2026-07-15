@@ -15,39 +15,24 @@ publish = false
 name = "elph_tui"
 path = "src/lib.rs"
 
-# ans: all dependencies removed during TUI reset — crate is a placeholder until TUI API stabilises.
-# iocraft, crossterm, pulldown-cmark, similar, etc. will be re-added when
-# the widget library is extracted back from the elph binary crate.
-
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
+figlet-rs.workspace = true
 iocraft.workspace = true
+memchr.workspace = true
+pulldown-cmark.workspace = true
+qrcode.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+similar.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
+unicode-segmentation.workspace = true
 unicode-width.workspace = true
-# base64.workspace = true
-# chord_macro = "0.1"
-# futures.workspace = true
-# crossterm.workspace = true
-# elph-core = { workspace = true, features = ["git"] }
-# memchr.workspace = true
-# parking_lot.workspace = true
-# pulldown-cmark.workspace = true
-# rayon.workspace = true
-# similar.workspace = true
-# unicode-segmentation.workspace = true
 
 [dev-dependencies]
 mexprp = { version = "0.3.1", default-features = false }
-# futures.workspace = true
-# similar-asserts.workspace = true
-# tokio = { workspace = true, features = ["macros"] }
-
-[target.'cfg(unix)'.dev-dependencies]
-# libc.workspace = true
 
 [[example]]
 name = "basic_context"
@@ -100,6 +85,38 @@ path = "examples/progress_bar.rs"
 [[example]]
 name = "weather"
 path = "examples/weather.rs"
+
+[[example]]
+name = "demo_text_card"
+path = "examples/demo_text_card.rs"
+
+[[example]]
+name = "demo_input"
+path = "examples/demo_input.rs"
+
+[[example]]
+name = "demo_scroll"
+path = "examples/demo_scroll.rs"
+
+[[example]]
+name = "demo_select"
+path = "examples/demo_select.rs"
+
+[[example]]
+name = "demo_code"
+path = "examples/demo_code.rs"
+
+[[example]]
+name = "demo_markdown"
+path = "examples/demo_markdown.rs"
+
+[[example]]
+name = "demo_diff"
+path = "examples/demo_diff.rs"
+
+[[example]]
+name = "demo_special"
+path = "examples/demo_special.rs"
 
 [lints.rust]
 linker_messages = "allow"

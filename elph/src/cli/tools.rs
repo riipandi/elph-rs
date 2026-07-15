@@ -179,8 +179,8 @@ pub fn handle(args: &ToolsArgs) -> ExitCode {
         println!("  Meta");
         println!("  ----");
         println!(
-            "    {:<24} {}",
-            "list_available_tools", "Lists all available tools with descriptions and parameters"
+            "    {:<24} Lists all available tools with descriptions and parameters",
+            "list_available_tools"
         );
         if args.verbose {
             println!("      (no parameters)");

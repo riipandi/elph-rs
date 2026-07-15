@@ -34,6 +34,7 @@ eventsource-stream = "0.2.3"
 fastrace = "0.7.18"
 fastrace-reqwest = "0.3.0"
 fff-search = "0.9.6"
+figlet-rs = "0.1.5"
 futures = "0.3.32"
 futures-util = "0.3.32"
 git2 = { version = "0.21.0", features = ["cred"] }
@@ -62,6 +63,7 @@ memorable-ids = "0.1.1"
 obscura = { version = "0.1" }
 parking_lot = "0.12"
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["simd"] }
+qrcode = "0.14.1"
 rand = "0.10.2"
 rayon = "1.12.0"
 regex = "1.12.4"

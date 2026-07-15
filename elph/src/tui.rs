@@ -403,7 +403,7 @@ fn PromptChrome(props: &PromptChromeProps) -> impl Into<AnyElement<'static>> {
 fn MainShell(props: &MainShellProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let (screen_width, screen_height) = hooks.use_terminal_size();
     let mut system = hooks.use_context_mut::<SystemContext>();
-    let mut time = hooks.use_state(|| Local::now());
+    let mut time = hooks.use_state(Local::now);
     let mut should_exit = hooks.use_state(|| false);
     let mut agent_mode = hooks.use_state(|| props.initial_agent_mode);
     let mut thinking_level = hooks.use_state(|| props.initial_thinking_level);
