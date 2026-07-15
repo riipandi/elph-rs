@@ -104,12 +104,55 @@ torquent vestibulum eleifend bibendum et. Dictumst vulputate interdum iaculis \
 at conubia venenatis.";
 
 #[derive(Clone)]
+struct ToolCardDetail {
+    name: String,
+    args: String,
+    output: String,
+}
+
+#[derive(Clone)]
 struct TranscriptMessage {
     content: String,
     style: TranscriptStyle,
+    tool: Option<ToolCardDetail>,
 }
 
-#[derive(Clone, Copy)]
+impl TranscriptMessage {
+    fn text(content: impl Into<String>, style: TranscriptStyle) -> Self {
+        Self {
+            content: content.into(),
+            style,
+            tool: None,
+        }
+    }
+
+    fn layout_text(&self) -> String {
+        if let Some(tool) = &self.tool {
+            let mut lines = vec![format!("{} {}", tool_marker(self.style), tool.name)];
+            if !tool.args.is_empty() {
+                lines.push(format!("  {}", tool.args));
+            }
+            if !tool.output.is_empty() {
+                lines.push(String::new());
+                lines.extend(tool.output.lines().map(str::to_string));
+            }
+            lines.join("\n")
+        } else {
+            self.content.clone()
+        }
+    }
+}
+
+fn tool_marker(style: TranscriptStyle) -> &'static str {
+    match style {
+        TranscriptStyle::ToolRunning => "○",
+        TranscriptStyle::ToolSuccess => "●",
+        TranscriptStyle::ToolFailed => "✕",
+        _ => "○",
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum TranscriptStyle {
     User,
     SkillPrompt,
@@ -124,6 +167,7 @@ enum TranscriptStyle {
 
 const COLORED_CARD_PAD: u16 = 1;
 const COLORED_CARD_GAP: u16 = 1;
+const THINKING_RESPONSE_GAP: u16 = 1;
 
 impl TranscriptStyle {
     fn is_sticky_prompt(self) -> bool {
@@ -134,10 +178,15 @@ impl TranscriptStyle {
         !matches!(self.background_color(), Color::Reset)
     }
 
+    fn is_flush_text(self) -> bool {
+        matches!(self, Self::Thinking | Self::Assistant)
+    }
+
     fn entry_gap_after(self, next: Option<TranscriptStyle>) -> u16 {
         match (self, next) {
-            (Self::Thinking, Some(Self::Assistant)) | (Self::Assistant, Some(Self::Thinking)) => 0,
-            (Self::Thinking | Self::Assistant, Some(Self::User | Self::SkillPrompt)) => 1,
+            (Self::Thinking, Some(Self::Assistant)) => THINKING_RESPONSE_GAP,
+            (Self::Assistant, Some(Self::Thinking)) => 0,
+            (prev, Some(next)) if prev.is_flush_text() && next.has_tinted_background() => COLORED_CARD_GAP,
             _ if self.has_tinted_background() => COLORED_CARD_GAP,
             _ => 0,
         }
@@ -163,7 +212,11 @@ impl TranscriptStyle {
     }
 
     fn horizontal_padding(self) -> u16 {
-        self.padding()
+        if self.is_flush_text() || self.has_tinted_background() {
+            COLORED_CARD_PAD
+        } else {
+            0
+        }
     }
 
     fn text_color(self) -> Color {
@@ -203,38 +256,32 @@ impl TranscriptStyle {
 
 fn seed_transcript_messages() -> Vec<TranscriptMessage> {
     vec![
+        TranscriptMessage::text("Walk me through the four-zone shell layout.", TranscriptStyle::User),
+        TranscriptMessage::text("/tui-design sync chat_layout with production", TranscriptStyle::SkillPrompt),
         TranscriptMessage {
-            content: "Walk me through the four-zone shell layout.".to_string(),
-            style: TranscriptStyle::User,
-        },
-        TranscriptMessage {
-            content: "/tui-design sync chat_layout with production".to_string(),
-            style: TranscriptStyle::SkillPrompt,
-        },
-        TranscriptMessage {
-            content: "○ read_file : examples/chat_layout.rs".to_string(),
-            style: TranscriptStyle::ToolRunning,
-        },
-        TranscriptMessage {
-            content: "● read_file : examples/chat_layout.rs".to_string(),
+            content: String::new(),
             style: TranscriptStyle::ToolSuccess,
+            tool: Some(ToolCardDetail {
+                name: "read_file".to_string(),
+                args: "examples/chat_layout.rs".to_string(),
+                output: "//! Chat layout demo for the four-zone shell.".to_string(),
+            }),
         },
+        TranscriptMessage::text(
+            "Check sticky scroll, status row, and editor overlap…",
+            TranscriptStyle::Thinking,
+        ),
+        TranscriptMessage::text(LOREM_IPSUM, TranscriptStyle::Assistant),
         TranscriptMessage {
-            content: "Check sticky scroll, status row, and editor overlap…".to_string(),
-            style: TranscriptStyle::Thinking,
-        },
-        TranscriptMessage {
-            content: LOREM_IPSUM.to_string(),
-            style: TranscriptStyle::Assistant,
-        },
-        TranscriptMessage {
-            content: "✕ bash : npm test — exit 1".to_string(),
+            content: String::new(),
             style: TranscriptStyle::ToolFailed,
+            tool: Some(ToolCardDetail {
+                name: "bash".to_string(),
+                args: "npm test".to_string(),
+                output: "Error: command exited with code 1".to_string(),
+            }),
         },
-        TranscriptMessage {
-            content: "Steering queued — will run after current turn".to_string(),
-            style: TranscriptStyle::Meta,
-        },
+        TranscriptMessage::text("Steering queued — will run after current turn", TranscriptStyle::Meta),
     ]
 }
 
@@ -284,9 +331,12 @@ fn thinking_response_pair_card(
             background_color: Color::Reset,
             border_style: BorderStyle::None,
             margin_bottom: margin_bottom,
-            padding: 0,
+            padding_top: 0,
+            padding_bottom: 0,
+            padding_left: COLORED_CARD_PAD,
+            padding_right: COLORED_CARD_PAD,
             flex_direction: FlexDirection::Column,
-            gap: 0,
+            gap: THINKING_RESPONSE_GAP,
         ) {
             Text(color: thinking.style.text_color(), wrap: TextWrap::Wrap, content: thinking.content.as_str())
             Text(color: assistant.style.text_color(), wrap: TextWrap::Wrap, content: assistant.content.as_str())
@@ -301,15 +351,68 @@ fn transcript_message_bubble(
     margin_bottom: u16,
 ) -> AnyElement<'static> {
     let style = message.style;
+    if message.tool.is_some()
+        && matches!(
+            style,
+            TranscriptStyle::ToolRunning | TranscriptStyle::ToolSuccess | TranscriptStyle::ToolFailed
+        )
+    {
+        return tool_call_card(screen_width, message, margin_bottom);
+    }
+    let pad_h = style.horizontal_padding();
     element! {
         View(
             width: screen_width - 3,
             background_color: style.background_color(),
             border_style: BorderStyle::None,
             margin_bottom: margin_bottom,
-            padding: style.padding(),
+            padding_top: style.padding(),
+            padding_bottom: style.padding(),
+            padding_left: pad_h,
+            padding_right: pad_h,
         ) {
             Text(color: style.text_color(), wrap: TextWrap::Wrap, content: message.content.as_str())
+        }
+    }
+    .into()
+}
+
+fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
+    let style = message.style;
+    let tool = message.tool.as_ref().expect("tool card detail");
+    let header = format!("{} {}", tool_marker(style), tool.name);
+    let output = tool.output.trim().to_string();
+    element! {
+        View(
+            width: screen_width - 3,
+            background_color: style.background_color(),
+            border_style: BorderStyle::None,
+            margin_bottom: margin_bottom,
+            padding: COLORED_CARD_PAD,
+            flex_direction: FlexDirection::Column,
+            gap: 0,
+        ) {
+            Text(color: style.text_color(), wrap: TextWrap::NoWrap, content: header)
+            #(if !tool.args.is_empty() {
+                Some(element! {
+                    Text(
+                        color: Color::Rgb { r: 160, g: 160, b: 160 },
+                        wrap: TextWrap::Wrap,
+                        content: format!("  {}", tool.args),
+                    )
+                })
+            } else {
+                None
+            })
+            #(if !output.is_empty() {
+                Some(element! {
+                    View(width: 100pct, padding_top: 1, flex_direction: FlexDirection::Column, gap: 0) {
+                        Text(color: Color::DarkGrey, wrap: TextWrap::Wrap, content: output)
+                    }
+                })
+            } else {
+                None
+            })
         }
     }
     .into()
@@ -361,7 +464,7 @@ fn layout_transcript_rows_demo(messages: &[TranscriptMessage], screen_width: u16
     let mut cursor = 0u32;
     for (index, message) in messages.iter().enumerate() {
         let wrap_width = transcript_bubble_inner_width(screen_width, message.style.horizontal_padding());
-        let row_count = wrapped_transcript_row_count(&message.content, wrap_width) as u32;
+        let row_count = wrapped_transcript_row_count(&message.layout_text(), wrap_width) as u32;
         layouts.push(TranscriptRowLayout {
             start_row: cursor,
             row_count,
@@ -1016,7 +1119,7 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
 
     let (accent_r, accent_g, accent_b) = agent_mode.get().label_rgb();
     let scanner_accent = rgb(accent_r, accent_g, accent_b);
-    let session_label = format!("Session: 019f631516e6g29o | turn: {}", turn_count.get());
+    let session_label = format!("Session: 00000012abc01w01 | turn: {}", turn_count.get());
     let stats_label = "$0.00 | 0k | 0.0% (200k)".to_string();
 
     element! {
@@ -1079,10 +1182,7 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                         } else {
                             TranscriptStyle::User
                         };
-                        list.push(TranscriptMessage {
-                            content: text,
-                            style,
-                        });
+                        list.push(TranscriptMessage::text(text, style));
                         list
                     });
                     messages_revision.set(messages_revision.get().wrapping_add(1));

@@ -10,9 +10,7 @@ use iocraft::prelude::*;
 
 use super::theme::{BORDER_MUTED, SCROLLBAR_THUMB, SCROLLBAR_TRACK};
 
-pub use message::{
-    TranscriptMessage, TranscriptStyle, format_tool_card_content, format_tool_card_result, seed_transcript_messages,
-};
+pub use message::{ToolCardDetail, TranscriptMessage, TranscriptStyle, seed_transcript_messages};
 
 use message::{build_transcript_bubbles, transcript_sticky_overlay};
 
@@ -189,7 +187,7 @@ fn layout_transcript_rows(messages: &[TranscriptMessage], screen_width: u16) -> 
     let mut cursor = 0u32;
     for (index, message) in messages.iter().enumerate() {
         let wrap_width = transcript_bubble_inner_width(screen_width, message.style.horizontal_padding());
-        let row_count = wrapped_transcript_row_count(&message.content, wrap_width) as u32;
+        let row_count = wrapped_transcript_row_count(&message.layout_text(), wrap_width) as u32;
         layouts.push(TranscriptRowLayout {
             start_row: cursor,
             row_count,

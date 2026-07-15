@@ -26,6 +26,7 @@ embed_anything = { workspace = true, optional = true }
 fastrace = { workspace = true, optional = true }
 fastrace-reqwest = { workspace = true, optional = true }
 git2 = { workspace = true, optional = true }
+kalid.workspace = true
 log.workspace = true
 logforth.workspace = true
 memchr.workspace = true
@@ -36,7 +37,6 @@ serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "rt-multi-thread", "sync", "time"] }
-tsid.workspace = true
 turso.workspace = true
 
 [dev-dependencies]

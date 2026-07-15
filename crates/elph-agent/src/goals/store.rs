@@ -103,7 +103,7 @@ impl GoalStore {
             bail!("budgets must be non-negative");
         }
 
-        let goal_id = crate::session::id::create_tsid();
+        let goal_id = crate::session::id::create_kalid();
         let conn = self.connection().await?;
         conn.execute(
             "INSERT INTO goals (

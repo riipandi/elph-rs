@@ -48,7 +48,7 @@ make coverage
 | `repo.rs`                | Session repository operations                       |
 | `resource_formatting.rs` | Resource formatting for system prompt               |
 | `serde_roundtrip.rs`     | Serialization round-trips                           |
-| `session_tsid.rs`        | TSID generation for sessions                        |
+| `session_kalid.rs`       | Kalid session ID generation and validation          |
 | `session.rs`             | Session persistence and lifecycle                   |
 | `skills.rs`              | Skill discovery, parsing, validation                |
 | `storage.rs`             | Session storage backends                            |
@@ -94,9 +94,26 @@ Core utility tests — path resolution, logger, floppy memory store, tracing.
 
 > Tracing tests require the `tracing` feature: `cargo test -p elph-core --features tracing`
 
-### `elph-tui` (no dedicated tests — crate has examples)
+### `elph-tui` (14 test files)
 
-The elph-tui crate is now active with 16 component stubs and 13 examples, but has no dedicated integration test suite. Tests are run via `cargo test -p elph-tui` when implementing components.
+**Path**: `/crates/elph-tui/tests/`
+
+| Test file               | What it covers                                    |
+| ----------------------- | ------------------------------------------------- |
+| `transcript_layout.rs`  | Transcript layout, sticky header, scroll behavior |
+| `textarea.rs`           | Textarea component rendering and layout           |
+| `text_editing.rs`       | Text editing actions, input modes, wire edit      |
+| `text_input_layout.rs`  | Text input layout calculations                    |
+| `scroll.rs`             | Scroll bar and scroll view behavior               |
+| `color.rs`              | Color type conversions and styling                |
+| `components_props.rs`   | Component prop types and defaults                 |
+| `components_render.rs`  | Component rendering output                        |
+| `components_helpers.rs` | Shared test helpers for component tests           |
+| `components_mock.rs`    | Mock component implementations                    |
+| `coverage_gaps.rs`      | Identified coverage gaps in component tests       |
+| `coverage_helpers.rs`   | Helpers for measuring test coverage               |
+| `utils.rs`              | Utility function tests                            |
+| `types.rs`              | Type conversion and validation                    |
 
 ### `elph` (2 test files)
 

@@ -98,7 +98,7 @@ pub use runtime::local_env::LocalExecutionEnv;
 pub use runtime::proxy::{ProxyAssistantMessageEvent, ProxyStreamOptions, stream_proxy};
 pub use runtime::{agent_loop, agent_loop_continue, run_agent_loop, run_agent_loop_continue};
 pub use runtime::{block_on, try_block_on};
-pub use session::id::create_tsid;
+pub use session::id::create_kalid;
 pub use session::{
     BranchSummaryOptions, ContextEntryTransform, CustomEntryContextMessageProjector, CustomMessageEntryBlock,
     CustomMessageEntryContent, EVENTS_FILE, ForkEntriesOptions, ForkPosition, InMemorySessionCreateOptions,

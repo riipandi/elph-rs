@@ -126,7 +126,7 @@ fn main() {
                   replaced raw SQL with query builder. File operations: read src/main.rs, \
                   modified src/lib.rs, created Cargo.toml."
             .into(),
-        first_kept_entry_id: "tsid-keep-001".into(),
+        first_kept_entry_id: "00000012abc01w01".into(),
         tokens_before: 45_600,
         details: Some(elph_agent::compaction::CompactionDetails {
             read_files: vec!["src/main.rs".into(), "src/lib.rs".into()],

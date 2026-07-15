@@ -69,7 +69,7 @@ Hooks are registered through `Harness::on_<event>()` methods. Event types define
 
 **File**: `/crates/elph-agent/src/session/`
 
-Sessions are tree-structured: you can fork, branch, and resume. Each session has an ID (TSID), metadata, and conversation history.
+Sessions are tree-structured: you can fork, branch, and resume. Each session has an ID (Kalid — 16 char, time-sortable, no prefix), metadata, and conversation history.
 
 ### Backends
 

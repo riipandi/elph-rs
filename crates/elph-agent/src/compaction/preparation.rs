@@ -144,7 +144,7 @@ pub fn prepare_compaction(
     if first_kept_entry_id.is_empty() {
         return Err(CompactionError::new(
             CompactionErrorCode::InvalidSession,
-            "First kept entry has no TSID - session may need migration",
+            "First kept entry has no Kalid ID",
         ));
     }
 

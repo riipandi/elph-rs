@@ -68,7 +68,35 @@ pub(crate) fn now_secs() -> i64 {
 }
 
 pub(super) fn new_id() -> String {
-    tsid::create_tsid().to_string()
+    unique_kalid()
+}
+
+fn unique_kalid() -> String {
+    use std::cell::RefCell;
+    use std::thread;
+    use std::time::Duration;
+
+    thread_local! {
+        static LAST_KALID: RefCell<Option<String>> = const { RefCell::new(None) };
+    }
+
+    for _ in 0..100 {
+        let id = kalid::generate_kalid();
+        let duplicate = LAST_KALID.with(|cell| {
+            let mut last = cell.borrow_mut();
+            if last.as_deref() == Some(id.as_str()) {
+                true
+            } else {
+                *last = Some(id.clone());
+                false
+            }
+        });
+        if !duplicate {
+            return id;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    kalid::generate_kalid()
 }
 
 /// Remove retrieval rows whose memory was deleted (prevents unbounded table growth).

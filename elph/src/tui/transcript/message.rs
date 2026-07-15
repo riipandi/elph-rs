@@ -3,14 +3,20 @@
 use iocraft::prelude::*;
 
 use crate::tui::theme::{
-    BUBBLE_BG, META_BG, META_FG, SKILL_BG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG, TOOL_FAILED_FG,
-    TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG,
+    BUBBLE_BG, META_BG, META_FG, SKILL_BG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_ARGS_FG, TOOL_FAILED_BG,
+    TOOL_FAILED_FG, TOOL_OUTPUT_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG,
 };
 
 const COLORED_CARD_PAD: u16 = 1;
 const COLORED_CARD_GAP: u16 = 1;
 const FLUSH_CARD_PAD: u16 = 0;
 const FLUSH_CARD_GAP: u16 = 0;
+/// Rows between a thinking block and the following assistant reply in a flush pair.
+const THINKING_RESPONSE_GAP: u16 = 1;
+/// Rows between tool header/args and the output body.
+const TOOL_OUTPUT_SECTION_GAP: u16 = 1;
+const TOOL_OUTPUT_MAX_LINES: usize = 12;
+const TOOL_OUTPUT_MAX_CHARS: usize = 1_500;
 
 const LOREM_IPSUM: &str = "Lorem ipsum odor amet, consectetuer adipiscing elit. \
 Lobortis hendrerit nec ipsum dapibus quam. Donec malesuada tincidunt elementum \
@@ -21,10 +27,68 @@ pharetra bibendum tristique, quisque consectetur placerat potenti. Imperdiet ut 
 torquent vestibulum eleifend bibendum et. Dictumst vulputate interdum iaculis \
 at conubia venenatis.";
 
+/// Structured payload for tool invocation cards in the transcript.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolCardDetail {
+    pub name: String,
+    pub args_summary: String,
+    pub output: String,
+}
+
 #[derive(Clone)]
 pub struct TranscriptMessage {
     pub content: String,
     pub style: TranscriptStyle,
+    pub tool: Option<ToolCardDetail>,
+}
+
+impl TranscriptMessage {
+    pub fn text(content: impl Into<String>, style: TranscriptStyle) -> Self {
+        Self {
+            content: content.into(),
+            style,
+            tool: None,
+        }
+    }
+
+    pub fn tool_call(name: impl Into<String>, args_summary: impl Into<String>, style: TranscriptStyle) -> Self {
+        Self {
+            content: String::new(),
+            style,
+            tool: Some(ToolCardDetail {
+                name: name.into(),
+                args_summary: args_summary.into(),
+                output: String::new(),
+            }),
+        }
+    }
+
+    /// Flattened text for scroll row layout (matches rendered line breaks).
+    pub fn layout_text(&self) -> String {
+        if let Some(tool) = &self.tool {
+            tool.layout_text(self.style)
+        } else {
+            self.content.clone()
+        }
+    }
+}
+
+impl ToolCardDetail {
+    pub fn layout_text(&self, style: TranscriptStyle) -> String {
+        let mut lines = vec![format!("{} {}", tool_status_marker(style), self.name)];
+        let args = format_tool_args_display(&self.args_summary);
+        if !args.is_empty() {
+            for arg_line in args.lines() {
+                lines.push(format!("  {arg_line}"));
+            }
+        }
+        let output = format_tool_output_display(&self.output);
+        if !output.is_empty() {
+            lines.push(String::new());
+            lines.extend(output.lines().map(str::to_string));
+        }
+        lines.join("\n")
+    }
 }
 
 /// Visual card kind for one transcript entry.
@@ -95,17 +159,22 @@ impl TranscriptStyle {
         !matches!(self.background_color(), Color::Reset)
     }
 
+    fn is_flush_text(self) -> bool {
+        matches!(self, Self::Thinking | Self::Assistant)
+    }
+
     /// Rows of vertical gap after this entry in scroll layout and between rendered cards.
     pub fn entry_gap_after(self, next: Option<TranscriptStyle>) -> u16 {
         match (self, next) {
-            (Self::Thinking, Some(Self::Assistant)) | (Self::Assistant, Some(Self::Thinking)) => 0,
-            (Self::Thinking | Self::Assistant, Some(Self::User | Self::SkillPrompt)) => 1,
+            (Self::Thinking, Some(Self::Assistant)) => THINKING_RESPONSE_GAP,
+            (Self::Assistant, Some(Self::Thinking)) => 0,
+            (prev, Some(next)) if prev.is_flush_text() && next.has_tinted_background() => COLORED_CARD_GAP,
             _ if self.has_tinted_background() => COLORED_CARD_GAP,
             _ => FLUSH_CARD_GAP,
         }
     }
 
-    /// Adjacent thinking + chat response blocks render as one flush group (no inter-card gap).
+    /// Adjacent thinking + chat response blocks render as one flush group with internal spacing.
     pub fn forms_flush_pair_with(self, other: Self) -> bool {
         matches!(
             (self, other),
@@ -125,8 +194,13 @@ impl TranscriptStyle {
         self.sticky_padding_top().saturating_add(self.sticky_padding_bottom())
     }
 
+    /// Horizontal inset per side for wrap width and flush-text alignment with tinted cards.
     pub fn horizontal_padding(self) -> u16 {
-        self.padding()
+        if self.is_flush_text() || self.has_tinted_background() {
+            COLORED_CARD_PAD
+        } else {
+            FLUSH_CARD_PAD
+        }
     }
 
     fn text_color(self) -> Color {
@@ -167,42 +241,36 @@ impl TranscriptStyle {
 
 pub fn seed_transcript_messages() -> Vec<TranscriptMessage> {
     vec![
+        TranscriptMessage::text("Explain how sticky scroll works in this layout.", TranscriptStyle::User),
+        TranscriptMessage::text(
+            "/tui-design sync chat_layout with production shell",
+            TranscriptStyle::SkillPrompt,
+        ),
         TranscriptMessage {
-            content: "Explain how sticky scroll works in this layout.".to_string(),
-            style: TranscriptStyle::User,
-        },
-        TranscriptMessage {
-            content: "/tui-design sync chat_layout with production shell".to_string(),
-            style: TranscriptStyle::SkillPrompt,
-        },
-        TranscriptMessage {
-            content: "○ read_file : elph/src/tui/transcript/mod.rs".to_string(),
-            style: TranscriptStyle::ToolRunning,
-        },
-        TranscriptMessage {
-            content: "● read_file : elph/src/tui/transcript/mod.rs".to_string(),
+            content: String::new(),
             style: TranscriptStyle::ToolSuccess,
+            tool: Some(ToolCardDetail {
+                name: "read_file".to_string(),
+                args_summary: r#"{"path":"elph/src/tui/transcript/mod.rs"}"#.to_string(),
+                output: "//! Scrollable transcript panel with sticky user prompts.\n\nmod message;".to_string(),
+            }),
         },
+        TranscriptMessage::text(
+            "Need to check scroll offset and clamp sticky height…",
+            TranscriptStyle::Thinking,
+        ),
+        TranscriptMessage::text(LOREM_IPSUM, TranscriptStyle::Assistant),
         TranscriptMessage {
-            content: "Need to check scroll offset and clamp sticky height…".to_string(),
-            style: TranscriptStyle::Thinking,
-        },
-        TranscriptMessage {
-            content: LOREM_IPSUM.to_string(),
-            style: TranscriptStyle::Assistant,
-        },
-        TranscriptMessage {
-            content: "✕ bash : npm test — command exited 1".to_string(),
+            content: String::new(),
             style: TranscriptStyle::ToolFailed,
+            tool: Some(ToolCardDetail {
+                name: "bash".to_string(),
+                args_summary: r#"{"command":"npm test"}"#.to_string(),
+                output: "Error: command exited with code 1\n\nFAIL tests/agent.rs".to_string(),
+            }),
         },
-        TranscriptMessage {
-            content: "request failed: connection reset".to_string(),
-            style: TranscriptStyle::Error,
-        },
-        TranscriptMessage {
-            content: "Steering queued — will run after current turn".to_string(),
-            style: TranscriptStyle::Meta,
-        },
+        TranscriptMessage::text("request failed: connection reset", TranscriptStyle::Error),
+        TranscriptMessage::text("Steering queued — will run after current turn", TranscriptStyle::Meta),
     ]
 }
 
@@ -263,9 +331,12 @@ fn thinking_response_pair_card(
             background_color: Color::Reset,
             border_style: BorderStyle::None,
             margin_bottom: margin_bottom,
-            padding: FLUSH_CARD_PAD,
+            padding_top: FLUSH_CARD_PAD,
+            padding_bottom: FLUSH_CARD_PAD,
+            padding_left: COLORED_CARD_PAD,
+            padding_right: COLORED_CARD_PAD,
             flex_direction: FlexDirection::Column,
-            gap: 0,
+            gap: THINKING_RESPONSE_GAP,
         ) {
             Text(color: THINKING_FG, wrap: TextWrap::Wrap, content: thinking.content.as_str())
             Text(color: TEXT_FG, wrap: TextWrap::Wrap, content: assistant.content.as_str())
@@ -302,7 +373,10 @@ fn flush_card(screen_width: u16, message: &TranscriptMessage, text: Color, margi
             background_color: Color::Reset,
             border_style: BorderStyle::None,
             margin_bottom: margin_bottom,
-            padding: FLUSH_CARD_PAD,
+            padding_top: FLUSH_CARD_PAD,
+            padding_bottom: FLUSH_CARD_PAD,
+            padding_left: COLORED_CARD_PAD,
+            padding_right: COLORED_CARD_PAD,
         ) {
             Text(color: text, wrap: TextWrap::Wrap, content: message.content.as_str())
         }
@@ -328,13 +402,51 @@ fn chat_response_card(screen_width: u16, message: &TranscriptMessage, margin_bot
 
 fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let style = message.style;
-    tinted_card(
-        screen_width,
-        message,
-        style.background_color(),
-        style.text_color(),
-        margin_bottom,
-    )
+    let background = style.background_color();
+    let header_fg = style.text_color();
+
+    if let Some(tool) = &message.tool {
+        let header = format!("{} {}", tool_status_marker(style), tool.name);
+        let args = format_tool_args_display(&tool.args_summary);
+        let output = format_tool_output_display(&tool.output);
+        return element! {
+            View(
+                width: screen_width - 3,
+                background_color: background,
+                border_style: BorderStyle::None,
+                margin_bottom: margin_bottom,
+                padding: COLORED_CARD_PAD,
+                flex_direction: FlexDirection::Column,
+                gap: 0,
+            ) {
+                Text(color: header_fg, wrap: TextWrap::NoWrap, content: header)
+                #(if !args.is_empty() {
+                    Some(element! {
+                        Text(color: TOOL_ARGS_FG, wrap: TextWrap::Wrap, content: format!("  {args}"))
+                    })
+                } else {
+                    None
+                })
+                #(if !output.is_empty() {
+                    Some(element! {
+                        View(
+                            width: 100pct,
+                            padding_top: TOOL_OUTPUT_SECTION_GAP,
+                            flex_direction: FlexDirection::Column,
+                            gap: 0,
+                        ) {
+                            Text(color: TOOL_OUTPUT_FG, wrap: TextWrap::Wrap, content: output)
+                        }
+                    })
+                } else {
+                    None
+                })
+            }
+        }
+        .into();
+    }
+
+    tinted_card(screen_width, message, background, header_fg, margin_bottom)
 }
 
 fn error_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
@@ -345,42 +457,75 @@ fn meta_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16)
     tinted_card(screen_width, message, META_BG, META_FG, margin_bottom)
 }
 
-/// Prefix + summary for a tool card line.
-pub fn format_tool_card_content(name: &str, args_summary: &str, _running: bool) -> String {
-    let marker = "○";
-    let summary = if args_summary.is_empty() {
-        name.to_string()
-    } else {
-        format!("{name} : {args_summary}")
+fn tool_status_marker(style: TranscriptStyle) -> &'static str {
+    match style {
+        TranscriptStyle::ToolRunning => "○",
+        TranscriptStyle::ToolSuccess => "●",
+        TranscriptStyle::ToolFailed => "✕",
+        _ => "○",
+    }
+}
+
+fn format_tool_args_display(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) else {
+        return trimmed.to_string();
     };
-    format!("{marker} {summary}")
+    format_tool_args_json(&value)
 }
 
-/// Update tool card content when execution completes.
-pub fn format_tool_card_result(base: &str, is_error: bool, output: &str) -> String {
-    let marker = if is_error { "✕" } else { "●" };
-    let base = base.trim_start_matches(['○', '●', '✕', ' ']);
-    if is_error {
-        if output.trim().is_empty() {
-            format!("{marker} {base}")
-        } else {
-            let hint = truncate_tool_output(output, 72);
-            format!("{marker} {base} — {hint}")
+fn format_tool_args_json(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Object(map) if map.is_empty() => String::new(),
+        serde_json::Value::Object(map) if map.len() == 1 => {
+            map.values().next().map(format_json_scalar).unwrap_or_default()
         }
-    } else if output.trim().is_empty() {
-        format!("{marker} {base}")
-    } else {
-        let hint = truncate_tool_output(output, 72);
-        format!("{marker} {base} — {hint}")
+        serde_json::Value::Object(map) => map
+            .iter()
+            .map(|(key, val)| format!("{key}: {}", format_json_scalar(val)))
+            .collect::<Vec<_>>()
+            .join(", "),
+        other => format_json_scalar(other),
     }
 }
 
-fn truncate_tool_output(output: &str, max_chars: usize) -> String {
-    let line = output.lines().next().unwrap_or(output).trim();
-    if line.chars().count() <= max_chars {
-        return line.to_string();
+fn format_json_scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Number(num) => num.to_string(),
+        serde_json::Value::Bool(flag) => flag.to_string(),
+        serde_json::Value::Null => "null".to_string(),
+        serde_json::Value::Array(items) => {
+            let parts: Vec<String> = items.iter().map(format_json_scalar).collect();
+            parts.join(", ")
+        }
+        serde_json::Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
     }
-    let truncated: String = line.chars().take(max_chars.saturating_sub(1)).collect();
+}
+
+fn format_tool_output_display(output: &str) -> String {
+    let trimmed = output.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.chars().count() <= TOOL_OUTPUT_MAX_CHARS {
+        let lines: Vec<&str> = trimmed.lines().collect();
+        if lines.len() <= TOOL_OUTPUT_MAX_LINES {
+            return trimmed.to_string();
+        }
+        let mut body = lines
+            .iter()
+            .take(TOOL_OUTPUT_MAX_LINES)
+            .copied()
+            .collect::<Vec<_>>()
+            .join("\n");
+        body.push_str(&format!("\n… ({line_count} lines total)", line_count = lines.len()));
+        return body;
+    }
+    let truncated: String = trimmed.chars().take(TOOL_OUTPUT_MAX_CHARS.saturating_sub(1)).collect();
     format!("{truncated}…")
 }
 
@@ -486,16 +631,18 @@ mod tests {
 
         assert!(!TranscriptStyle::Assistant.has_tinted_background());
         assert_eq!(TranscriptStyle::Assistant.padding(), 0);
+        assert_eq!(TranscriptStyle::Assistant.horizontal_padding(), 1);
         assert_eq!(TranscriptStyle::Assistant.entry_gap_after(None), 0);
 
         assert!(!TranscriptStyle::Thinking.has_tinted_background());
         assert_eq!(TranscriptStyle::Thinking.padding(), 0);
+        assert_eq!(TranscriptStyle::Thinking.horizontal_padding(), 1);
         assert_eq!(TranscriptStyle::Thinking.entry_gap_after(None), 0);
     }
 
     #[test]
-    fn thinking_and_assistant_pair_has_no_inter_card_gap() {
-        assert_eq!(TranscriptStyle::Thinking.entry_gap_after(Some(TranscriptStyle::Assistant)), 0);
+    fn thinking_and_assistant_pair_has_internal_gap() {
+        assert_eq!(TranscriptStyle::Thinking.entry_gap_after(Some(TranscriptStyle::Assistant)), 1);
         assert_eq!(TranscriptStyle::Assistant.entry_gap_after(Some(TranscriptStyle::Thinking)), 0);
         assert!(TranscriptStyle::Thinking.forms_flush_pair_with(TranscriptStyle::Assistant));
     }
@@ -503,6 +650,16 @@ mod tests {
     #[test]
     fn assistant_inserts_gap_before_next_user_prompt() {
         assert_eq!(TranscriptStyle::Assistant.entry_gap_after(Some(TranscriptStyle::User)), 1);
+    }
+
+    #[test]
+    fn flush_text_inserts_gap_before_tool_cards() {
+        assert_eq!(
+            TranscriptStyle::Assistant.entry_gap_after(Some(TranscriptStyle::ToolRunning)),
+            1
+        );
+        assert_eq!(TranscriptStyle::Thinking.entry_gap_after(Some(TranscriptStyle::ToolSuccess)), 1);
+        assert_eq!(TranscriptStyle::Assistant.entry_gap_after(Some(TranscriptStyle::ToolFailed)), 1);
     }
 
     #[test]
@@ -530,10 +687,27 @@ mod tests {
     }
 
     #[test]
-    fn format_tool_card_result_uses_status_marker() {
-        let done = format_tool_card_result("read_file : main.rs", false, "");
-        assert!(done.starts_with("● read_file"));
-        let failed = format_tool_card_result("bash : test", true, "exit 1");
-        assert!(failed.starts_with("✕ bash"));
+    fn tool_card_layout_includes_header_args_and_output() {
+        let tool = ToolCardDetail {
+            name: "read_file".to_string(),
+            args_summary: r#"{"path":"main.rs"}"#.to_string(),
+            output: "fn main() {}".to_string(),
+        };
+        let layout = tool.layout_text(TranscriptStyle::ToolSuccess);
+        assert!(layout.starts_with("● read_file"));
+        assert!(layout.contains("  main.rs"));
+        assert!(layout.contains("fn main()"));
+    }
+
+    #[test]
+    fn tool_args_json_single_key_shows_value_only() {
+        assert_eq!(format_tool_args_display(r#"{"path":"src/lib.rs"}"#), "src/lib.rs");
+    }
+
+    #[test]
+    fn tool_output_truncates_long_bodies() {
+        let long = "line\n".repeat(20);
+        let display = format_tool_output_display(&long);
+        assert!(display.contains("lines total"));
     }
 }

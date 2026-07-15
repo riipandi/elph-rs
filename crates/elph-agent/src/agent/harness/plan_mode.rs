@@ -8,7 +8,7 @@ use crate::collaboration::{
     CollaborationMode, PlanConfirmationChoice, assistant_message_text, extract_proposed_plan, filter_active_tools,
     implement_prompt,
 };
-use crate::session::id::create_tsid;
+use crate::session::id::create_kalid;
 use crate::session::tree::BranchSummaryOptions;
 use crate::session::types::{HasSessionId, SessionStorage};
 use crate::types::{AgentEvent, AgentMessage};
@@ -115,7 +115,7 @@ where
             return Ok(());
         };
 
-        let plan_id = create_tsid();
+        let plan_id = create_kalid();
         *self.shared.pending_plan.lock().await = Some(PendingPlanConfirmation {
             plan_id: plan_id.clone(),
             plan_text: plan_text.clone(),

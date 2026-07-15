@@ -27,12 +27,12 @@
 - **TOON Encoding** — Optional structured-data encoding for tool results (reduces token usage on tabular payloads).
 - **Extensions** — WASM-based dynamic plugins compiled with `wasmtime`.
 
-## Project state (HEAD `6110a13`)
+## Project state (HEAD `f3e9863`)
 
 This repository is under **active development**. Recent milestones:
 
-- **TUI framework migration** — Migrated from `tuie` to `iocraft` for the interactive TUI in the `elph` binary; rewrote `tui.rs` with `iocraft` components (`6110a13`).
-- **elph-tui re-enabled** — Crate now has 16 component stubs (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `markdown`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`) and 13 examples including weather, calculator, chat layout, and progress bar (`98ecfd2`).
+- **TUI overhaul** — Replaced single-file `tui.rs` with a modular `tui/` directory (shell, editor, transcript, chrome, agent_bridge, activity). elph-tui crate now has 17+ implemented component modules, textarea/ directory with sub-modules, text_editing module, progress indicators, sticky scroll, paste support, and 14 integration tests (`f3e9863`, `72a95b2`, `24a36aa`, `f3bc052`).
+- **Session IDs migrated from TSID to Kalid** — Time-sortable 16-char IDs with no prefix, replacing 13-char TSID. Floppy memory store also migrated (`f3e9863` — working tree).
 - **`tools` CLI subcommand** — New `elph tools` command lists available agent tools with optional group and verbose flags (`d1d8843`).
 - **New tools** — Added `list_available_tools` (meta-tool for agent tool discovery) and `ask_user` (interactive user prompt). Renamed `multi_agent.rs` → `collaboration.rs` for collaboration tooling (`b7fd91f`).
 - **Tool reorganization** — Renamed tools for clarity (`read`→`read_file`, `edit`→`edit_file`, `write`→`write_file`, `ls`→`list_dir`, `find`→`find_path`, `websearch`→`web_search`, `webfetch`→`web_fetch`), added new filesystem tools (`create_dir`, `copy_path`, `delete_path`, `move_path`), and added `diagnostics` tool for `cargo check` integration (`d8eaf06`).

@@ -42,6 +42,12 @@ pub const TOOL_RUNNING_BG: Color = Color::Rgb { r: 40, g: 40, b: 50 };
 /// Pi `toolOutput` / `gray` — xterm 244 Grey50 (`#808080`).
 pub const TOOL_RUNNING_FG: Color = Color::Rgb { r: 128, g: 128, b: 128 };
 
+/// Muted args line under the tool header.
+pub const TOOL_ARGS_FG: Color = Color::Rgb { r: 160, g: 160, b: 160 };
+
+/// Dim body text for streamed/final tool output.
+pub const TOOL_OUTPUT_FG: Color = Color::DarkGrey;
+
 /// Pi `toolSuccessBg` (`#283228`).
 pub const TOOL_SUCCESS_BG: Color = Color::Rgb { r: 40, g: 50, b: 40 };
 

@@ -364,10 +364,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
                     messages.set({
                         let mut list = messages.read().clone();
-                        list.push(TranscriptMessage {
-                            content: text.clone(),
-                            style: TranscriptStyle::for_user_submit(&text),
-                        });
+                        list.push(TranscriptMessage::text(
+                            text.clone(),
+                            TranscriptStyle::for_user_submit(&text),
+                        ));
                         list
                     });
                     messages_revision.set(messages_revision.get().wrapping_add(1));

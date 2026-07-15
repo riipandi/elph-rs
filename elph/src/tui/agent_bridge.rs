@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::agent::{AgentUiEvent, CodingAgentSession};
 
-use super::transcript::{TranscriptMessage, TranscriptStyle, format_tool_card_content, format_tool_card_result};
+use super::transcript::{TranscriptMessage, TranscriptStyle};
 
 /// Spawns agent work on the tokio runtime without blocking the TUI render loop.
 pub struct TurnDispatcher;
@@ -100,10 +100,7 @@ impl TranscriptEventApplier {
             last.content = line.to_string();
             return true;
         }
-        messages.push(TranscriptMessage {
-            content: line.to_string(),
-            style: TranscriptStyle::Meta,
-        });
+        messages.push(TranscriptMessage::text(line, TranscriptStyle::Meta));
         true
     }
 
@@ -122,10 +119,7 @@ impl TranscriptEventApplier {
         {
             trim_flush_trailing_ws(last);
         }
-        messages.push(TranscriptMessage {
-            content: delta.to_string(),
-            style: TranscriptStyle::Assistant,
-        });
+        messages.push(TranscriptMessage::text(delta, TranscriptStyle::Assistant));
         true
     }
 
@@ -139,10 +133,7 @@ impl TranscriptEventApplier {
             last.content.push_str(delta);
             return true;
         }
-        messages.push(TranscriptMessage {
-            content: delta.to_string(),
-            style: TranscriptStyle::Thinking,
-        });
+        messages.push(TranscriptMessage::text(delta, TranscriptStyle::Thinking));
         true
     }
 
@@ -155,10 +146,7 @@ impl TranscriptEventApplier {
     ) -> bool {
         let index = messages.len();
         self.live_tool_indexes.insert(id, index);
-        messages.push(TranscriptMessage {
-            content: format_tool_card_content(&name, &args_summary, true),
-            style: TranscriptStyle::ToolRunning,
-        });
+        messages.push(TranscriptMessage::tool_call(name, args_summary, TranscriptStyle::ToolRunning));
         true
     }
 
@@ -172,6 +160,10 @@ impl TranscriptEventApplier {
         let Some(message) = messages.get_mut(index) else {
             return false;
         };
+        if let Some(tool) = message.tool.as_mut() {
+            tool.output.push_str(output);
+            return true;
+        }
         message.content.push_str(output);
         true
     }
@@ -180,7 +172,11 @@ impl TranscriptEventApplier {
         if let Some(index) = self.live_tool_indexes.remove(id)
             && let Some(message) = messages.get_mut(index)
         {
-            message.content = format_tool_card_result(&message.content, is_error, output);
+            if let Some(tool) = message.tool.as_mut() {
+                if !output.is_empty() {
+                    tool.output = output.to_string();
+                }
+            }
             message.style = if is_error {
                 TranscriptStyle::ToolFailed
             } else {
@@ -240,7 +236,7 @@ mod tests {
             },
         );
         assert_eq!(messages[0].style, TranscriptStyle::ToolSuccess);
-        assert!(messages[0].content.starts_with('●'));
+        assert_eq!(messages[0].tool.as_ref().unwrap().name, "read_file");
     }
 
     #[test]
@@ -264,15 +260,34 @@ mod tests {
             },
         );
         assert_eq!(messages[0].style, TranscriptStyle::ToolFailed);
-        assert!(messages[0].content.starts_with('✕'));
+        assert_eq!(messages[0].tool.as_ref().unwrap().output, "exit 1");
+    }
+
+    #[test]
+    fn tool_update_streams_output_into_card_body() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(false);
+        applier.apply(
+            &mut messages,
+            AgentUiEvent::ToolStart {
+                id: "t3".into(),
+                name: "bash".into(),
+                args_summary: r#"{"command":"cargo test"}"#.into(),
+            },
+        );
+        applier.apply(
+            &mut messages,
+            AgentUiEvent::ToolUpdate {
+                id: "t3".into(),
+                output: "running 1 test".into(),
+            },
+        );
+        assert_eq!(messages[0].tool.as_ref().unwrap().output, "running 1 test");
     }
 
     #[test]
     fn assistant_start_trims_trailing_whitespace_from_thinking() {
-        let mut messages = vec![TranscriptMessage {
-            content: "thinking line\n\n".to_string(),
-            style: TranscriptStyle::Thinking,
-        }];
+        let mut messages = vec![TranscriptMessage::text("thinking line\n\n", TranscriptStyle::Thinking)];
         let mut applier = TranscriptEventApplier::new(true);
         applier.apply(&mut messages, AgentUiEvent::TextDelta("Hello".into()));
         assert_eq!(messages.len(), 2);

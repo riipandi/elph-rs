@@ -4,7 +4,7 @@ use super::LocalExecutionEnv;
 
 use std::path::PathBuf;
 
-use crate::session::id::create_tsid;
+use crate::session::id::create_kalid;
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_util::sync::CancellationToken;
@@ -292,7 +292,7 @@ impl FileSystem for LocalExecutionEnv {
             return aborted;
         }
         let base = std::env::temp_dir();
-        let path = base.join(format!("{prefix}{}", create_tsid()));
+        let path = base.join(format!("{prefix}{}", create_kalid()));
         match fs::create_dir_all(&path).await {
             Ok(()) => ok(Self::normalize_path(&path)),
             Err(error) => err(Self::to_file_error(error, None)),
@@ -309,7 +309,8 @@ impl FileSystem for LocalExecutionEnv {
             Result::Err(error) => return err(error),
         };
         let dir_path = dir;
-        let file_path = PathBuf::from(&dir_path).join(format!("{}{}{}", options.prefix, create_tsid(), options.suffix));
+        let file_path =
+            PathBuf::from(&dir_path).join(format!("{}{}{}", options.prefix, create_kalid(), options.suffix));
         let normalized = Self::normalize_path(&file_path);
         match fs::write(&file_path, &[] as &[u8]).await {
             Ok(()) => ok(normalized),

@@ -11,7 +11,7 @@ Elph is a Rust workspace of layered crates designed for building AI agent applic
 │  Platform (paths, settings, databases, extensions)   │
 ├─────────────────────────────────────────────────────┤
 │                  elph-tui (crate)                    │
-│  iocraft component stubs · 13 examples              │
+│  iocraft component library · 13+ examples, tests    │
 │  (primary TUI in elph binary)                       │
 ├─────────────────────────────────────────────────────┤
 │                 elph-agent (crate)                   │
@@ -34,7 +34,7 @@ Elph is a Rust workspace of layered crates designed for building AI agent applic
 2. **Native tool calling** — models invoke tools via provider APIs; text markup is fallback only.
 3. **Thin binary** — `main.rs` only parses CLI and exits; the library crate (`elph/src/lib.rs`) holds modules for testability.
 4. **Platform vs product** — `platform/` owns paths, settings, bootstrap, and datastore; no agent logic.
-5. **Shell vs agent** — `shell/` is the interactive TUI app; `agent/` is the coding session runtime.
+5. **Shell vs agent** — `tui/` is the interactive TUI app; `agent/` is the coding session runtime.
 6. **Pi-compatible** — architectural concepts ported from [pi](https://pi.dev) TypeScript packages.
 
 ## Crate details
@@ -48,8 +48,7 @@ The product shell. Wires together the agent runtime, TUI, CLI, and platform conc
 Key modules:
 
 - `src/cli/` — Subcommands: `run`, `acp`, `codegraph`, `completions`, `doctor`, `export`, `import`, `mcp`, `memory`, `models`, `provider`, `server`, `session`, `stats`, `update`, `worktree` (`/elph/src/cli/mod.rs`)
-- `src/shell/` — TUI launch options (`TuiOptions`) — minimal; actual rendering lives in `crate::tui` (`/elph/src/shell/mod.rs`)
-- `src/tui.rs` — Minimal iocraft-based TUI implementation, being rebuilt iteratively (`/elph/src/tui.rs`)
+- `src/tui/` — Modular iocraft-based interactive shell: `shell.rs`, `editor.rs`, `transcript/`, `agent_bridge.rs`, `chrome.rs`, `activity.rs`, `status_row.rs`, `theme.rs`, and more (`/elph/src/tui/mod.rs`)
 - `src/agent/` — Pi coding-agent equivalent: session orchestration, runtime wiring, diagnostics tool, ask_user tool, slash commands, tool policy, run mode (`/elph/src/agent/mod.rs`)
 - `src/platform/` — Host environment: paths, settings, bootstrap, datastore, MCP config, migrations, hooks, interrupt handling (`/elph/src/platform/mod.rs`)
 - `src/extensions/` — WASM extension host (`/elph/src/extensions/mod.rs`)
@@ -110,13 +109,13 @@ Key modules:
 - `utils/` — Path resolution (`AppPaths`), project key, filesystem utilities (`/crates/elph-core/src/utils/`)
 - `fs.rs` — `ensure_dirs`, `write_file_if_missing`, `write_json_file`, `write_private_file` (`/crates/elph-core/src/fs.rs`)
 
-### `elph-tui` (library crate — iocraft component stubs)
+### `elph-tui` (library crate — iocraft component library)
 
 Path: `/crates/elph-tui/`
 
-> **Note**: The elph-tui crate provides iocraft-based component stubs (16 component modules) and 13 examples but no stable public API yet. The primary TUI implementation lives in the `elph` binary crate (`elph/src/tui.rs`). Once the widget library stabilises, reusable widgets will be extracted back into this crate and published to crates.io.
+> **Note**: The elph-tui crate provides iocraft-based component modules (17+ modules) and 13+ examples with integration tests. The primary TUI implementation lives in the `elph` binary crate (`elph/src/tui/`). Once the widget library stabilises, reusable widgets will be extracted back into this crate and published to crates.io.
 
-Key modules (current — `/crates/elph-tui/src/`): `lib.rs` with 16 component stubs under `components/` (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `line_numbers`, `markdown`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`). Examples in `examples/` (weather, calculator, chat_layout, progress_bar, basic_counter, basic_form, basic_input, basic_layout, basic_output, basic_overlap, basic_scrolling, basic_table, basic_context).
+Key modules (current — `/crates/elph-tui/src/`): `lib.rs` with 17+ component modules under `components/` (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `line_numbers`, `markdown`, `progress_indicator`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`). `textarea` is a subdirectory with `component.rs`, `input/` (paste, submit, wire_edit), `layout.rs`, `state.rs`. Additional crate-level modules: `text_editing/` (actions, input, line, submit, wire), `transcript_layout.rs`, `text_input_layout.rs`, `loader.rs`, `paste.rs`, `utils.rs`. Examples in `examples/` (weather, calculator, chat_layout, progress_bar, basic_counter, basic_form, basic_input, basic_layout, basic_output, basic_overlap, basic_scrolling, basic_table, basic_context). Tests in `tests/` (14 files).
 
 ### `elph-swarm` (library crate)
 
@@ -158,7 +157,7 @@ When modifying any major area:
 - **Agent runtime**: Tests in `/crates/elph-agent/tests/{agent_loop, harness, e2e, session, goals, subagent}.rs`
 - **AI providers**: Tests in `/crates/elph-ai/tests/` — check provider-specific payloads
 - **MCP**: Tests in `/crates/elph-agent/tests/{mcp_deepwiki, encrypt_string}.rs`
-- **TUI**: iocraft rendering in `elph/src/tui.rs`; elph-tui examples in `crates/elph-tui/examples/`; no separate test suite
+- **TUI**: iocraft rendering in `elph/src/tui/`; elph-tui tests in `crates/elph-tui/tests/`
 - **Skills**: Tests in `/crates/elph-agent/tests/skills.rs`
 - **Prompt encoding**: Tests in `/crates/elph-agent/tests/prompt_encoding.rs`
 - **CLI**: Tests in `/elph/tests/{cli, bootstrap}.rs`

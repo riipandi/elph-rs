@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn prints_codex_style_exit_block() {
         let snapshot = ExitSnapshot {
-            session_id: "abc123xyz4567".to_string(),
+            session_id: "00000012abc01w01".to_string(),
             cost_usd: 0.0,
             api_duration_secs: 0.0,
             wall_duration_secs: 51.0,

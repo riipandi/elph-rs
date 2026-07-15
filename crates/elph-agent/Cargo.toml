@@ -65,6 +65,7 @@ http.workspace = true
 ignore.workspace = true
 indicatif.workspace = true
 jsonschema.workspace = true
+kalid.workspace = true
 log.workspace = true
 memorable-ids.workspace = true
 obscura = { workspace = true, optional = true }
@@ -92,7 +93,6 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
 toon-format.workspace = true
-tsid.workspace = true
 turso.workspace = true
 url.workspace = true
 urlencoding.workspace = true
@@ -251,7 +251,6 @@ elph-core = { workspace = true, features = ["tracing"] }
 httpmock.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tsid.workspace = true
 
 [[test]]
 name = "tracing_http"

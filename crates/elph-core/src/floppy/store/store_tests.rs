@@ -62,9 +62,9 @@ impl TestCtx {
     }
 }
 
-fn assert_tsid(id: &str) {
-    assert_eq!(id.len(), 13);
-    assert!(tsid::TSID::try_from(id).is_ok());
+fn assert_kalid(id: &str) {
+    assert_eq!(id.len(), 16);
+    assert!(kalid::Kalid::parse(id).is_ok());
 }
 
 #[tokio::test]
@@ -79,21 +79,21 @@ async fn init_creates_schema() {
 }
 
 #[tokio::test]
-async fn ids_use_tsid() {
+async fn ids_use_kalid() {
     let ctx = TestCtx::new();
     let store = ctx.store();
 
     let mem_id = store
         .report_user_input(ReportUserInput {
-            lesson: "tsid id check".to_string(),
+            lesson: "kalid id check".to_string(),
             source: UserInputSource::UserInput,
         })
         .await
         .expect("report");
-    assert_tsid(&mem_id);
+    assert_kalid(&mem_id);
 
-    let start = store.start_task("tsid task").await.expect("start");
-    assert_tsid(&start.task_id);
+    let start = store.start_task("kalid task").await.expect("start");
+    assert_kalid(&start.task_id);
 }
 
 #[tokio::test]
@@ -761,8 +761,8 @@ fn now_secs_returns_positive() {
 }
 
 #[test]
-fn new_id_creates_tsid() {
+fn new_id_creates_kalid() {
     let id = super::new_id();
-    assert_eq!(id.len(), 13, "tsid should be 13 chars: {id}");
-    assert!(tsid::TSID::try_from(id.as_str()).is_ok());
+    assert_eq!(id.len(), 16, "kalid should be 16 chars: {id}");
+    assert!(kalid::Kalid::parse(&id).is_ok());
 }

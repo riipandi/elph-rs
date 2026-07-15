@@ -1,21 +1,20 @@
 //! Session ID generation tests.
 
-use elph_agent::session::id::{create_tsid, generate_session_id, is_valid_tsid};
+use elph_agent::session::id::{create_kalid, generate_session_id, is_valid_kalid};
 use elph_agent::{AgentMessage, convert_to_llm, default_convert_to_llm};
 use elph_ai::{Message, UserContent};
-use tsid::TSID;
 
 #[test]
-fn generate_session_id_produces_valid_tsid() {
+fn generate_session_id_produces_valid_kalid() {
     let id = generate_session_id();
-    assert!(is_valid_tsid(&id));
+    assert!(is_valid_kalid(&id));
+    assert_eq!(id.len(), 16);
+    assert!(!id.contains('_'));
 }
 
 #[test]
 fn generate_session_id_is_monotonically_ordered() {
-    let ids: Vec<TSID> = (0..20)
-        .map(|_| TSID::try_from(generate_session_id().as_str()).expect("valid tsid"))
-        .collect();
+    let ids: Vec<String> = (0..20).map(|_| generate_session_id()).collect();
 
     for window in ids.windows(2) {
         assert!(
@@ -34,10 +33,10 @@ fn generate_session_id_produces_unique_values() {
 }
 
 #[test]
-fn create_tsid_matches_generate_session_id_format() {
-    let id = create_tsid();
-    assert!(is_valid_tsid(&id));
-    assert!(is_valid_tsid(&generate_session_id()));
+fn create_kalid_matches_generate_session_id_format() {
+    let id = create_kalid();
+    assert!(is_valid_kalid(&id));
+    assert!(is_valid_kalid(&generate_session_id()));
 }
 
 #[test]
