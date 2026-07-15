@@ -1,5 +1,7 @@
 //! TUI demo - basic chat layout
 //!
+//! Color reference: https://www.ditig.com/256-colors-cheat-sheet
+//!
 //! ```bash
 //! cargo run -p elph-tui --example chat_layout
 //! ```
@@ -93,14 +95,14 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 gap: 1,
             ) {
                 // Content stream (chat transcription)
-                View(
-                    width: screen_width - 2,
-                    background_color: Color::Rgb { r: (48), g: (48), b: (48) },
-                    margin_bottom: 0,
-                    padding: 1,
-                ) {
-                    Text(color: Color::DarkGrey, content: LOREM_IPSUM)
-                }
+                // View(
+                //     width: screen_width - 2,
+                //     background_color: Color::Rgb { r: (48), g: (48), b: (48) },
+                //     margin_bottom: 0,
+                //     padding: 1,
+                // ) {
+                //     Text(color: Color::DarkGrey, content: LOREM_IPSUM)
+                // }
                 View(
                     width: screen_width - 2,
                     background_color: Color::Rgb { r: (48), g: (48), b: (48) },
@@ -140,6 +142,14 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     padding: 0,
                 ) {
                     Text(color: Color::White, content: LOREM_IPSUM)
+                }
+                View(
+                    width: screen_width - 2,
+                    background_color: Color::Rgb { r: (0), g: (95), b: (175) },
+                    margin_bottom: 0,
+                    padding: 1,
+                ) {
+                    Text(color: Color::White, content: "read_file : /U/a/b/c/d/project-dir/examples/chat_layout.rs")
                 }
             }
 
