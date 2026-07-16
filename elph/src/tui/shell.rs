@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 use crate::agent::slash_commands_for_palette;
 use crate::agent::{AgentUiEvent, CodingAgentSession, ToolApprovalChoice};
 use crate::extensions::ExtensionHost;
+use crate::platform::exit_message::{ExitSnapshot, record_if_active};
 use crate::platform::handle_prompt_interrupt_text;
 use crate::platform::{Paths, PromptInterrupt, Settings};
 use crate::types::{AgentMode, SlashCommand, ThinkingLevel};
@@ -33,6 +34,7 @@ use crate::tui::chrome::{ChromeStats, Header};
 use crate::tui::chrome::{format_elapsed_secs, read_git_footer_info, refresh_chrome_stats};
 use crate::tui::focus::ShellFocus;
 use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
+use crate::tui::labels::GitFooterInfo;
 
 use crate::tui::file_picker::FilePickerKeyAction;
 use crate::tui::file_picker::{
@@ -58,6 +60,12 @@ use crate::tui::slash_handler::{SlashContext, SlashOutcome};
 use crate::tui::slash_handler::{handle_slash_submit, overlay_deferred_message, slash_echoes_prompt_in_transcript};
 use crate::tui::slash_palette::SlashPaletteKeyAction;
 use crate::tui::slash_palette::{build_snapshot, palette_visible, resolve_snapshot_key_action, sync_selection};
+use crate::tui::startup::{
+    BootstrapPhase, BootstrapUiEvent, McpFooterLineKind, TuiBootstrapConfig, append_startup_warning,
+    apply_mcp_server_progress, begin_agent_startup, begin_mcp_startup, bootstrap_activity_label, bootstrap_is_active,
+    apply_mcp_startup_summary_line, classify_mcp_footer_line, mark_agent_startup_failed, mark_agent_startup_ready,
+    mark_mcp_startup_failed, mcp_server_status_label, spawn_bootstrap_worker,
+};
 use crate::tui::status_dialog::{StatusZone, build_status_dialog_kind};
 use crate::tui::tool_approval::PendingToolApproval;
 use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
@@ -78,13 +86,27 @@ const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
 /// Cap transcript repaints during streaming so the prompt editor stays responsive.
 const TRANSCRIPT_PUBLISH_MS: u64 = 66;
+/// Faster transcript refresh while startup status lines are updating.
+const STARTUP_TRANSCRIPT_PUBLISH_MS: u64 = 16;
 const MAX_UI_EVENTS_PER_TICK: usize = 64;
+const MAX_BOOTSTRAP_EVENTS_PER_TICK: usize = 32;
 /// How long the status row shows turn elapsed after completion before returning to tips.
 const TURN_COMPLETE_NOTICE_MS: u64 = 5_000;
 
 struct IdleStatusNotice {
     text: String,
     since: Instant,
+}
+
+fn count_submitted_user_prompts(messages: &[TranscriptMessage]) -> u32 {
+    messages
+        .iter()
+        .filter(|message| {
+            message.style.is_user_input_card()
+                && message.submitted_at.is_some()
+                && !message.content.trim().is_empty()
+        })
+        .count() as u32
 }
 
 fn live_turn_elapsed_secs(busy: bool, busy_started_at: &Option<Instant>) -> f64 {
@@ -112,7 +134,8 @@ fn agent_event_keeps_busy(event: &AgentUiEvent) -> bool {
 #[derive(Props)]
 pub struct MainShellProps {
     pub session_id: String,
-    pub bootstrap_notice: Option<String>,
+    pub startup_messages: Vec<TranscriptMessage>,
+    pub bootstrap: Option<TuiBootstrapConfig>,
     pub initial_agent_mode: AgentMode,
     pub initial_thinking_level: ThinkingLevel,
     pub model_label: String,
@@ -130,13 +153,17 @@ pub struct MainShellProps {
     pub skills: Vec<Skill>,
     pub cwd: PathBuf,
     pub execution_env: Arc<LocalExecutionEnv>,
+    pub paths: Paths,
+    pub file_picker_show_hidden: bool,
+    pub initial_git_footer: Option<GitFooterInfo>,
 }
 
 impl Default for MainShellProps {
     fn default() -> Self {
         Self {
             session_id: "unavailable".to_string(),
-            bootstrap_notice: None,
+            startup_messages: Vec::new(),
+            bootstrap: None,
             initial_agent_mode: AgentMode::default(),
             initial_thinking_level: ThinkingLevel::default(),
             model_label: String::new(),
@@ -154,6 +181,9 @@ impl Default for MainShellProps {
             skills: Vec::new(),
             cwd: PathBuf::new(),
             execution_env: Arc::new(LocalExecutionEnv::new(".")),
+            paths: Paths::resolve().expect("resolve elph paths"),
+            file_picker_show_hidden: false,
+            initial_git_footer: None,
         }
     }
 }
@@ -297,6 +327,105 @@ fn push_transcript_message(
     messages_revision.set(messages_revision.get().wrapping_add(1));
 }
 
+fn publish_transcript_now(
+    messages_revision: &mut State<u64>,
+    transcript_pending: &mut Ref<bool>,
+    last_transcript_publish: &mut Ref<Instant>,
+) {
+    messages_revision.set(messages_revision.get().wrapping_add(1));
+    transcript_pending.set(false);
+    last_transcript_publish.set(Instant::now());
+}
+
+fn transcript_publish_interval_ms(bootstrap_active: bool) -> u64 {
+    if bootstrap_active {
+        STARTUP_TRANSCRIPT_PUBLISH_MS
+    } else {
+        TRANSCRIPT_PUBLISH_MS
+    }
+}
+
+#[expect(clippy::too_many_arguments)]
+fn apply_bootstrap_ui_event(
+    event: BootstrapUiEvent,
+    bootstrap_phase: &mut Ref<BootstrapPhase>,
+    busy: &mut State<bool>,
+    activity_label: &mut State<String>,
+    activity_started_at: &mut Ref<Option<Instant>>,
+    live_session_id: &mut State<String>,
+    chrome_refresh_pending: &mut State<bool>,
+    palette_refresh_pending: &mut State<bool>,
+    agent_session_slot: &mut Ref<Option<Arc<CodingAgentSession>>>,
+    ui_events_slot: &mut Ref<Option<Arc<Mutex<UnboundedReceiver<AgentUiEvent>>>>>,
+    messages: &mut State<Vec<TranscriptMessage>>,
+) {
+    match event {
+        BootstrapUiEvent::AgentReady(bootstrap) => {
+            live_session_id.set(bootstrap.session_id.clone());
+            chrome_refresh_pending.set(true);
+            agent_session_slot.set(Some(Arc::clone(&bootstrap.session)));
+            ui_events_slot.set(Some(Arc::clone(&bootstrap.ui_rx)));
+            {
+                let mut msgs = messages.write();
+                mark_agent_startup_ready(&mut msgs);
+            }
+            bootstrap_phase.set(BootstrapPhase::AgentReady);
+            activity_label.set(bootstrap_activity_label(BootstrapPhase::AgentReady, None));
+        }
+        BootstrapUiEvent::AgentFailed(err) => {
+            log::warn!("agent bootstrap failed: {err}");
+            bootstrap_phase.set(BootstrapPhase::Failed);
+            busy.set(false);
+            activity_label.set(bootstrap_activity_label(BootstrapPhase::Failed, None));
+            {
+                let mut msgs = messages.write();
+                mark_agent_startup_failed(&mut msgs, &err);
+                append_startup_warning(&mut msgs, "Run `elph doctor` or check logs.");
+            }
+        }
+        BootstrapUiEvent::McpHeader { enabled_servers } => {
+            bootstrap_phase.set(BootstrapPhase::McpLoading);
+            activity_label.set(bootstrap_activity_label(BootstrapPhase::McpLoading, None));
+            {
+                let mut msgs = messages.write();
+                begin_mcp_startup(&mut msgs, enabled_servers);
+            }
+        }
+        BootstrapUiEvent::McpServer(progress) => {
+            activity_label.set(mcp_server_status_label(&progress));
+            activity_started_at.set(Some(Instant::now()));
+            {
+                let mut msgs = messages.write();
+                apply_mcp_server_progress(&mut msgs, &progress);
+            }
+        }
+        BootstrapUiEvent::McpTranscriptLine(line) => {
+            let mut msgs = messages.write();
+            match classify_mcp_footer_line(&line) {
+                McpFooterLineKind::Summary(summary) => apply_mcp_startup_summary_line(&mut msgs, &summary),
+                McpFooterLineKind::Warning(warning) => append_startup_warning(&mut msgs, &warning),
+            }
+        }
+        BootstrapUiEvent::McpComplete => {
+            bootstrap_phase.set(BootstrapPhase::Done);
+            busy.set(false);
+            activity_label.set(String::new());
+            chrome_refresh_pending.set(true);
+            palette_refresh_pending.set(true);
+        }
+        BootstrapUiEvent::McpFailed(err) => {
+            log::warn!("MCP bootstrap failed: {err}");
+            {
+                let mut msgs = messages.write();
+                mark_mcp_startup_failed(&mut msgs, &err);
+            }
+            bootstrap_phase.set(BootstrapPhase::Done);
+            busy.set(false);
+            activity_label.set(String::new());
+        }
+    }
+}
+
 #[component]
 pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let (screen_width, screen_height) = hooks.use_terminal_size();
@@ -307,12 +436,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut draft = hooks.use_state(String::new);
     let mut live_draft = hooks.use_ref(String::new);
     let mut input_prefix_kind = hooks.use_ref(InputPrefixKind::default);
-    let bootstrap_notice = props.bootstrap_notice.clone();
-    let mut messages = hooks.use_state(move || {
-        bootstrap_notice
-            .map(|notice| vec![TranscriptMessage::text(notice, TranscriptStyle::Meta)])
-            .unwrap_or_default()
-    });
+    let startup_messages = props.startup_messages.clone();
+    let mut messages = hooks.use_state(move || startup_messages);
     let mut messages_revision = hooks.use_state(|| 0u64);
     let mut suppress_enter_newline = hooks.use_ref(|| false);
     let mut slash_palette_active = hooks.use_ref(|| false);
@@ -326,6 +451,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut elapsed_secs = hooks.use_state(|| 0.0f64);
     let mut activity_elapsed_secs = hooks.use_state(|| 0.0f64);
     let mut session_elapsed_secs = hooks.use_state(|| 0.0f64);
+    let session_wall_started_at = hooks.use_ref(Instant::now);
     let mut spinner_tick = hooks.use_state(|| 0u32);
     let show_thinking = props.show_thinking;
     let mut busy_started_at = hooks.use_ref(|| None::<Instant>);
@@ -346,13 +472,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let prompt_editor_mirror = hooks.use_ref(|| (String::new(), 0usize));
     let mut styled_content = hooks.use_ref(String::new);
     let mut mention_index = hooks.use_ref(|| None::<Arc<MentionSearchIndex>>);
-    let mut file_picker_show_hidden = hooks.use_state(|| {
-        Paths::resolve()
-            .ok()
-            .and_then(|paths| Settings::load(&paths).ok())
-            .map(|settings| settings.file_picker.show_hidden_files)
-            .unwrap_or(false)
-    });
+    let mut mention_index_requested = hooks.use_ref(|| false);
+    let mut file_picker_show_hidden = hooks.use_state(|| props.file_picker_show_hidden);
     let mut palette_refresh_pending = hooks.use_state(|| false);
     let mut shell_focus = hooks.use_state(ShellFocus::default);
     let mut question_selected = hooks.use_state(|| 0usize);
@@ -371,12 +492,20 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let extension_host = props.extension_host.clone();
     let cwd = props.cwd.clone();
 
-    let agent_session = props.agent_session.clone();
-    let agent_session_for_loop = agent_session.clone();
-    let agent_session_for_chrome = agent_session.clone();
-    let agent_session_for_palette = agent_session.clone();
+    let mut agent_session_slot = hooks.use_ref(|| props.agent_session.clone());
+    let mut ui_events_slot = hooks.use_ref(|| props.ui_events.clone());
+    let mut bootstrap_phase = hooks.use_ref(|| {
+        if props.bootstrap.is_some() {
+            BootstrapPhase::Pending
+        } else {
+            BootstrapPhase::Done
+        }
+    });
+    let bootstrap_config = hooks.use_ref(|| props.bootstrap.clone());
+    let mut bootstrap_worker_started = hooks.use_ref(|| false);
+    let mut bootstrap_rx = hooks.use_ref(|| None::<UnboundedReceiver<BootstrapUiEvent>>);
+    let mut live_session_id = hooks.use_state(|| props.session_id.clone());
     let extension_host_for_palette = extension_host.clone();
-    let ui_events = props.ui_events.clone();
     let execution_env = props.execution_env.clone();
     struct UserShellChannel {
         tx: UnboundedSender<UserShellEvent>,
@@ -387,7 +516,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         UserShellChannel { tx, rx }
     });
     let mut user_shell_abort = hooks.use_ref(|| None::<CancellationToken>);
-    let paths = hooks.use_state(|| Paths::resolve().expect("resolve elph paths"));
+    let paths = hooks.use_state(|| props.paths.clone());
     let mut skills_count = hooks.use_state(|| 0usize);
     let mut chrome_refresh_pending = hooks.use_state(|| true);
     let mut chrome_stats = hooks.use_state(|| ChromeStats {
@@ -396,17 +525,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         supports_images: props.supports_images,
         ..ChromeStats::default()
     });
-    let mut git_footer = hooks.use_state(|| {
-        let paths = Paths::resolve().expect("resolve elph paths");
-        read_git_footer_info(paths.project_dir())
-    });
+    let mut git_footer = hooks.use_state(|| props.initial_git_footer.clone());
     let mut chrome_tick = hooks.use_ref(|| 0u32);
     let fallback_context_limit = props.context_limit;
     let fallback_model_label = props.model_label.clone();
     let fallback_model_label_for_chrome = fallback_model_label.clone();
     let fallback_supports_images = props.supports_images;
     let footer_token_display = props.footer_token_display.clone();
-    let session_id = props.session_id.clone();
+    let session_id = live_session_id.read().clone();
     let mut transcript_pending = hooks.use_ref(|| false);
     let mut last_transcript_publish = hooks.use_ref(|| Instant::now() - Duration::from_millis(TRANSCRIPT_PUBLISH_MS));
     let mut idle_status_notice = hooks.use_ref(|| None::<IdleStatusNotice>);
@@ -419,7 +545,63 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         loop {
             tokio::time::sleep(Duration::from_millis(SHELL_TICK_MS)).await;
 
-            if mention_index.read().is_none() {
+            if bootstrap_phase.get() == BootstrapPhase::Pending && !bootstrap_worker_started.get() {
+                if let Some(config) = bootstrap_config.read().clone() {
+                    bootstrap_worker_started.set(true);
+                    let paths_snapshot = paths.read().clone();
+                    bootstrap_rx.set(Some(spawn_bootstrap_worker(config, paths_snapshot)));
+                    bootstrap_phase.set(BootstrapPhase::Running);
+                    busy.set(true);
+                    activity_started_at.set(Some(Instant::now()));
+                    activity_label.set(bootstrap_activity_label(BootstrapPhase::Running, Some("Preparing agent")));
+                    {
+                        let mut msgs = messages.write();
+                        begin_agent_startup(&mut msgs);
+                    }
+                    publish_transcript_now(
+                        &mut messages_revision,
+                        &mut transcript_pending,
+                        &mut last_transcript_publish,
+                    );
+                } else {
+                    bootstrap_phase.set(BootstrapPhase::Done);
+                }
+            }
+
+            if let Some(rx) = bootstrap_rx.write().as_mut() {
+                let mut bootstrap_events = 0usize;
+                while bootstrap_events < MAX_BOOTSTRAP_EVENTS_PER_TICK {
+                    let Ok(event) = rx.try_recv() else {
+                        break;
+                    };
+                    bootstrap_events += 1;
+                    apply_bootstrap_ui_event(
+                        event,
+                        &mut bootstrap_phase,
+                        &mut busy,
+                        &mut activity_label,
+                        &mut activity_started_at,
+                        &mut live_session_id,
+                        &mut chrome_refresh_pending,
+                        &mut palette_refresh_pending,
+                        &mut agent_session_slot,
+                        &mut ui_events_slot,
+                        &mut messages,
+                    );
+                    publish_transcript_now(
+                        &mut messages_revision,
+                        &mut transcript_pending,
+                        &mut last_transcript_publish,
+                    );
+                }
+            }
+
+            let agent_session_for_loop = agent_session_slot.read().clone();
+            let agent_session_for_chrome = agent_session_slot.read().clone();
+            let agent_session_for_palette = agent_session_slot.read().clone();
+            let ui_events = ui_events_slot.read().clone();
+
+            if mention_index_requested.get() && mention_index.read().is_none() {
                 let base = cwd_for_mention_index.to_string_lossy().into_owned();
                 if let Ok(Ok(index)) = tokio::task::spawn_blocking(move || MentionSearchIndex::build(&base)).await {
                     mention_index.set(Some(Arc::new(index)));
@@ -486,7 +668,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         activity_elapsed_secs.set(next);
                     }
                 }
-                spinner_tick.set(spinner_tick.get().wrapping_add(1));
+                let spinner_step = if bootstrap_is_active(bootstrap_phase.get()) { 2 } else { 1 };
+                spinner_tick.set(spinner_tick.get().wrapping_add(spinner_step));
             }
 
             let idle_notice_expired = idle_status_notice
@@ -677,9 +860,15 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 transcript_pending.set(true);
             }
 
+            let transcript_publish_ms =
+                transcript_publish_interval_ms(bootstrap_is_active(bootstrap_phase.get()));
             if transcript_pending.get()
                 && (run_completed
-                    || last_transcript_publish.get().elapsed().as_millis() >= TRANSCRIPT_PUBLISH_MS as u128)
+                    || last_transcript_publish
+                        .get()
+                        .elapsed()
+                        .as_millis()
+                        >= transcript_publish_ms as u128)
             {
                 messages_revision.set(messages_revision.get().wrapping_add(1));
                 transcript_pending.set(false);
@@ -738,6 +927,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             }
         }
     });
+
+    let agent_session = agent_session_slot.read().clone();
 
     hooks.use_terminal_events({
         let paths = paths.read().clone();
@@ -1341,18 +1532,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             } else {
                 live_cursor.get().min(draft_body.len())
             };
-            let mention_index_ref = mention_index.read();
-            let picker_index = mention_index_ref.as_ref().map(|arc| arc.as_ref());
             let picker_open = input_prefix_kind.get() == InputPrefixKind::Default
                 && !status_dialog_open
                 && !file_picker_suppressed.get()
-                && file_picker_open(
-                    &draft_body,
-                    editor_cursor,
-                    screen_height,
-                    file_picker_show_hidden.get(),
-                    picker_index,
-                );
+                && file_picker_open(&draft_body, editor_cursor);
             if picker_open
                 && modifiers.is_empty()
                 && matches!(
@@ -1493,6 +1676,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             }
 
+            let mention_index_ref = mention_index.read();
+            let picker_index = mention_index_ref.as_ref().map(|arc| arc.as_ref());
             let file_picker_snapshot = build_file_picker_snapshot(
                 &draft_body,
                 editor_cursor,
@@ -1701,6 +1886,28 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     });
 
     if should_exit.get() {
+        let chrome = chrome_stats.read();
+        let api_duration_secs = accumulate_session_elapsed(
+            session_elapsed_secs.get(),
+            live_turn_elapsed_secs(busy.get(), &busy_started_at.read()),
+        );
+        let wall_duration_secs = session_wall_started_at.read().elapsed().as_secs_f64();
+        let (lines_added, lines_removed) = elph_core::utils::git::read_worktree_stats(paths.read().project_dir())
+            .map(|stats| (stats.lines_added, stats.lines_deleted))
+            .unwrap_or((0, 0));
+        record_if_active(
+            ExitSnapshot {
+                session_id: session_id.clone(),
+                cost_usd: chrome.cost_usd,
+                api_duration_secs,
+                wall_duration_secs,
+                lines_added,
+                lines_removed,
+                usage: Default::default(),
+            },
+            count_submitted_user_prompts(&messages.read()),
+            chrome.turn_count,
+        );
         system.exit();
     }
 
@@ -1826,16 +2033,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             file_picker_suppressed.set(false);
         }
     }
+    if mention_picker_visible(&draft_body, editor_cursor) {
+        mention_index_requested.set(true);
+    }
     let picker_eligible = input_prefix_kind.get() == InputPrefixKind::Default
         && !slash_palette_snapshot.visible
         && !file_picker_suppressed.get()
-        && file_picker_open(
-            &draft_body,
-            editor_cursor,
-            screen_height,
-            file_picker_show_hidden.get(),
-            mention_index.read().as_ref().map(|arc| arc.as_ref()),
-        );
+        && file_picker_open(&draft_body, editor_cursor);
     let file_picker_snapshot = if picker_eligible {
         build_file_picker_snapshot(
             &draft_body,

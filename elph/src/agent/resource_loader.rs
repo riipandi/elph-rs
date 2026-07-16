@@ -9,6 +9,7 @@ use super::skills_load::WorkspaceSkills;
 use super::skills_load::load_workspace_skills;
 use crate::platform::Paths;
 
+#[derive(Debug, Clone)]
 pub struct LoadResourcesResult {
     pub resources: AgentHarnessResources,
     pub skill_conflicts: Vec<super::skills_load::SkillConflict>,

@@ -33,6 +33,10 @@ impl AgentModePolicy {
         self
     }
 
+    pub fn set_mcp_registry(&mut self, registry: Arc<McpToolRegistry>) {
+        self.mcp_registry = Some(registry);
+    }
+
     pub fn set_mode(&mut self, mode: AgentMode) {
         self.mode = mode;
         self.brave = mode == AgentMode::Brave;

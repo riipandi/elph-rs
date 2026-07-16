@@ -195,22 +195,8 @@ pub fn mention_cursor_for_picker(draft: &str, cursor: usize) -> usize {
 }
 
 /// True when the `@` picker is open — checks live cursor and EOF (stale cursor safe).
-pub fn file_picker_open(
-    draft: &str,
-    cursor: usize,
-    screen_height: u16,
-    show_hidden: bool,
-    index: Option<&elph_agent::tools::fff_picker::MentionSearchIndex>,
-) -> bool {
-    if mention_picker_visible(draft, cursor) {
-        return true;
-    }
-    let cursor = cursor.min(draft.len());
-    if cursor != draft.len() && mention_picker_visible(draft, draft.len()) {
-        return true;
-    }
-    build_snapshot(draft, cursor, screen_height, show_hidden, index).visible
-        || build_snapshot(draft, draft.len(), screen_height, show_hidden, index).visible
+pub fn file_picker_open(draft: &str, cursor: usize) -> bool {
+    mention_picker_visible(draft, cursor)
 }
 
 fn mention_list_height(option_count: usize, screen_height: u16) -> u16 {
@@ -280,7 +266,7 @@ mod tests {
     fn file_picker_open_with_stale_cursor_before_eof_mention() {
         let draft = "fix @main";
         assert!(mention_picker_visible(draft, 4));
-        assert!(file_picker_open(draft, 4, 40, true, None));
+        assert!(file_picker_open(draft, 4));
     }
 
     #[test]

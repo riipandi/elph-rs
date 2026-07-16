@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use fff_search::file_picker::{FFFMode, FilePicker, FilePickerOptions, FuzzySearchOptions};
 use fff_search::grep::{GrepMode, GrepResult, GrepSearchOptions};
 use fff_search::types::PaginationArgs;
-use fff_search::{AiGrepConfig, FFFQuery, MixedItemRef, MixedSearchConfig};
+use fff_search::{AiGrepConfig, FFFQuery, MixedItemRef, MixedSearchConfig, SharedFilePicker, SharedFrecency};
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::utils::truncate::GREP_MAX_LINE_LENGTH;
@@ -190,22 +190,55 @@ pub struct MentionSearchHit {
     pub is_directory: bool,
 }
 
+const MENTION_INDEX_SCAN_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Workspace file index for `@` mention fuzzy search in the TUI.
+///
+/// Uses [`SharedFilePicker`] with a background scan and filesystem watcher so
+/// the index stays warm across `@` completions without rebuilding per query.
 pub struct MentionSearchIndex {
-    picker: parking_lot::Mutex<FilePicker>,
+    shared_picker: SharedFilePicker,
+    /// Keeps the noop frecency handle alive for background scan/watcher threads.
+    _frecency: SharedFrecency,
 }
 
 impl MentionSearchIndex {
     pub fn build(base_path: &str) -> Result<Self> {
-        let picker = build_picker(base_path)?;
+        let shared_picker = SharedFilePicker::default();
+        let shared_frecency = SharedFrecency::noop();
+
+        FilePicker::new_with_shared_state(
+            shared_picker.clone(),
+            shared_frecency.clone(),
+            FilePickerOptions {
+                base_path: base_path.to_string(),
+                mode: FFFMode::Ai,
+                watch: true,
+                enable_mmap_cache: false,
+                enable_content_indexing: false,
+                ..Default::default()
+            },
+        )
+        .map_err(|error| anyhow!("{error}"))?;
+
+        if !shared_picker.wait_for_scan(MENTION_INDEX_SCAN_TIMEOUT) {
+            return Err(anyhow!("file index scan timed out after {MENTION_INDEX_SCAN_TIMEOUT:?}"));
+        }
+
         Ok(Self {
-            picker: parking_lot::Mutex::new(picker),
+            shared_picker,
+            _frecency: shared_frecency,
         })
     }
 
     pub fn fuzzy_search_paths(&self, query: &str, limit: usize, show_hidden: bool) -> Vec<MentionSearchHit> {
-        let picker = self.picker.lock();
-        fuzzy_search_relative_paths(&picker, query, limit, show_hidden)
+        let Ok(guard) = self.shared_picker.read() else {
+            return Vec::new();
+        };
+        let Some(picker) = guard.as_ref() else {
+            return Vec::new();
+        };
+        fuzzy_search_relative_paths(picker, query, limit, show_hidden)
     }
 }
 

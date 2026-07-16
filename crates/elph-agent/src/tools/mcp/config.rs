@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
 use super::policy::McpPolicyConfig;
 
@@ -340,6 +341,23 @@ impl McpHttpConfig {
     }
 }
 
+/// Per-server MCP discovery progress (for startup UI).
+#[derive(Debug, Clone)]
+pub enum McpServerLoadProgress {
+    Started {
+        name: String,
+        index: usize,
+        total: usize,
+    },
+    Finished {
+        name: String,
+        ok: bool,
+        transport: String,
+        tool_count: usize,
+        message: String,
+    },
+}
+
 /// Options controlling how a registry discovers tools.
 #[derive(Debug, Clone)]
 pub struct McpLoadOptions {
@@ -359,6 +377,8 @@ pub struct McpLoadOptions {
     pub discover_resources_and_prompts: bool,
     /// When true (default), listen for tools/list_changed and refresh catalogs.
     pub enable_list_changed: bool,
+    /// Optional channel for per-server discovery progress (started / finished).
+    pub progress_tx: Option<mpsc::UnboundedSender<McpServerLoadProgress>>,
 }
 
 impl Default for McpLoadOptions {
@@ -370,6 +390,7 @@ impl Default for McpLoadOptions {
             auth_store_path: None,
             discover_resources_and_prompts: true,
             enable_list_changed: true,
+            progress_tx: None,
         }
     }
 }

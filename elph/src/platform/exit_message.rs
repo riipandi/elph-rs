@@ -7,9 +7,23 @@ use elph_ai::{Message, StopReason, Usage};
 use parking_lot::Mutex;
 
 const DIM: &str = "\x1b[2m";
+const WHITE: &str = "\x1b[37m";
 const RESET: &str = "\x1b[0m";
 
 static PENDING: Mutex<Option<ExitSnapshot>> = Mutex::new(None);
+
+const GOODBYE_MESSAGES: &[&str] = &[
+    "Until next time — the codebase will miss you.",
+    "Session closed. Your tabs are still open though.",
+    "Done for now. Coffee recommended.",
+    "Signing off — may your builds be green.",
+    "That's a wrap. See you in the next commit.",
+    "Ciao for now.",
+    "Logging off. Resume anytime.",
+    "Peace out — the elves will keep watch.",
+    "Catch you later. Happy shipping.",
+    "All quiet on the terminal front. Bye for now.",
+];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExitSnapshot {
@@ -30,8 +44,22 @@ pub struct UsageTotals {
     pub cache_write: u64,
 }
 
+/// True when the user actually participated: submitted a prompt this session or the
+/// persisted branch already contains user turns (e.g. after `--resume`).
+pub fn session_had_user_activity(submitted_prompt_count: u32, persisted_turn_count: u32) -> bool {
+    submitted_prompt_count > 0 || persisted_turn_count > 0
+}
+
 pub fn record(snapshot: ExitSnapshot) {
     *PENDING.lock() = Some(snapshot);
+}
+
+/// Record the exit summary only when the session had real user participation.
+pub fn record_if_active(snapshot: ExitSnapshot, submitted_prompt_count: u32, persisted_turn_count: u32) {
+    if !session_had_user_activity(submitted_prompt_count, persisted_turn_count) {
+        return;
+    }
+    record(snapshot);
 }
 
 pub fn print_and_clear() {
@@ -43,28 +71,41 @@ pub fn print_and_clear() {
 }
 
 pub fn print_exit_summary(snapshot: &ExitSnapshot) {
-    println!("Resume this session: elph --resume {}", snapshot.session_id);
-    println_dim(format!("Estimated cost:        ${:.2}", snapshot.cost_usd));
+    println_dim(pick_goodbye_message(&snapshot.session_id));
+    println_white(format!("Resume this session: elph --resume {}", snapshot.session_id));
+    println_dim(format!("Total cost            : ${:.4}", snapshot.cost_usd));
     println_dim(format!(
-        "Total duration (API):  {}",
+        "Total duration (API)  : {}",
         format_duration_secs(snapshot.api_duration_secs)
     ));
     println_dim(format!(
-        "Total duration (wall): {}",
+        "Total duration (wall) : {}",
         format_duration_secs(snapshot.wall_duration_secs)
     ));
     println_dim(format!(
-        "Total code changes:    {} lines added, {} lines removed",
+        "Total code changes    : {} lines added, {} lines removed",
         snapshot.lines_added, snapshot.lines_removed
     ));
-    println_dim(format!(
-        "Usage stats:           {} input, {} output, {} cache read, {} cache write",
-        snapshot.usage.input, snapshot.usage.output, snapshot.usage.cache_read, snapshot.usage.cache_write
-    ));
+}
+
+pub fn pick_goodbye_message(session_id: &str) -> &'static str {
+    let mut hash = 0u64;
+    for byte in session_id.bytes() {
+        hash = hash.wrapping_mul(31).wrapping_add(u64::from(byte));
+    }
+    GOODBYE_MESSAGES[hash as usize % GOODBYE_MESSAGES.len()]
 }
 
 fn println_dim(line: impl AsRef<str>) {
     println!("{}", dim(line.as_ref()));
+}
+
+fn println_white(line: impl AsRef<str>) {
+    if supports_ansi_color() {
+        println!("{WHITE}{}{RESET}", line.as_ref());
+    } else {
+        println!("{}", line.as_ref());
+    }
 }
 
 fn dim(text: &str) -> String {
@@ -139,12 +180,27 @@ mod tests {
     }
 
     #[test]
+    fn session_had_user_activity_requires_input_or_turns() {
+        assert!(!session_had_user_activity(0, 0));
+        assert!(session_had_user_activity(1, 0));
+        assert!(session_had_user_activity(0, 2));
+    }
+
+    #[test]
+    fn pick_goodbye_is_stable_for_session_id() {
+        let first = pick_goodbye_message("00000012abc01w01");
+        let second = pick_goodbye_message("00000012abc01w01");
+        assert_eq!(first, second);
+        assert!(GOODBYE_MESSAGES.contains(&first));
+    }
+
+    #[test]
     fn prints_codex_style_exit_block() {
         let snapshot = ExitSnapshot {
             session_id: "00000012abc01w01".to_string(),
-            cost_usd: 0.0,
-            api_duration_secs: 0.0,
-            wall_duration_secs: 51.0,
+            cost_usd: 0.1548,
+            api_duration_secs: 10.0,
+            wall_duration_secs: 17.0,
             lines_added: 0,
             lines_removed: 0,
             usage: UsageTotals::default(),

@@ -39,7 +39,7 @@ embed_anything = { version = "0.7.1", default-features = true }
 eventsource-stream = "0.2.3"
 fastrace = "0.7.18"
 fastrace-reqwest = "0.3.0"
-fff-search = "0.9.6"
+fff-search = "0.10.0"
 figlet-rs = "1.0.0"
 futures = "0.3.32"
 futures-util = "0.3.32"

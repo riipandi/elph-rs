@@ -4,8 +4,8 @@ use iocraft::prelude::*;
 
 use super::super::types::{TranscriptMessage, TranscriptStyle};
 use super::kinds::{
-    chat_response_card, error_card, meta_card, skill_prompt_card, suppressed_sticky_user_prompt_card, thinking_card,
-    thinking_response_pair_card, tool_call_card, user_prompt_card,
+    chat_response_card, error_card, meta_card, skill_prompt_card, status_line_card, suppressed_sticky_user_prompt_card,
+    thinking_card, thinking_response_pair_card, tool_call_card, user_prompt_card,
 };
 
 pub fn build_transcript_bubbles(
@@ -58,5 +58,8 @@ pub fn transcript_message_bubble(
         }
         TranscriptStyle::Error => error_card(screen_width, message, margin_bottom),
         TranscriptStyle::Meta => meta_card(screen_width, message, margin_bottom),
+        TranscriptStyle::StatusRunning | TranscriptStyle::StatusSuccess | TranscriptStyle::StatusFailed => {
+            status_line_card(screen_width, message, margin_bottom)
+        }
     }
 }

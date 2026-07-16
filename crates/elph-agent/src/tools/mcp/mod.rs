@@ -114,13 +114,13 @@ pub use config::McpConfig;
 #[cfg(feature = "mcp")]
 pub use config::McpHttpConfig;
 #[cfg(feature = "mcp")]
-pub use config::McpLoadOptions;
-#[cfg(feature = "mcp")]
 pub use config::McpOAuthClientMeta;
 #[cfg(feature = "mcp")]
 pub use config::McpServerConfig;
 #[cfg(feature = "mcp")]
 pub use config::McpStdioConfig;
+#[cfg(feature = "mcp")]
+pub use config::{McpLoadOptions, McpServerLoadProgress};
 #[cfg(feature = "mcp")]
 pub use crypto::Aes256Key;
 #[cfg(feature = "mcp")]

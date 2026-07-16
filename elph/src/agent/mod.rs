@@ -4,6 +4,7 @@ mod ask_user;
 mod diagnostics;
 mod events;
 pub(crate) mod goal_slash;
+pub mod mcp_bootstrap;
 mod model_registry;
 mod overlays;
 mod provider;
@@ -21,6 +22,7 @@ mod tools_slash;
 
 pub use events::{AgentUiEvent, ToolApprovalChoice};
 pub use events::{ToolApprovalRequest, UserQuestionOption, UserQuestionRequest, UserQuestionStep};
+pub use mcp_bootstrap::{discover_mcp_registry, wire_mcp_into_session};
 pub use overlays::{list_model_select_items, list_session_select_items, list_tree_select_items, parse_model_value};
 pub use provider::{DEFAULT_MODEL_ID, DEFAULT_PROVIDER};
 pub use provider::{provider_api_key_env, provider_config};

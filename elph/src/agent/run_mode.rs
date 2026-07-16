@@ -31,6 +31,8 @@ pub async fn run_non_interactive(options: RunModeOptions<'_>) -> Result<()> {
         resume_id: options.resume_id,
         provider_override: None,
         model_override: options.model,
+        preloaded_resources: None,
+        defer_mcp_load: false,
     })
     .await?;
 

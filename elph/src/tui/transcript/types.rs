@@ -36,6 +36,8 @@ pub struct TranscriptMessage {
     pub submitted_at: Option<DateTime<Utc>>,
     /// Slash output rendered as assistant markdown with meta-like exterior spacing.
     pub local_slash_response: bool,
+    /// Stable identity for startup status rows that upsert in place (`startup:phase`, `startup:mcp:context7`, …).
+    pub startup_key: Option<String>,
 }
 
 impl TranscriptMessage {
@@ -48,7 +50,22 @@ impl TranscriptMessage {
             duration_secs: None,
             submitted_at: None,
             local_slash_response: false,
+            startup_key: None,
         }
+    }
+
+    pub fn startup_status(
+        key: impl Into<String>,
+        content: impl Into<String>,
+        style: TranscriptStyle,
+    ) -> Self {
+        let mut message = Self::text(content, style);
+        message.startup_key = Some(key.into());
+        message
+    }
+
+    pub fn is_startup_status(&self) -> bool {
+        self.startup_key.is_some() || self.style.is_status_line()
     }
 
     pub fn assistant_markdown(content: impl Into<String>) -> Self {
@@ -76,12 +93,15 @@ impl TranscriptMessage {
             duration_secs: None,
             submitted_at: None,
             local_slash_response: false,
+            startup_key: None,
         }
     }
 
     pub fn transcript_margin_bottom(&self, next_style: Option<TranscriptStyle>) -> u16 {
         if self.local_slash_response {
             COLORED_CARD_GAP
+        } else if self.is_startup_status() {
+            self.style.transcript_margin_bottom_startup(next_style)
         } else {
             self.style.entry_gap_after(next_style)
         }
@@ -162,6 +182,12 @@ pub enum TranscriptStyle {
     ToolRunning,
     ToolSuccess,
     ToolFailed,
+    /// Startup / MCP status in progress — foreground only (no card fill).
+    StatusRunning,
+    /// Startup / MCP status succeeded — foreground only.
+    StatusSuccess,
+    /// Startup / MCP status failed — foreground only.
+    StatusFailed,
 }
 
 impl TranscriptStyle {
@@ -173,9 +199,14 @@ impl TranscriptStyle {
             Self::Thinking => TranscriptCardKind::Thinking,
             Self::Assistant => TranscriptCardKind::ChatResponse,
             Self::ToolRunning | Self::ToolSuccess | Self::ToolFailed => TranscriptCardKind::ToolCall,
+            Self::StatusRunning | Self::StatusSuccess | Self::StatusFailed => TranscriptCardKind::Meta,
             Self::Error => TranscriptCardKind::Error,
             Self::Meta => TranscriptCardKind::Meta,
         }
+    }
+
+    pub fn is_status_line(self) -> bool {
+        matches!(self, Self::StatusRunning | Self::StatusSuccess | Self::StatusFailed)
     }
 
     /// Style for a slash command line echoed when it spawns an agent turn.
@@ -205,7 +236,10 @@ impl TranscriptStyle {
     }
 
     pub(crate) fn is_flush_text(self) -> bool {
-        matches!(self, Self::Thinking | Self::Assistant | Self::Meta)
+        matches!(
+            self,
+            Self::Thinking | Self::Assistant | Self::Meta | Self::StatusRunning | Self::StatusSuccess | Self::StatusFailed
+        )
     }
 
     pub fn entry_gap_after(self, next: Option<TranscriptStyle>) -> u16 {
@@ -215,6 +249,15 @@ impl TranscriptStyle {
             (prev, Some(next)) if prev.is_flush_text() && next.has_tinted_background() => COLORED_CARD_GAP,
             _ if self.has_tinted_background() => COLORED_CARD_GAP,
             _ => FLUSH_CARD_GAP,
+        }
+    }
+
+    /// Extra spacing after a startup status block before normal transcript content.
+    pub fn transcript_margin_bottom_startup(&self, next_style: Option<TranscriptStyle>) -> u16 {
+        if self.is_status_line() && !matches!(next_style, Some(s) if s.is_status_line()) {
+            COLORED_CARD_GAP
+        } else {
+            self.entry_gap_after(next_style)
         }
     }
 
@@ -252,9 +295,9 @@ impl TranscriptStyle {
             Self::Meta => META_FG,
             Self::User | Self::Assistant => TEXT_FG,
             Self::Error => TOOL_FAILED_FG,
-            Self::ToolRunning => TOOL_RUNNING_FG,
-            Self::ToolSuccess => TOOL_SUCCESS_FG,
-            Self::ToolFailed => TOOL_FAILED_FG,
+            Self::ToolRunning | Self::StatusRunning => TOOL_RUNNING_FG,
+            Self::ToolSuccess | Self::StatusSuccess => TOOL_SUCCESS_FG,
+            Self::ToolFailed | Self::StatusFailed => TOOL_FAILED_FG,
         }
     }
 
@@ -268,6 +311,7 @@ impl TranscriptStyle {
             Self::ToolRunning => TOOL_RUNNING_BG,
             Self::ToolSuccess => TOOL_SUCCESS_BG,
             Self::ToolFailed => TOOL_FAILED_BG,
+            Self::StatusRunning | Self::StatusSuccess | Self::StatusFailed => Color::Reset,
         }
     }
 
@@ -283,7 +327,10 @@ impl TranscriptStyle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::theme::{META_FG, THINKING_BG, TOOL_FAILED_BG, TOOL_RUNNING_BG, TOOL_SUCCESS_BG, USER_INPUT_BG};
+    use crate::tui::theme::{
+        META_FG, THINKING_BG, TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG,
+        TOOL_SUCCESS_FG, USER_INPUT_BG,
+    };
 
     #[test]
     fn sticky_prompt_is_submitted_user_input_only() {
@@ -380,6 +427,22 @@ mod tests {
         assert!(TranscriptStyle::Meta.is_flush_text());
         assert!(!TranscriptStyle::Meta.has_tinted_background());
         assert_eq!(TranscriptStyle::Meta.text_color(), META_FG);
+    }
+
+    #[test]
+    fn startup_status_lines_are_flush_foreground_only() {
+        for style in [
+            TranscriptStyle::StatusRunning,
+            TranscriptStyle::StatusSuccess,
+            TranscriptStyle::StatusFailed,
+        ] {
+            assert!(style.is_flush_text());
+            assert!(style.is_status_line());
+            assert!(!style.has_tinted_background());
+        }
+        assert_eq!(TranscriptStyle::StatusRunning.text_color(), TOOL_RUNNING_FG);
+        assert_eq!(TranscriptStyle::StatusSuccess.text_color(), TOOL_SUCCESS_FG);
+        assert_eq!(TranscriptStyle::StatusFailed.text_color(), TOOL_FAILED_FG);
     }
 
     #[test]

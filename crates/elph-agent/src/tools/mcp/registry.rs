@@ -24,7 +24,7 @@ use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult, ToolResultContent};
 
 use super::client::{call_tool_for_server, probe_server_with_auth, validate_server_config};
-use super::config::{McpConfig, McpLoadOptions, McpServerConfig};
+use super::config::{McpConfig, McpLoadOptions, McpServerConfig, McpServerLoadProgress};
 use super::events::McpServerEvent;
 use super::policy::McpPolicyConfig;
 use super::policy::mcp_tool_requires_approval;
@@ -147,11 +147,27 @@ impl McpToolRegistry {
         let concurrency = options.max_concurrency.max(1);
         let pool_for_discovery = Arc::clone(&pool);
         let discover_rp = options.discover_resources_and_prompts;
-        let results: Vec<ServerDiscovery> = stream::iter(enabled)
-            .map(|(name, server_config)| {
+        let progress_tx = options.progress_tx.clone();
+        let total = enabled.len();
+        let results: Vec<ServerDiscovery> = stream::iter(enabled.into_iter().enumerate())
+            .map(|(index, (name, server_config))| {
                 let discovery_timeout = options.discovery_timeout;
                 let pool = Arc::clone(&pool_for_discovery);
-                async move { discover_one(&pool, &name, server_config, discovery_timeout, discover_rp).await }
+                let progress_tx = progress_tx.clone();
+                async move {
+                    if let Some(ref tx) = progress_tx {
+                        let _ = tx.send(McpServerLoadProgress::Started {
+                            name: name.clone(),
+                            index: index + 1,
+                            total,
+                        });
+                    }
+                    let result = discover_one(&pool, &name, server_config, discovery_timeout, discover_rp).await;
+                    if let Some(ref tx) = progress_tx {
+                        let _ = tx.send(server_discovery_progress(&result));
+                    }
+                    result
+                }
             })
             .buffer_unordered(concurrency)
             .collect()
@@ -701,6 +717,31 @@ impl McpToolRegistry {
     /// Shut down pooled sessions.
     pub async fn shutdown(&self) {
         self.pool.close_all().await;
+    }
+}
+
+fn server_discovery_progress(result: &ServerDiscovery) -> McpServerLoadProgress {
+    match result {
+        ServerDiscovery::Ok {
+            name,
+            transport,
+            descriptors,
+            message,
+            ..
+        } => McpServerLoadProgress::Finished {
+            name: name.clone(),
+            ok: true,
+            transport: transport.clone(),
+            tool_count: descriptors.len(),
+            message: message.clone(),
+        },
+        ServerDiscovery::Failed { name, transport, error } => McpServerLoadProgress::Finished {
+            name: name.clone(),
+            ok: false,
+            transport: transport.clone(),
+            tool_count: 0,
+            message: error.clone(),
+        },
     }
 }
 

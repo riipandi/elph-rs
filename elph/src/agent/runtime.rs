@@ -4,20 +4,20 @@ use anyhow::Result;
 use elph_agent::create_goal_tools;
 use elph_agent::{
     AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, BuiltinToolsBuilder, GoalRuntime,
-    GoalStore, LocalExecutionEnv, McpLoadOptions, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt,
+    GoalStore, LocalExecutionEnv, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt,
 };
 use elph_core::utils::path::AppPaths;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use super::mcp_bootstrap::{discover_mcp_registry, start_mcp_notifications};
 use super::model_registry::resolve_model;
-use super::resource_loader::load_resources;
+use super::resource_loader::{LoadResourcesResult, load_resources};
 use super::session::{CodingAgentSession, CodingAgentSessionParams};
 use super::session_manager::SessionManager;
 use super::system_prompt::{agents_md_for_cwd, build_system_prompt};
 use super::tool_policy::{agent_mode_from_setting, thinking_level_from_setting, to_agent_thinking};
-use super::tools_catalog::reconcile_harness_tools;
 use crate::platform::{Paths, Settings};
 pub struct CreateSessionOptions<'a> {
     pub paths: &'a Paths,
@@ -26,6 +26,10 @@ pub struct CreateSessionOptions<'a> {
     pub resume_id: Option<&'a str>,
     pub provider_override: Option<&'a str>,
     pub model_override: Option<&'a str>,
+    /// When set, skips a second [`load_resources`] pass during session bootstrap.
+    pub preloaded_resources: Option<LoadResourcesResult>,
+    /// When true, MCP discovery is skipped; use [`super::mcp_bootstrap`] to load later.
+    pub defer_mcp_load: bool,
 }
 
 pub async fn create_coding_session_with_events(
@@ -45,8 +49,10 @@ pub async fn create_coding_session_with_events(
     };
     let selection = resolve_model(options.settings, options.provider_override, options.model_override).await?;
 
-    let loaded = load_resources(options.paths, options.cwd, env.as_ref()).await;
-    let resources = loaded.resources;
+    let resources = match options.preloaded_resources {
+        Some(loaded) => loaded.resources,
+        None => load_resources(options.paths, options.cwd, env.as_ref()).await.resources,
+    };
     let mut tools = BuiltinToolsBuilder::all(env.clone()).build();
     tools.push(super::diagnostics::create_diagnostics_tool(&options.cwd.display().to_string()));
 
@@ -54,39 +60,13 @@ pub async fn create_coding_session_with_events(
     let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
     tools.push(super::ask_user::create_ask_user_tool(ui_tx.clone()));
 
-    let (mcp_config, mcp_config_warnings) = crate::platform::mcp::load_config_best_effort(options.paths);
-    for warning in &mcp_config_warnings {
-        log::warn!("{warning}");
-    }
-    let auth_store_path = options.paths.auth_store_path();
-    let load_options = McpLoadOptions {
-        auth_store_path: Some(auth_store_path),
-        ..McpLoadOptions::default()
+    let (mcp_registry, mcp_config_warnings) = if options.defer_mcp_load {
+        (Arc::new(McpToolRegistry::empty()), Vec::new())
+    } else {
+        let (registry, warnings) = discover_mcp_registry(options.paths).await;
+        tools.extend(registry.create_agent_tools());
+        (registry, warnings)
     };
-    let mcp_registry = match McpToolRegistry::load_with_options(mcp_config, load_options).await {
-        Ok(registry) => {
-            let report = registry.load_report();
-            if report.servers_failed > 0 {
-                log::warn!(
-                    "MCP discovery finished with server failures: ok={} failed={} tools={}",
-                    report.servers_ok,
-                    report.servers_failed,
-                    report.tools_loaded
-                );
-                for server in &report.servers {
-                    if !server.ok {
-                        log::warn!("MCP server unavailable: server={} error={}", server.name, server.message);
-                    }
-                }
-            }
-            Arc::new(registry)
-        }
-        Err(error) => {
-            log::warn!("MCP tool discovery failed: {error}");
-            Arc::new(McpToolRegistry::empty())
-        }
-    };
-    tools.extend(mcp_registry.create_agent_tools());
 
     let goal_store = Arc::new(GoalStore::new(options.paths.metadata_db_path()));
     let goal_runtime = Arc::new(GoalRuntime::new(goal_store.clone(), session_id.clone()));
@@ -159,68 +139,11 @@ pub async fn create_coding_session_with_events(
     })
     .await?;
 
-    if !mcp_config_warnings.is_empty() {
-        let notice = format!(
-            "MCP configuration issues (agent started with valid servers only):\n{}",
-            mcp_config_warnings.join("\n")
-        );
-        let _ = ui_tx.send(super::events::AgentUiEvent::Status(notice));
-    }
-
-    // Catalog hot-reload + progress → TUI status (after ui channel exists).
-    {
-        let harness_for_reload = Arc::clone(&session.harness());
-        let mode_state = session.mode_state();
-        let mcp_registry = Arc::clone(&mcp_registry);
-        let ui_tx = session.ui_event_sender();
-        let started = mcp_registry.spawn_event_loop(
-            move |registry| {
-                let harness = Arc::clone(&harness_for_reload);
-                let mode_state = Arc::clone(&mode_state);
-                let registry = Arc::clone(&registry);
-                tokio::spawn(async move {
-                    if let Err(error) = apply_mcp_tools_to_harness(&harness, &registry).await {
-                        log::warn!("failed to apply MCP hot-reload tools: {error}");
-                        return;
-                    }
-                    let mode = *mode_state.lock().await;
-                    if let Err(error) = reconcile_harness_tools(&harness, mode, Some(registry.as_ref())).await {
-                        log::warn!("failed to reconcile tools after MCP hot-reload: {error}");
-                    } else {
-                        log::info!("MCP tools hot-reloaded into agent harness");
-                    }
-                });
-            },
-            move |status| {
-                let _ = ui_tx.send(super::events::AgentUiEvent::Status(status));
-            },
-        );
-        if started {
-            log::info!("MCP event loop (list_changed + progress) started");
-        }
+    if !options.defer_mcp_load {
+        start_mcp_notifications(&session, mcp_registry, mcp_config_warnings);
     }
 
     Ok((session, ui_rx))
-}
-
-async fn apply_mcp_tools_to_harness(
-    harness: &AgentHarness<elph_agent::SessionDirStorage>,
-    registry: &Arc<McpToolRegistry>,
-) -> Result<()> {
-    let mcp_tools = registry.create_agent_tools();
-    let mut kept: Vec<_> = harness
-        .get_tools()
-        .await
-        .into_iter()
-        .filter(|t| !t.name().starts_with("mcp_"))
-        .collect();
-    kept.extend(mcp_tools);
-
-    harness
-        .set_tools(kept, None)
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
-    Ok(())
 }
 
 pub async fn create_coding_session(options: CreateSessionOptions<'_>) -> Result<CodingAgentSession> {

@@ -106,14 +106,16 @@ impl ModelCatalogSnapshot {
         let mut models_by_provider = HashMap::new();
         let mut total_models = 0usize;
 
+        let mut all_models: Vec<ModelRow> = Vec::new();
         for provider_id in &provider_ids {
             let models = get_builtin_models(provider_id);
             let count = models.len();
             total_models = total_models.saturating_add(count);
             let rows: Vec<ModelRow> = models
-                .into_iter()
-                .map(|model| model_row_from_builtin(provider_id, &model))
+                .iter()
+                .map(|model| model_row_from_builtin(provider_id, model))
                 .collect();
+            all_models.extend(rows.iter().cloned());
             providers.push(ModelProviderTab {
                 id: (*provider_id).to_string(),
                 label: format_provider_label(provider_id),
@@ -123,12 +125,6 @@ impl ModelCatalogSnapshot {
         }
 
         let total_providers = providers.len();
-        let mut all_models: Vec<ModelRow> = Vec::new();
-        for provider_id in &provider_ids {
-            for model in get_builtin_models(provider_id) {
-                all_models.push(model_row_from_builtin(provider_id, &model));
-            }
-        }
         all_models.sort_by(|left, right| left.name.cmp(&right.name).then_with(|| left.value.cmp(&right.value)));
 
         let scoped_models = build_scoped_model_rows(scoped_model_items);

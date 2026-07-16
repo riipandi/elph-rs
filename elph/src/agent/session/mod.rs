@@ -7,6 +7,8 @@ use anyhow::Result;
 use elph_agent::{AgentHarness, AgentHarnessErrorCode};
 use elph_agent::{GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage};
 use std::sync::Arc;
+
+use parking_lot::RwLock;
 use std::time::Instant;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
@@ -48,7 +50,7 @@ pub struct CodingAgentSession {
     ui_tx: mpsc::UnboundedSender<AgentUiEvent>,
     show_thinking: bool,
     goal_runtime: Arc<GoalRuntime>,
-    mcp_registry: Option<Arc<McpToolRegistry>>,
+    mcp_registry: Arc<RwLock<Option<Arc<McpToolRegistry>>>>,
     /// Serializes harness turns so only one prompt/template/compact runs at a time.
     turn_gate: Arc<Mutex<()>>,
     /// Serializes agent-mode reconciliation (Tab rapid cycling).
@@ -70,7 +72,8 @@ impl CodingAgentSession {
             ui_tx,
         } = params;
         let mut policy = AgentModePolicy::new(agent_mode);
-        if let Some(reg) = mcp_registry.clone() {
+        let mcp_slot = Arc::new(RwLock::new(mcp_registry));
+        if let Some(reg) = mcp_slot.read().clone() {
             policy = policy.with_mcp_registry(reg);
         }
         let session = Self {
@@ -83,7 +86,7 @@ impl CodingAgentSession {
             ui_tx: ui_tx.clone(),
             show_thinking,
             goal_runtime,
-            mcp_registry,
+            mcp_registry: mcp_slot,
             turn_gate: Arc::new(Mutex::new(())),
             mode_gate: Arc::new(Mutex::new(())),
         };
@@ -103,7 +106,28 @@ impl CodingAgentSession {
     }
 
     pub fn mcp_registry(&self) -> Option<Arc<McpToolRegistry>> {
-        self.mcp_registry.clone()
+        self.mcp_registry.read().clone()
+    }
+
+    /// Late-bind MCP tools discovered after the TUI is visible.
+    pub async fn attach_mcp_registry(&self, registry: Arc<McpToolRegistry>) -> Result<()> {
+        let mcp_tools = registry.create_agent_tools();
+        let mut kept: Vec<_> = self
+            .harness
+            .get_tools()
+            .await
+            .into_iter()
+            .filter(|t| !t.name().starts_with("mcp_"))
+            .collect();
+        kept.extend(mcp_tools);
+        self.harness
+            .set_tools(kept, None)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        *self.mcp_registry.write() = Some(Arc::clone(&registry));
+        self.policy.lock().await.set_mcp_registry(registry);
+        let mode = *self.mode_state.lock().await;
+        self.apply_agent_mode(mode).await
     }
 
     pub fn ui_event_sender(&self) -> mpsc::UnboundedSender<AgentUiEvent> {
@@ -287,7 +311,7 @@ impl CodingAgentSession {
     }
 
     async fn apply_agent_mode(&self, mode: AgentMode) -> Result<()> {
-        reconcile_harness_tools(&self.harness, mode, self.mcp_registry.as_deref()).await
+        reconcile_harness_tools(&self.harness, mode, self.mcp_registry().as_deref()).await
     }
 
     async fn finish_ui_turn(&self, started: Instant) {

@@ -160,6 +160,52 @@ pub fn meta_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: 
     render_flush_card(&chrome, message)
 }
 
+fn status_line_process_state(style: TranscriptStyle) -> Option<ProcessStatus> {
+    match style {
+        TranscriptStyle::StatusRunning => Some(ProcessStatus::Running),
+        TranscriptStyle::StatusSuccess => Some(ProcessStatus::Done),
+        TranscriptStyle::StatusFailed => Some(ProcessStatus::Failed),
+        _ => None,
+    }
+}
+
+pub fn status_line_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
+    let style = message.style;
+    let chrome = TranscriptCardChrome::from_style(screen_width, style, margin_bottom);
+    let label_color = style.text_color();
+
+    let Some(status) = status_line_process_state(style) else {
+        return render_flush_card(&chrome, message);
+    };
+
+    let animate_running = status == ProcessStatus::Running;
+    element! {
+        View(
+            width: chrome.outer_width,
+            background_color: Color::Reset,
+            border_style: BorderStyle::None,
+            margin_bottom: chrome.margin_bottom,
+            padding_left: chrome.padding_h,
+            padding_right: chrome.padding_h,
+            flex_direction: FlexDirection::Column,
+            gap: 0,
+        ) {
+            ProcessStatusRow(
+                status: status,
+                label: message.content.clone(),
+                duration_secs: None,
+                running_color: Some(label_color),
+                done_color: Some(label_color),
+                failed_color: Some(label_color),
+                duration_color: Some(TOOL_ARGS_FG),
+                emphasize_running: false,
+                animate_running: animate_running,
+            )
+        }
+    }
+    .into()
+}
+
 pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let style = message.style;
     let chrome = TranscriptCardChrome::tinted(screen_width, style, margin_bottom);

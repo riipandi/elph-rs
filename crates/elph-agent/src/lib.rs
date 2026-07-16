@@ -365,8 +365,6 @@ pub use tools::mcp::McpEventBus;
 #[cfg(feature = "mcp")]
 pub use tools::mcp::McpHttpConfig;
 #[cfg(feature = "mcp")]
-pub use tools::mcp::McpLoadOptions;
-#[cfg(feature = "mcp")]
 pub use tools::mcp::McpLoadReport;
 #[cfg(feature = "mcp")]
 pub use tools::mcp::McpOAuthClientMeta;
@@ -490,6 +488,8 @@ pub use tools::mcp::validate_mcp_config_semantic;
 pub use tools::mcp::validate_mcp_config_value;
 #[cfg(feature = "mcp")]
 pub use tools::mcp::validate_server_config;
+#[cfg(feature = "mcp")]
+pub use tools::mcp::{McpLoadOptions, McpServerLoadProgress};
 #[cfg(feature = "tools-web")]
 pub use tools::{WebSearchEngine, WebSearchResult};
 #[cfg(feature = "tools-web")]
