@@ -165,8 +165,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let extension_host_for_palette = extension_host.clone();
     let ui_events = props.ui_events.clone();
     let paths = hooks.use_state(|| Paths::resolve().expect("resolve elph paths"));
-    let mut turn_count = hooks.use_state(|| 0u32);
     let mut skills_count = hooks.use_state(|| 0usize);
+    let mut chrome_refresh_pending = hooks.use_state(|| true);
     let mut chrome_stats = hooks.use_state(|| ChromeStats {
         context_limit: props.context_limit,
         model_label: props.model_label.clone(),
@@ -199,7 +199,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             }
 
             chrome_tick.set(chrome_tick.get().wrapping_add(1));
-            if chrome_tick.get() % CHROME_REFRESH_TICKS == 0 {
+            if chrome_refresh_pending.get() || chrome_tick.get() % CHROME_REFRESH_TICKS == 0 {
+                chrome_refresh_pending.set(false);
                 let paths = paths.read().clone();
                 let branch = read_git_branch(paths.project_dir());
                 project_label.set(project_footer_label(&paths, branch.as_deref()));
@@ -281,6 +282,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 busy_started_at.set(None);
                 elapsed_secs.set(0.0);
                 activity_label.set("Thinking".to_string());
+                chrome_refresh_pending.set(true);
 
                 if let Some(next) = prompt_queue.write().pop_front() {
                     mark_busy(
@@ -294,6 +296,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         false,
                     );
                     if let Some(session) = agent_session_for_loop.as_ref() {
+                        chrome_refresh_pending.set(true);
                         TurnDispatcher::spawn_turn(Arc::clone(session), next, false);
                     }
                 }
@@ -426,7 +429,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         .map(|registry| registry.load_report().servers_ok)
         .unwrap_or(0);
     let session_label = session_label(&session_id, mcp_connected, skills_count.get());
-    let footer_left = footer_left_label(&project_label.read(), turn_count.get());
+    let footer_left = footer_left_label(&project_label.read(), chrome.turn_count);
     let stats_label = header_stats_from_chrome(&chrome, &footer_token_display);
     let model_label = if chrome.model_label.is_empty() {
         fallback_model_label.clone()
@@ -580,6 +583,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         }
                         SlashOutcome::SpawnAgentTurn if is_slash => {
                             if agent_session.is_some() && slash_turn_sets_busy(&text, &templates) {
+                                chrome_refresh_pending.set(true);
                                 mark_busy(
                                     &mut BusyActivation {
                                         busy: &mut busy,
@@ -596,7 +600,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             if busy.get() {
                                 prompt_queue.write().push(text);
                             } else if let Some(session) = agent_session.as_ref() {
-                                turn_count.set(turn_count.get().saturating_add(1));
+                                chrome_refresh_pending.set(true);
                                 mark_busy(
                                     &mut BusyActivation {
                                         busy: &mut busy,

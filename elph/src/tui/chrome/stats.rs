@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use elph_agent::{build_session_context, estimate_context_tokens};
+use elph_agent::{SessionTreeEntry, build_session_context, estimate_context_tokens};
 use elph_ai::get_builtin_model;
 
 use crate::agent::CodingAgentSession;
@@ -20,6 +20,7 @@ pub struct ChromeStats {
     pub context_limit: u64,
     pub model_label: String,
     pub supports_images: bool,
+    pub turn_count: u32,
 }
 
 impl Default for ChromeStats {
@@ -31,8 +32,22 @@ impl Default for ChromeStats {
             context_limit: 200_000,
             model_label: String::new(),
             supports_images: false,
+            turn_count: 0,
         }
     }
+}
+
+/// Count user-initiated turns on the active session branch (one per user message).
+pub fn count_user_turns(path_entries: &[SessionTreeEntry]) -> u32 {
+    path_entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry,
+                SessionTreeEntry::Message { message, .. } if message.role() == "user"
+            )
+        })
+        .count() as u32
 }
 
 pub fn read_git_branch(project_dir: &Path) -> Option<String> {
@@ -71,6 +86,7 @@ pub async fn refresh_chrome_stats(
     } else {
         0.0
     };
+    let turn_count = count_user_turns(&entries);
 
     ChromeStats {
         cost_usd,
@@ -79,6 +95,7 @@ pub async fn refresh_chrome_stats(
         context_limit,
         model_label,
         supports_images,
+        turn_count,
     }
 }
 
@@ -118,7 +135,44 @@ pub fn header_stats_from_chrome(stats: &ChromeStats, footer_token_display: &str)
 
 #[cfg(test)]
 mod tests {
+    use elph_agent::llm_message_to_agent;
+    use elph_ai::Message;
+
     use super::*;
+
+    fn user_entry(id: &str, text: &str) -> SessionTreeEntry {
+        SessionTreeEntry::Message {
+            id: id.to_string(),
+            parent_id: None,
+            timestamp: "2026-01-01T00:00:00.000Z".to_string(),
+            message: llm_message_to_agent(Message::User {
+                content: elph_ai::UserContent::Text(text.into()),
+                timestamp: 0,
+            }),
+        }
+    }
+
+    fn assistant_entry(id: &str, text: &str) -> SessionTreeEntry {
+        SessionTreeEntry::Message {
+            id: id.to_string(),
+            parent_id: None,
+            timestamp: "2026-01-01T00:00:00.000Z".to_string(),
+            message: llm_message_to_agent(Message::Assistant(elph_ai::faux_assistant_message(
+                vec![elph_ai::faux_text(text)],
+                None,
+            ))),
+        }
+    }
+
+    #[test]
+    fn count_user_turns_counts_only_user_messages() {
+        let entries = vec![
+            user_entry("u1", "hello"),
+            assistant_entry("a1", "hi"),
+            user_entry("u2", "again"),
+        ];
+        assert_eq!(count_user_turns(&entries), 2);
+    }
 
     #[test]
     fn header_stats_from_chrome_formats_defaults() {
