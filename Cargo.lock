@@ -2830,7 +2830,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
 name = "elph"
-version = "0.0.26"
+version = "0.0.27"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -2858,7 +2858,7 @@ dependencies = [
 
 [[package]]
 name = "elph-agent"
-version = "0.0.27"
+version = "0.0.28"
 dependencies = [
  "aes-gcm 0.11.0",
  "anyhow",
@@ -2906,7 +2906,7 @@ dependencies = [
 
 [[package]]
 name = "elph-ai"
-version = "0.0.26"
+version = "0.0.27"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -2950,7 +2950,7 @@ dependencies = [
 
 [[package]]
 name = "elph-core"
-version = "0.0.15"
+version = "0.0.16"
 dependencies = [
  "anyhow",
  "chrono",

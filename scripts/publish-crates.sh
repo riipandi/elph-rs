@@ -14,6 +14,7 @@ DRY_RUN="${DRY_RUN:-0}"
 PACKAGES=(
     elph-core
     elph-ai
+    elph-exec
     elph-agent
     elph-swarm
     elph-tui
