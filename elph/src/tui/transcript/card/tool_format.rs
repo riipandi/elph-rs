@@ -1,47 +1,9 @@
 //! Tool card argument and output formatting.
 
+pub use crate::tui::tool_params::format_tool_params_display as format_tool_args_display;
+
 pub const TOOL_OUTPUT_MAX_LINES: usize = 12;
 pub const TOOL_OUTPUT_MAX_CHARS: usize = 1_500;
-
-pub fn format_tool_args_display(raw: &str) -> String {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) else {
-        return trimmed.to_string();
-    };
-    format_tool_args_json(&value)
-}
-
-fn format_tool_args_json(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Object(map) if map.is_empty() => String::new(),
-        serde_json::Value::Object(map) if map.len() == 1 => {
-            map.values().next().map(format_json_scalar).unwrap_or_default()
-        }
-        serde_json::Value::Object(map) => map
-            .iter()
-            .map(|(key, val)| format!("{key}: {}", format_json_scalar(val)))
-            .collect::<Vec<_>>()
-            .join(", "),
-        other => format_json_scalar(other),
-    }
-}
-
-fn format_json_scalar(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::String(text) => text.clone(),
-        serde_json::Value::Number(num) => num.to_string(),
-        serde_json::Value::Bool(flag) => flag.to_string(),
-        serde_json::Value::Null => "null".to_string(),
-        serde_json::Value::Array(items) => {
-            let parts: Vec<String> = items.iter().map(format_json_scalar).collect();
-            parts.join(", ")
-        }
-        serde_json::Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
-    }
-}
 
 pub fn format_tool_output_display(output: &str) -> String {
     let trimmed = output.trim();

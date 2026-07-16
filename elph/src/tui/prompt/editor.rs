@@ -1,12 +1,13 @@
 //! Multiline prompt editor with agent-mode overlap label.
 
 use elph_tui::Textarea;
+use elph_tui::components::UiTheme;
 use iocraft::prelude::*;
 
 use crate::types::AgentMode;
 
 use crate::tui::theme::rgb_color;
-use crate::tui::theme::{EDITOR_BORDER, EDITOR_BORDER_DIMMED, EDITOR_CURSOR, EDITOR_TEXT_DIMMED, EDITOR_TEXT_FOCUSED};
+use crate::tui::theme::{EDITOR_CURSOR, EDITOR_TEXT_DIMMED, EDITOR_TEXT_FOCUSED};
 
 fn editor_max_height(screen_height: u16) -> u16 {
     (screen_height / 4).clamp(4, 12)
@@ -30,9 +31,12 @@ pub struct EditorProps {
 
 #[component]
 pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
+    let theme = UiTheme::default();
     let label_color = rgb_color(props.agent_mode.label_rgb());
     let has_focus = props.has_focus;
-    let border_color = if has_focus { EDITOR_BORDER } else { EDITOR_BORDER_DIMMED };
+    let border_color = theme.shell_zone_border_color(has_focus);
+    let inset = theme.shell_zone_padding();
+    let inner_width = theme.shell_editor_inner_width(props.screen_width);
     let text_color = if has_focus {
         EDITOR_TEXT_FOCUSED
     } else {
@@ -50,11 +54,11 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
             margin_bottom: 0,
             padding_top: 0,
             padding_bottom: 0,
-            padding_left: 1,
-            padding_right: 1,
+            padding_left: inset,
+            padding_right: inset,
         ) {
             Textarea(
-                width: props.screen_width.saturating_sub(2),
+                width: inner_width,
                 min_height: 1u16,
                 max_height: Some(editor_max_height(props.screen_height)),
                 show_border: Some(false),

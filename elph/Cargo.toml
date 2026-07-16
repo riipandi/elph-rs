@@ -29,7 +29,7 @@ clap_complete.workspace = true
 crossterm.workspace = true
 elph-agent = { workspace = true, features = ["tracing", "builtin-tools"] }
 elph-ai = { workspace = true, features = ["tracing"] }
-elph-core = { workspace = true, features = ["embed", "tracing"] }
+elph-core = { workspace = true, features = ["embed", "git", "tracing"] }
 elph-tui = { workspace = true }
 futures-util.workspace = true
 iocraft.workspace = true

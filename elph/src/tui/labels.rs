@@ -8,10 +8,39 @@ pub fn session_label(session_id: &str, mcp_connected: usize, skills_count: usize
     format!("Session: {session_id} | MCP: {mcp_connected} | Skills: {skills_count}")
 }
 
-pub fn project_footer_label(paths: &Paths, branch: Option<&str>) -> String {
+/// Git metadata shown in the footer left segment (omitted outside a git work tree).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitFooterInfo {
+    pub branch: String,
+    pub files_added: u32,
+    pub lines_added: u32,
+    pub files_deleted: u32,
+    pub lines_deleted: u32,
+}
+
+/// Format worktree stats as `[+files/lines -files/lines]` (lines zero-padded to 2 digits).
+pub fn format_worktree_stats(files_added: u32, lines_added: u32, files_deleted: u32, lines_deleted: u32) -> String {
+    format!("[+{files_added}/{lines_added:02} -{files_deleted}/{lines_deleted:02}]")
+}
+
+/// Project directory line for the footer: `~ name`, with optional `[branch] [+A/B -C/D]`.
+pub fn project_footer_label(paths: &Paths, git: Option<&GitFooterInfo>) -> String {
     let name = paths.project_dir().file_name().and_then(|s| s.to_str()).unwrap_or("?");
-    let branch = branch.filter(|b| !b.is_empty()).unwrap_or("main");
-    format!("~ {name} [{branch}]")
+    let mut line = format!("~ {name}");
+    if let Some(git) = git {
+        let branch = git.branch.trim();
+        if !branch.is_empty() {
+            line.push_str(&format!(" [{branch}]"));
+        }
+        line.push(' ');
+        line.push_str(&format_worktree_stats(
+            git.files_added,
+            git.lines_added,
+            git.files_deleted,
+            git.lines_deleted,
+        ));
+    }
+    line
 }
 
 pub fn footer_left_label(project_line: &str, turn: u32) -> String {
@@ -84,21 +113,47 @@ mod tests {
     }
 
     #[test]
-    fn project_footer_label_uses_git_branch() {
+    fn project_footer_label_includes_branch_and_diff_stats_in_git_repo() {
         let paths = Paths::from_dirs(
             std::path::PathBuf::from("/tmp/home"),
             std::path::PathBuf::from("/tmp/data"),
             std::path::PathBuf::from("/tmp/my-project"),
         );
+        let git = GitFooterInfo {
+            branch: "refactor-tui".to_string(),
+            files_added: 99,
+            lines_added: 0,
+            files_deleted: 0,
+            lines_deleted: 0,
+        };
         assert_eq!(
-            project_footer_label(&paths, Some("refactor-tui")),
-            "~ my-project [refactor-tui]"
+            project_footer_label(&paths, Some(&git)),
+            "~ my-project [refactor-tui] [+99/00 -0/00]"
         );
     }
 
     #[test]
+    fn project_footer_label_omits_git_segments_outside_repo() {
+        let paths = Paths::from_dirs(
+            std::path::PathBuf::from("/tmp/home"),
+            std::path::PathBuf::from("/tmp/data"),
+            std::path::PathBuf::from("/tmp/my-project"),
+        );
+        assert_eq!(project_footer_label(&paths, None), "~ my-project");
+    }
+
+    #[test]
     fn footer_left_appends_turn_count() {
-        assert_eq!(footer_left_label("~ elph [main]", 0), "~ elph [main] | turn: 0");
+        assert_eq!(
+            footer_left_label("~ elph [main] [+3/42 -1/07]", 0),
+            "~ elph [main] [+3/42 -1/07] | turn: 0"
+        );
+    }
+
+    #[test]
+    fn format_worktree_stats_renders_file_and_line_counts() {
+        assert_eq!(format_worktree_stats(99, 0, 0, 0), "[+99/00 -0/00]");
+        assert_eq!(format_worktree_stats(2, 15, 1, 8), "[+2/15 -1/08]");
     }
 
     #[test]

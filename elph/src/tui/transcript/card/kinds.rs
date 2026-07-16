@@ -3,14 +3,17 @@
 use elph_tui::components::{ProcessActivityTrail, ProcessStatus, ProcessStatusRow};
 use iocraft::prelude::*;
 
-use crate::tui::theme::{TEXT_FG, THINKING_FG, TOOL_ARGS_FG, TOOL_OUTPUT_FG};
+use crate::tui::ask_user_tool_card::{AskUserToolCardView, parse_ask_user_tool_rows};
+use crate::tui::theme::{TEXT_FG, THINKING_FG, TOOL_OUTPUT_FG};
+use crate::tui::tool_params::{ToolParamsView, parse_tool_params};
 
 use super::super::types::{TranscriptMessage, TranscriptStyle};
 use super::chrome::{
     COLORED_CARD_PAD_H, FLUSH_CARD_PAD, THINKING_RESPONSE_GAP, TOOL_OUTPUT_SECTION_GAP, TranscriptCardChrome,
 };
 use super::frame::{assistant_message_elements, render_assistant_card, render_flush_card, render_tinted_card};
-use super::tool_format::{format_tool_args_display, format_tool_output_display};
+
+use super::tool_format::format_tool_output_display;
 
 pub fn tool_status_marker(style: TranscriptStyle) -> &'static str {
     match style {
@@ -65,8 +68,11 @@ pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bot
     let chrome = TranscriptCardChrome::tinted(screen_width, style, margin_bottom);
 
     if let Some(tool) = &message.tool {
-        let args = format_tool_args_display(&tool.args_summary);
         let output = format_tool_output_display(&tool.output);
+        let ask_user_rows = (tool.name == "ask_user_question")
+            .then(|| parse_ask_user_tool_rows(&tool.args_summary))
+            .flatten();
+        let has_generic_args = ask_user_rows.is_none() && !parse_tool_params(&tool.args_summary).is_empty();
         let running = style == TranscriptStyle::ToolRunning;
         let status = tool_process_status(style);
         let inner_width = chrome
@@ -105,9 +111,23 @@ pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bot
                 } else {
                     None
                 })
-                #(if !args.is_empty() {
+                #(if ask_user_rows.is_some() {
                     Some(element! {
-                        Text(color: TOOL_ARGS_FG, wrap: TextWrap::Wrap, content: args)
+                        View(width: inner_width, padding_top: 1, flex_shrink: 0f32) {
+                            AskUserToolCardView(
+                                width: inner_width,
+                                raw: tool.args_summary.clone(),
+                            )
+                        }
+                    })
+                } else if has_generic_args {
+                    Some(element! {
+                        View(width: inner_width, padding_top: 1, flex_shrink: 0f32) {
+                            ToolParamsView(
+                                width: inner_width,
+                                raw: tool.args_summary.clone(),
+                            )
+                        }
                     })
                 } else {
                     None

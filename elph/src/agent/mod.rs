@@ -18,7 +18,8 @@ mod system_prompt;
 mod tool_policy;
 mod tools_catalog;
 
-pub use events::{AgentUiEvent, ToolApprovalChoice, ToolApprovalRequest, UserQuestionOption, UserQuestionRequest};
+pub use events::{AgentUiEvent, ToolApprovalChoice};
+pub use events::{ToolApprovalRequest, UserQuestionOption, UserQuestionRequest, UserQuestionStep};
 pub use overlays::{list_model_select_items, list_session_select_items, list_tree_select_items};
 pub use provider::{DEFAULT_MODEL_ID, DEFAULT_PROVIDER};
 pub use provider::{provider_api_key_env, provider_config};
@@ -31,9 +32,8 @@ pub use runtime::create_coding_session_with_events;
 pub use session::CodingAgentSession;
 pub use session_manager::SessionManager;
 pub use skills_load::SkillConflict;
-pub use skills_load::{
-    format_skill_conflict_notice, parse_skill_slash, skill_slash_name, truncate_skill_palette_description,
-};
+pub use skills_load::{format_skill_conflict_notice, truncate_skill_palette_description};
+pub use skills_load::{parse_skill_slash, skill_slash_name};
 pub use slash_commands::{OverlayCommand, SlashDispatch};
 pub use slash_commands::{dispatch_slash_command, format_help_message};
 pub use slash_commands::{slash_commands_for_palette, slash_unimplemented_message};

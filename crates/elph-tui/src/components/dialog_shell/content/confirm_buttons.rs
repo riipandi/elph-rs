@@ -57,6 +57,7 @@ pub struct DialogConfirmButtonsContentProps {
     pub focused_button: Option<State<ConfirmButtonFocus>>,
     pub has_focus: bool,
     pub theme: Option<UiTheme>,
+    pub section_gap: Option<u16>,
     pub on_yes: HandlerMut<'static, ()>,
     pub on_no: HandlerMut<'static, ()>,
 }
@@ -71,6 +72,7 @@ impl Default for DialogConfirmButtonsContentProps {
             focused_button: None,
             has_focus: true,
             theme: None,
+            section_gap: None,
             on_yes: HandlerMut::default(),
             on_no: HandlerMut::default(),
         }
@@ -118,7 +120,7 @@ pub fn DialogConfirmButtonsContent(
 
     let yes_focused = focus.get() == ConfirmButtonFocus::Yes;
 
-    let section_gap = dialog_body_section_gap(theme);
+    let section_gap = props.section_gap.unwrap_or_else(|| dialog_body_section_gap(theme));
 
     element! {
         View(

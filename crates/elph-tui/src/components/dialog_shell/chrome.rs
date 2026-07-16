@@ -1,7 +1,7 @@
 //! Layout tokens and pure helpers for dialog shells.
 
 use crate::components::select::{SELECT_LIST_AUTO_HEIGHT, select_list_total_rows};
-use crate::components::theme::{BORDER_CHROME_COLS, UiTheme};
+use crate::components::theme::UiTheme;
 use crate::types::{DialogTodoItem, SelectOption};
 use crate::wrapped_transcript_row_count;
 use iocraft::prelude::Color;
@@ -46,10 +46,10 @@ impl DialogChrome {
             header_gap: theme.dialog_header_gap(),
             body_gap: theme.dialog_section_gap(),
             row_gap: theme.dialog_row_gap(),
-            border_color: theme.border,
+            border_color: theme.shell_zone_border_color(true),
             title_color: theme.text_primary,
             muted_color: theme.text_muted,
-            background: theme.dialog_surface(),
+            background: Color::Reset,
             esc_hint: "[esc]".to_string(),
             show_divider: true,
         }
@@ -66,10 +66,10 @@ impl DialogChrome {
         self.header_gap = theme.dialog_header_gap();
         self.body_gap = theme.dialog_section_gap();
         self.row_gap = theme.dialog_row_gap();
-        self.border_color = theme.border;
+        self.border_color = theme.shell_zone_border_color(true);
         self.title_color = theme.text_primary;
         self.muted_color = theme.text_muted;
-        self.background = theme.dialog_surface();
+        self.background = Color::Reset;
         self
     }
 
@@ -127,9 +127,9 @@ pub fn dialog_text_rows(text: &str, width: u16) -> u16 {
     }
 }
 
-/// Vertical chrome around a bordered [`crate::components::SelectList`] (border + padding).
-pub fn select_list_chrome_rows(theme: UiTheme) -> u16 {
-    BORDER_CHROME_COLS.saturating_add(theme.padding_sm.saturating_mul(2))
+/// Extra rows reserved around a flat [`crate::components::SelectList`] body (no list border).
+pub fn select_list_chrome_rows(_theme: UiTheme) -> u16 {
+    0
 }
 
 /// Max inner body rows that fit on screen inside a [`super::DialogShell`].
@@ -164,6 +164,7 @@ pub fn dialog_select_fixed_rows(intro: &str, list_width: u16, theme: UiTheme, tr
 /// Returns `(min_content_height, list_viewport_height)`. `list_viewport_height` is
 /// [`SELECT_LIST_AUTO_HEIGHT`] when the list should grow to fit all options; otherwise a
 /// capped viewport height for in-list scrolling.
+#[allow(clippy::too_many_arguments)]
 pub fn dialog_select_body_plan(
     options: &[SelectOption],
     show_description: bool,
@@ -172,8 +173,9 @@ pub fn dialog_select_body_plan(
     intro: &str,
     trailing_rows: u16,
     max_body_height: Option<u16>,
+    compact: bool,
 ) -> (u16, u16) {
-    let list_rows = select_list_total_rows(options, show_description, list_width, theme) as u16;
+    let list_rows = select_list_total_rows(options, show_description, list_width, theme, compact) as u16;
     let fixed_rows = dialog_select_fixed_rows(intro, list_width, theme, trailing_rows);
     let natural_body = fixed_rows.saturating_add(list_rows);
     let body_min = dialog_body_min_height(natural_body);
@@ -326,6 +328,7 @@ mod tests {
             "Choose how much autonomy the agent has for this session.",
             0,
             None,
+            false,
         );
         assert_eq!(list_h, SELECT_LIST_AUTO_HEIGHT);
         assert!(body_h >= 8);
@@ -346,6 +349,7 @@ mod tests {
             "Choose how much autonomy the agent has for this session.",
             0,
             Some(10),
+            false,
         );
         assert!(list_h > 0);
         assert_ne!(list_h, SELECT_LIST_AUTO_HEIGHT);

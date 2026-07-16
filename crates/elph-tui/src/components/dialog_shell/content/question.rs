@@ -19,6 +19,10 @@ pub struct DialogQuestionContentProps {
     pub show_description: bool,
     pub question_color: Color,
     pub theme: Option<UiTheme>,
+    pub section_gap: Option<u16>,
+    pub compact: bool,
+    /// When false, the prompt is shown only in the dialog header (compact inline layout).
+    pub show_prompt: bool,
 }
 
 impl Default for DialogQuestionContentProps {
@@ -34,6 +38,9 @@ impl Default for DialogQuestionContentProps {
             show_description: true,
             question_color: theme.text_secondary,
             theme: None,
+            section_gap: None,
+            compact: false,
+            show_prompt: true,
         }
     }
 }
@@ -42,19 +49,26 @@ impl Default for DialogQuestionContentProps {
 #[component]
 pub fn DialogQuestionContent(props: &DialogQuestionContentProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let theme = resolve_ui_theme(&hooks, props.theme);
+    let section_gap = props.section_gap.unwrap_or_else(|| dialog_body_section_gap(theme));
 
     element! {
         View(
             width: props.width,
             flex_direction: FlexDirection::Column,
-            gap: dialog_body_section_gap(theme),
+            gap: section_gap,
             flex_shrink: 0f32,
         ) {
-            Text(
-                content: props.question.clone(),
-                color: props.question_color,
-                wrap: TextWrap::Wrap,
-            )
+            #(if props.show_prompt {
+                Some(element! {
+                    Text(
+                        content: props.question.clone(),
+                        color: props.question_color,
+                        wrap: TextWrap::Wrap,
+                    )
+                })
+            } else {
+                None
+            })
             SelectList(
                 width: props.width,
                 height: props.height,
@@ -62,7 +76,7 @@ pub fn DialogQuestionContent(props: &DialogQuestionContentProps, hooks: Hooks) -
                 selected_index: props.selected_index,
                 has_focus: props.has_focus,
                 show_description: props.show_description,
-                in_dialog: true,
+                compact: props.compact,
                 theme: Some(theme),
             )
         }

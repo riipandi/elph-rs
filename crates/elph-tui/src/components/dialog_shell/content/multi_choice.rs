@@ -5,16 +5,14 @@ use crate::components::select::{
     SELECT_LIST_AUTO_HEIGHT, select_hidden_rows_above, select_inner_width, select_measured_row_counts,
     select_resolve_viewport_rows, select_window_start_for_rows,
 };
-use crate::components::theme::{UiTheme, list_marker, list_row_desc_style, list_row_name_style, resolve_ui_theme};
+use crate::components::theme::{
+    UiTheme, dialog_option_desc_style, dialog_option_name_style, dialog_row_surface, list_marker, resolve_ui_theme,
+};
 use crate::types::SelectOption;
 use iocraft::prelude::*;
 
 fn multi_choice_row_surface(theme: UiTheme, focused: bool) -> Color {
-    if focused {
-        theme.selection_bg
-    } else {
-        theme.dialog_content_surface()
-    }
+    dialog_row_surface(theme, focused)
 }
 
 /// Toggle the checked state at `index` in `checked`.
@@ -120,7 +118,8 @@ pub fn DialogMultiChoiceContent(
     let step = props.fast_scroll_step.max(1);
     let show_description = props.show_description;
 
-    if checked.read().len() != option_count {
+    let checked_len = checked.read().len();
+    if checked_len != option_count && option_count > 0 {
         checked.set(vec![false; option_count]);
     }
 
@@ -160,11 +159,11 @@ pub fn DialogMultiChoiceContent(
     let index = cursor.get().min(option_count.saturating_sub(1));
     let flags = checked.read();
     let inner_width = select_inner_width(theme, props.width);
-    let container_surface = theme.dialog_content_surface();
+    let container_surface = Color::Reset;
     let (viewport_rows, total_rows) =
-        select_resolve_viewport_rows(&props.options, show_description, props.width, theme, props.height);
+        select_resolve_viewport_rows(&props.options, show_description, props.width, theme, props.height, false);
     let scrollable = total_rows > viewport_rows;
-    let row_counts = select_measured_row_counts(&props.options, show_description, props.width, theme);
+    let row_counts = select_measured_row_counts(&props.options, show_description, props.width, theme, false);
     let window_start = select_window_start_for_rows(index, viewport_rows, &row_counts);
 
     let mut option_rows: Vec<AnyElement<'static>> = Vec::new();
@@ -203,8 +202,8 @@ pub fn DialogMultiChoiceContent(
             let is_on = flags.get(i).copied().unwrap_or(false);
             let box_glyph = if is_on { "[x]" } else { "[ ]" };
             let marker = list_marker(row_focused);
-            let (name_color, name_weight) = list_row_name_style(theme, row_focused);
-            let desc_color = list_row_desc_style(theme, row_focused);
+            let (name_color, name_weight) = dialog_option_name_style(theme, row_focused);
+            let desc_color = dialog_option_desc_style(theme);
             let show_desc = show_description && !opt.description.is_empty();
 
             option_rows.push(
@@ -272,10 +271,7 @@ pub fn DialogMultiChoiceContent(
                 min_height: viewport_rows as u16,
                 flex_direction: FlexDirection::Column,
                 gap: theme.gap_sm,
-                border_style: theme.container_border(has_focus),
-                border_color: theme.container_border_color(has_focus),
                 background_color: container_surface,
-                padding: theme.padding_sm,
                 overflow: Overflow::Hidden,
                 flex_shrink: 0f32,
             ) {
@@ -289,10 +285,7 @@ pub fn DialogMultiChoiceContent(
                 width: props.width,
                 flex_direction: FlexDirection::Column,
                 gap: theme.gap_sm,
-                border_style: theme.container_border(has_focus),
-                border_color: theme.container_border_color(has_focus),
                 background_color: container_surface,
-                padding: theme.padding_sm,
                 flex_shrink: 0f32,
             ) {
                 #(option_rows)

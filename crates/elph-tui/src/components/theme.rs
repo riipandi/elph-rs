@@ -19,8 +19,14 @@ pub struct UiTheme {
     pub border: Color,
     pub border_focus: Color,
     pub border_subtle: Color,
+    /// Round shell chrome (prompt editor, inline dialogs) when the zone has focus.
+    pub shell_border: Color,
+    /// Round shell chrome when another zone has focus.
+    pub shell_border_dimmed: Color,
     pub surface: Color,
     pub selection_bg: Color,
+    /// Soft yellow highlight for selected inline dialog choices (ask-user, etc.).
+    pub dialog_selection_bg: Color,
     pub success: Color,
     pub warning: Color,
     pub error: Color,
@@ -44,8 +50,11 @@ impl Default for UiTheme {
             border: rgb(72, 72, 80),
             border_focus: rgb(129, 161, 193),
             border_subtle: rgb(48, 48, 56),
+            shell_border: rgb(80, 80, 80),
+            shell_border_dimmed: rgb(56, 56, 56),
             surface: Color::Reset,
             selection_bg: rgb(40, 44, 52),
+            dialog_selection_bg: rgb(58, 52, 36),
             success: rgb(152, 195, 121),
             warning: rgb(240, 198, 116),
             error: rgb(224, 108, 117),
@@ -95,6 +104,15 @@ impl UiTheme {
         if has_focus { self.border_focus } else { self.border }
     }
 
+    /// Border color for full-width shell zones (prompt editor, inline dialogs).
+    pub fn shell_zone_border_color(self, has_focus: bool) -> Color {
+        if has_focus {
+            self.shell_border
+        } else {
+            self.shell_border_dimmed
+        }
+    }
+
     pub fn list_marker_color(self, selected: bool) -> Color {
         if selected { self.accent_soft } else { self.text_hint }
     }
@@ -119,10 +137,9 @@ impl UiTheme {
         3
     }
 
-    /// Inner width inside a bordered list viewport.
+    /// Inner width for list row content (horizontal row inset only).
     pub fn list_viewport_inner_width(self, outer_width: u16) -> u16 {
         outer_width
-            .saturating_sub(BORDER_CHROME_COLS)
             .saturating_sub(self.container_inset().saturating_mul(2))
             .max(1)
     }
@@ -249,6 +266,31 @@ pub fn list_row_desc_style(theme: UiTheme, selected: bool) -> Color {
     }
 }
 
+/// Background for a selected inline dialog choice row.
+pub fn dialog_row_surface(theme: UiTheme, selected: bool) -> Color {
+    if selected {
+        theme.dialog_selection_bg
+    } else {
+        Color::Reset
+    }
+}
+
+/// Marker color for inline dialog lists (`›` beside the active choice).
+pub fn dialog_marker_color(theme: UiTheme, selected: bool) -> Color {
+    if selected { theme.warning } else { theme.text_hint }
+}
+
+/// Inline dialog option name — bold; soft yellow when selected, secondary otherwise.
+pub fn dialog_option_name_style(theme: UiTheme, selected: bool) -> (Color, Weight) {
+    let color = if selected { theme.warning } else { theme.text_secondary };
+    (color, Weight::Bold)
+}
+
+/// Inline dialog option detail — always the dimmest readable tone.
+pub fn dialog_option_desc_style(theme: UiTheme) -> Color {
+    theme.text_hint
+}
+
 /// Tab chrome for horizontal selectors.
 pub fn tab_styles(theme: UiTheme, active: bool) -> (BorderStyle, Color, Weight) {
     if active {
@@ -302,6 +344,19 @@ mod tests {
     }
 
     #[test]
+    fn dialog_option_name_is_always_bold() {
+        let theme = UiTheme::default();
+        assert_eq!(dialog_option_name_style(theme, false), (theme.text_secondary, Weight::Bold));
+        assert_eq!(dialog_option_name_style(theme, true), (theme.warning, Weight::Bold));
+    }
+
+    #[test]
+    fn dialog_option_desc_uses_hint_tone() {
+        let theme = UiTheme::default();
+        assert_eq!(dialog_option_desc_style(theme), theme.text_hint);
+    }
+
+    #[test]
     fn container_border_round_when_focused() {
         let theme = UiTheme::default();
         assert_eq!(theme.container_border(true), BorderStyle::Round);
@@ -347,11 +402,15 @@ mod tests {
     }
 
     #[test]
-    fn list_viewport_width_accounts_for_border_and_inset() {
+    fn shell_zone_border_tracks_focus() {
         let theme = UiTheme::default();
-        assert_eq!(
-            theme.list_viewport_inner_width(20),
-            20 - BORDER_CHROME_COLS - theme.container_inset() * 2
-        );
+        assert_eq!(theme.shell_zone_border_color(true), theme.shell_border);
+        assert_eq!(theme.shell_zone_border_color(false), theme.shell_border_dimmed);
+    }
+
+    #[test]
+    fn list_viewport_width_accounts_for_row_inset() {
+        let theme = UiTheme::default();
+        assert_eq!(theme.list_viewport_inner_width(20), 20 - theme.container_inset() * 2);
     }
 }

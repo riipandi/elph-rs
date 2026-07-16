@@ -1,21 +1,26 @@
 //! iocraft-based TUI for Elph.
 //!
-//! Zones (top → bottom): Header, Transcript, status row, Editor, Footer.
+//! Zones (top → bottom): Header, Transcript, status row (+ inline dialogs), prompt chrome (editor + footer).
 
 mod activity;
 mod agent_bridge;
+mod ask_user_tool_card;
 mod chrome;
 mod focus;
+mod inline_dialog;
 mod labels;
 mod prompt;
 mod session_prefs;
 mod shell;
 mod slash_handler;
 mod slash_palette;
+mod status_dialog;
 mod theme;
 mod tool_approval;
+mod tool_params;
 mod transcript;
 mod user_question;
+mod user_question_bar;
 
 use std::sync::{Arc, Mutex};
 
@@ -32,7 +37,7 @@ use crate::extensions::ExtensionHost;
 use crate::platform::{Paths, Settings};
 use crate::types::ThinkingLevel;
 
-use chrome::read_git_branch;
+use chrome::read_git_footer_info;
 use labels::{model_footer_label, project_footer_label};
 use shell::MainShell;
 
@@ -114,8 +119,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     };
 
     let model_label = model_footer_label(settings.session.provider_id.as_deref(), settings.session.model_id.as_deref());
-    let git_branch = read_git_branch(paths.project_dir());
-    let project_label = project_footer_label(&paths, git_branch.as_deref());
+    let git_footer = read_git_footer_info(paths.project_dir());
+    let project_label = project_footer_label(&paths, git_footer.as_ref());
 
     element!(MainShell(
         session_id: session_id,

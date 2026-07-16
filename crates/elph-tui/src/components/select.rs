@@ -4,7 +4,10 @@ use crate::types::SelectOption;
 use crate::wrapped_transcript_row_count;
 use iocraft::prelude::*;
 
-use super::theme::{LIST_MARKER_COL, UiTheme, list_marker, list_row_desc_style, list_row_name_style, resolve_ui_theme};
+use super::theme::{
+    LIST_MARKER_COL, UiTheme, dialog_marker_color, dialog_option_desc_style, dialog_option_name_style,
+    dialog_row_surface, list_marker, list_row_desc_style, list_row_name_style, resolve_ui_theme,
+};
 
 /// `height: 0` lets the list grow to fit every option (dialog-friendly).
 pub const SELECT_LIST_AUTO_HEIGHT: u16 = 0;
@@ -20,36 +23,46 @@ pub struct SelectListProps {
     pub show_description: bool,
     pub fast_scroll_step: usize,
     pub theme: Option<UiTheme>,
-    /// Use dialog surface fills so list chrome matches modal shells.
-    pub in_dialog: bool,
+    /// Tighter row inset and inter-row gap for inline shell dialogs.
+    pub compact: bool,
     pub on_change: HandlerMut<'static, usize>,
 }
 
-fn select_container_surface(theme: UiTheme, in_dialog: bool) -> Color {
-    if in_dialog {
-        theme.dialog_content_surface()
+fn select_row_surface(theme: UiTheme, selected: bool, compact: bool) -> Color {
+    if !selected {
+        Color::Reset
+    } else if compact {
+        dialog_row_surface(theme, true)
     } else {
-        theme.list_surface()
-    }
-}
-
-fn select_row_surface(theme: UiTheme, selected: bool, in_dialog: bool) -> Color {
-    if selected {
         theme.selection_bg
-    } else if in_dialog {
-        theme.dialog_content_surface()
-    } else {
-        theme.surface
     }
 }
 
-/// Display rows one option consumes.
+/// Display rows one option consumes (single-line description estimate).
 pub fn select_option_rows(show_description: bool, description: &str) -> usize {
     if show_description && !description.is_empty() {
         2
     } else {
         1
     }
+}
+
+/// Text column width beside the selection marker.
+pub fn select_content_width(theme: UiTheme, list_width: u16, compact: bool) -> u16 {
+    let inner = if compact {
+        list_width
+    } else {
+        select_inner_width(theme, list_width)
+    };
+    inner
+        .saturating_sub(LIST_MARKER_COL)
+        .saturating_sub(theme.gap_md)
+        .max(1)
+}
+
+/// Vertical gap between stacked options.
+pub fn select_list_item_gap(_compact: bool, theme: UiTheme) -> u16 {
+    theme.gap_sm
 }
 
 /// Row counts for all options.
@@ -66,15 +79,15 @@ pub fn select_measured_row_counts(
     show_description: bool,
     list_width: u16,
     theme: UiTheme,
+    compact: bool,
 ) -> Vec<usize> {
-    let inner = select_inner_width(theme, list_width);
-    let desc_width = inner.saturating_sub(theme.list_desc_padding_left()).max(1);
+    let content_width = select_content_width(theme, list_width, compact);
     options
         .iter()
         .map(|opt| {
             let mut rows = 1usize;
             if show_description && !opt.description.is_empty() {
-                rows += wrapped_transcript_row_count(&opt.description, desc_width) as usize;
+                rows += wrapped_transcript_row_count(&opt.description, content_width) as usize;
             }
             rows
         })
@@ -87,13 +100,14 @@ pub fn select_list_total_rows(
     show_description: bool,
     list_width: u16,
     theme: UiTheme,
+    compact: bool,
 ) -> usize {
-    let row_counts = select_measured_row_counts(options, show_description, list_width, theme);
+    let row_counts = select_measured_row_counts(options, show_description, list_width, theme, compact);
     let items: usize = row_counts.iter().sum();
     if options.is_empty() {
         return 1;
     }
-    let gaps = theme.gap_sm as usize * options.len().saturating_sub(1);
+    let gaps = select_list_item_gap(compact, theme) as usize * options.len().saturating_sub(1);
     items.saturating_add(gaps).max(1)
 }
 
@@ -104,8 +118,9 @@ pub fn select_resolve_viewport_rows(
     list_width: u16,
     theme: UiTheme,
     height: u16,
+    compact: bool,
 ) -> (usize, usize) {
-    let total = select_list_total_rows(options, show_description, list_width, theme);
+    let total = select_list_total_rows(options, show_description, list_width, theme, compact);
     let cap = if height == SELECT_LIST_AUTO_HEIGHT {
         total
     } else {
@@ -225,11 +240,17 @@ pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<An
     let options = props.options.clone();
     let show_description = props.show_description;
     let theme = resolve_ui_theme(&hooks, props.theme);
-    let in_dialog = props.in_dialog;
-    let container_surface = select_container_surface(theme, in_dialog);
-    let inner_width = select_inner_width(theme, props.width);
+    let compact = props.compact;
+    let row_inset = if compact { 0 } else { theme.container_inset() };
+    let inner_width = if compact {
+        props.width
+    } else {
+        select_inner_width(theme, props.width)
+    };
+    let item_gap = select_list_item_gap(compact, theme);
+    let content_width = select_content_width(theme, props.width, compact);
     let (viewport_rows, total_rows) =
-        select_resolve_viewport_rows(&options, show_description, props.width, theme, props.height);
+        select_resolve_viewport_rows(&options, show_description, props.width, theme, props.height, compact);
     let scrollable = total_rows > viewport_rows;
 
     let option_count = options.len();
@@ -267,7 +288,7 @@ pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<An
 
     let len = options.len();
     let index = select_clamped_index(selected.get(), len);
-    let row_counts = select_measured_row_counts(&options, show_description, props.width, theme);
+    let row_counts = select_measured_row_counts(&options, show_description, props.width, theme, compact);
     let window_start = select_window_start_for_rows(index, viewport_rows, &row_counts);
 
     let mut rows: Vec<AnyElement<'static>> = Vec::new();
@@ -304,49 +325,64 @@ pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<An
 
             let selected_row = i == index;
             let marker = list_marker(selected_row);
-            let (name_color, name_weight) = list_row_name_style(theme, selected_row);
-            let desc_color = list_row_desc_style(theme, selected_row);
+            let (name_color, name_weight) = if compact {
+                dialog_option_name_style(theme, selected_row)
+            } else {
+                list_row_name_style(theme, selected_row)
+            };
+            let desc_color = if compact {
+                dialog_option_desc_style(theme)
+            } else {
+                list_row_desc_style(theme, selected_row)
+            };
             let show_desc = show_description && !opt.description.is_empty();
 
             rows.push(
                 element! {
                     View(
                         width: inner_width,
-                        flex_direction: FlexDirection::Column,
-                        gap: 0,
-                        background_color: select_row_surface(theme, selected_row, in_dialog),
-                        padding_left: theme.container_inset(),
-                        padding_right: theme.container_inset(),
-                        padding_top: if i > window_start { theme.gap_sm } else { 0 },
+                        flex_direction: FlexDirection::Row,
+                        gap: theme.gap_md,
+                        align_items: AlignItems::FlexStart,
+                        background_color: select_row_surface(theme, selected_row, compact),
+                        padding_left: row_inset,
+                        padding_right: row_inset,
                     ) {
-                        View(flex_direction: FlexDirection::Row, gap: theme.gap_md, align_items: AlignItems::Center) {
-                            View(width: LIST_MARKER_COL, flex_shrink: 0f32) {
-                                Text(
-                                    content: marker.to_string(),
-                                    color: theme.list_marker_color(selected_row),
-                                    wrap: TextWrap::NoWrap,
-                                )
-                            }
+                        View(width: LIST_MARKER_COL, flex_shrink: 0f32) {
+                            Text(
+                                content: marker.to_string(),
+                                color: if compact {
+                                    dialog_marker_color(theme, selected_row)
+                                } else {
+                                    theme.list_marker_color(selected_row)
+                                },
+                                wrap: TextWrap::NoWrap,
+                            )
+                        }
+                        View(
+                            width: content_width,
+                            flex_direction: FlexDirection::Column,
+                            gap: 0,
+                            flex_shrink: 0f32,
+                        ) {
                             Text(
                                 content: opt.name.clone(),
                                 color: name_color,
                                 weight: name_weight,
                                 wrap: TextWrap::NoWrap,
                             )
-                        }
-                        #(if show_desc {
-                            Some(element! {
-                                View(padding_left: theme.list_desc_padding_left()) {
+                            #(if show_desc {
+                                Some(element! {
                                     Text(
                                         content: opt.description.clone(),
                                         color: desc_color,
                                         wrap: TextWrap::Wrap,
                                     )
-                                }
+                                })
+                            } else {
+                                None
                             })
-                        } else {
-                            None
-                        })
+                        }
                     }
                 }
                 .into(),
@@ -381,11 +417,8 @@ pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<An
                 height: viewport_rows as u16,
                 min_height: viewport_rows as u16,
                 flex_direction: FlexDirection::Column,
-                gap: theme.gap_sm,
-                border_style: theme.container_border(has_focus),
-                border_color: theme.container_border_color(has_focus),
-                background_color: container_surface,
-                padding: theme.padding_sm,
+                gap: item_gap,
+                background_color: Color::Reset,
                 overflow: Overflow::Hidden,
                 flex_shrink: 0f32,
             ) {
@@ -397,11 +430,8 @@ pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<An
             View(
                 width: props.width,
                 flex_direction: FlexDirection::Column,
-                gap: theme.gap_sm,
-                border_style: theme.container_border(has_focus),
-                border_color: theme.container_border_color(has_focus),
-                background_color: container_surface,
-                padding: theme.padding_sm,
+                gap: item_gap,
+                background_color: Color::Reset,
                 flex_shrink: 0f32,
             ) {
                 #(rows)
@@ -434,8 +464,8 @@ mod tests {
             .into_iter()
             .map(|mode| SelectOption::new(mode.label(), mode.description()))
             .collect::<Vec<_>>();
-        let total = select_list_total_rows(&options, true, 48, theme);
-        let (viewport, _) = select_resolve_viewport_rows(&options, true, 48, theme, SELECT_LIST_AUTO_HEIGHT);
+        let total = select_list_total_rows(&options, true, 48, theme, false);
+        let (viewport, _) = select_resolve_viewport_rows(&options, true, 48, theme, SELECT_LIST_AUTO_HEIGHT, false);
         assert_eq!(viewport, total);
         assert!(total >= 8);
     }

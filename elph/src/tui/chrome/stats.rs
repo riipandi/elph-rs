@@ -10,7 +10,7 @@ use elph_ai::get_builtin_model;
 use crate::agent::CodingAgentSession;
 use crate::platform::exit_message::aggregate_usage_from_entries;
 
-use crate::tui::labels::{header_stats_label, model_footer_label};
+use crate::tui::labels::{GitFooterInfo, header_stats_label, model_footer_label};
 
 /// Snapshot of usage and model metadata shown in header/footer chrome.
 #[derive(Debug, Clone, PartialEq)]
@@ -53,6 +53,22 @@ pub fn count_user_turns(path_entries: &[SessionTreeEntry]) -> u32 {
 
 pub fn read_git_branch(project_dir: &Path) -> Option<String> {
     elph_core::utils::git::read_branch(project_dir)
+}
+
+/// Branch name and changed-file count for the footer, when `project_dir` is a git work tree.
+pub fn read_git_footer_info(project_dir: &Path) -> Option<GitFooterInfo> {
+    if !elph_core::utils::git::is_worktree(project_dir) {
+        return None;
+    }
+    let branch = read_git_branch(project_dir).unwrap_or_else(|| "HEAD".to_string());
+    let stats = elph_core::utils::git::read_worktree_stats(project_dir).unwrap_or_default();
+    Some(GitFooterInfo {
+        branch,
+        files_added: stats.files_added,
+        lines_added: stats.lines_added,
+        files_deleted: stats.files_deleted,
+        lines_deleted: stats.lines_deleted,
+    })
 }
 
 pub async fn refresh_chrome_stats(

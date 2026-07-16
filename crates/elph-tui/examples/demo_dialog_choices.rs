@@ -48,9 +48,11 @@ fn dialog_layout(
             )
         }
         Preset::UserInput => (dialog_body_min_height(6.min(max_body)), DIALOG_SELECT_AUTO_HEIGHT),
-        Preset::SingleChoice => dialog_select_body_plan(options, true, body_width, theme, question, 0, Some(max_body)),
+        Preset::SingleChoice => {
+            dialog_select_body_plan(options, true, body_width, theme, question, 0, Some(max_body), false)
+        }
         Preset::MultipleChoice => {
-            dialog_select_body_plan(options, true, body_width, theme, question, 1, Some(max_body))
+            dialog_select_body_plan(options, true, body_width, theme, question, 1, Some(max_body), false)
         }
         Preset::Hub => (dialog_body_min_height(8.min(max_body)), DIALOG_SELECT_AUTO_HEIGHT),
     };

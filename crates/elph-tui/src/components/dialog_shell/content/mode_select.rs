@@ -63,7 +63,6 @@ pub fn DialogModeSelectContent(props: &DialogModeSelectContentProps, hooks: Hook
                 selected_index: props.selected_index,
                 has_focus: props.has_focus,
                 show_description: true,
-                in_dialog: true,
                 theme: Some(theme),
             )
         }

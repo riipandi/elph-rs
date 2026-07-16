@@ -49,8 +49,7 @@ pub fn Input(props: &mut InputProps, mut hooks: Hooks) -> impl Into<AnyElement<'
     element! {
         View(
             width: props.width,
-            border_style: theme.focus_border(has_focus),
-            border_color: props.focused_border_color.unwrap_or_else(|| theme.input_border_color(has_focus)),
+            background_color: Color::Reset,
             padding_left: inset,
             padding_right: inset,
         ) {

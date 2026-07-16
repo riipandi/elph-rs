@@ -2,7 +2,7 @@
 
 use iocraft::prelude::*;
 
-use crate::tui::theme::{BUBBLE_BG, TEXT_FG};
+use crate::tui::theme::{TEXT_FG, USER_INPUT_BG};
 
 use super::super::types::TranscriptMessage;
 
@@ -32,7 +32,7 @@ pub fn transcript_sticky_overlay(
         ) {
             View(
                 width: 100pct,
-                background_color: BUBBLE_BG,
+                background_color: USER_INPUT_BG,
                 border_style: BorderStyle::None,
                 padding_top: style.sticky_padding_top(),
                 padding_bottom: style.sticky_padding_bottom(),

@@ -58,16 +58,22 @@ pub enum ToolApprovalChoice {
     AllowSession,
 }
 
-/// Ask-user question presented by the `ask_user_question` tool.
+/// One step in a single- or multi-step ask-user flow.
+#[derive(Debug, Clone)]
+pub struct UserQuestionStep {
+    pub id: String,
+    pub question: String,
+    pub options: Option<Vec<UserQuestionOption>>,
+    pub allow_multiple: bool,
+    pub allow_custom: bool,
+    pub custom_label: String,
+    pub default: Option<String>,
+}
+
+/// Ask-user session presented by the `ask_user_question` tool.
 #[derive(Debug)]
 pub struct UserQuestionRequest {
-    /// The question text to display.
-    pub question: String,
-    /// Optional list of selectable options (select mode).
-    pub options: Option<Vec<UserQuestionOption>>,
-    /// Optional default value.
-    pub default: Option<String>,
-    /// Channel to send the user's answer back to the tool.
+    pub steps: Vec<UserQuestionStep>,
     pub response_tx: tokio::sync::oneshot::Sender<String>,
 }
 

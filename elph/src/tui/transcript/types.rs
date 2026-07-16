@@ -3,13 +3,15 @@
 use iocraft::prelude::Color;
 
 use crate::tui::theme::{
-    BUBBLE_BG, META_BG, META_FG, SKILL_BG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG, TOOL_FAILED_FG,
-    TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG,
+    META_FG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG,
+    TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
 };
 
 use super::card::{
     COLORED_CARD_GAP, COLORED_CARD_PAD, COLORED_CARD_PAD_H, FLUSH_CARD_GAP, FLUSH_CARD_PAD, THINKING_RESPONSE_GAP,
 };
+use crate::tui::ask_user_tool_card::format_ask_user_tool_layout_text;
+
 use super::card::{format_tool_args_display, format_tool_output_display, tool_status_marker};
 use super::markdown::AssistantMarkdownBuffer;
 
@@ -65,7 +67,11 @@ impl TranscriptMessage {
 impl ToolCardDetail {
     pub fn layout_text(&self, style: TranscriptStyle) -> String {
         let mut lines = vec![format!("{} {}", tool_status_marker(style), self.name)];
-        let args = format_tool_args_display(&self.args_summary);
+        let args = if self.name == "ask_user_question" {
+            format_ask_user_tool_layout_text(&self.args_summary)
+        } else {
+            format_tool_args_display(&self.args_summary)
+        };
         if !args.is_empty() {
             lines.extend(args.lines().map(str::to_string));
         }
@@ -195,10 +201,8 @@ impl TranscriptStyle {
     pub(crate) fn background_color(self) -> Color {
         match self {
             Self::Assistant => Color::Reset,
-            Self::User => BUBBLE_BG,
+            Self::User | Self::SkillPrompt | Self::Meta => USER_INPUT_BG,
             Self::Error => TOOL_FAILED_BG,
-            Self::SkillPrompt => SKILL_BG,
-            Self::Meta => META_BG,
             Self::Thinking => THINKING_BG,
             Self::ToolRunning => TOOL_RUNNING_BG,
             Self::ToolSuccess => TOOL_SUCCESS_BG,
@@ -218,7 +222,7 @@ impl TranscriptStyle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::theme::{META_BG, SKILL_BG, THINKING_BG, TOOL_FAILED_BG, TOOL_RUNNING_BG, TOOL_SUCCESS_BG};
+    use crate::tui::theme::{THINKING_BG, TOOL_FAILED_BG, TOOL_RUNNING_BG, TOOL_SUCCESS_BG, USER_INPUT_BG};
 
     #[test]
     fn sticky_prompt_is_submitted_user_input_only() {
@@ -248,13 +252,10 @@ mod tests {
     }
 
     #[test]
-    fn skill_and_meta_cards_use_distinct_tints() {
-        assert_eq!(TranscriptStyle::SkillPrompt.background_color(), SKILL_BG);
-        assert_eq!(TranscriptStyle::Meta.background_color(), META_BG);
-        assert_ne!(
-            TranscriptStyle::SkillPrompt.background_color(),
-            TranscriptStyle::Meta.background_color()
-        );
+    fn user_input_cards_share_gray_background() {
+        assert_eq!(TranscriptStyle::User.background_color(), USER_INPUT_BG);
+        assert_eq!(TranscriptStyle::SkillPrompt.background_color(), USER_INPUT_BG);
+        assert_eq!(TranscriptStyle::Meta.background_color(), USER_INPUT_BG);
     }
 
     #[test]

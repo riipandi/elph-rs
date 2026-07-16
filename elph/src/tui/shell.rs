@@ -23,22 +23,30 @@ use crate::tui::activity::{
     format_quit_while_busy_transcript, format_turn_canceled_notice, format_turn_complete_notice,
 };
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
-use crate::tui::chrome::{ChromeStats, Header, StatusRow};
-use crate::tui::chrome::{format_elapsed_secs, header_stats_from_chrome, read_git_branch, refresh_chrome_stats};
+use crate::tui::chrome::{ChromeStats, Header};
+use crate::tui::chrome::{format_elapsed_secs, header_stats_from_chrome, read_git_footer_info, refresh_chrome_stats};
 use crate::tui::focus::ShellFocus;
-use crate::tui::focus::prompt_focus_char;
+use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
 use crate::tui::labels::{footer_left_label, project_footer_label, session_label};
-use crate::tui::prompt::{Footer, PromptChrome};
+use crate::tui::prompt::PromptChrome;
 use crate::tui::session_prefs::persist_session_prefs;
 use crate::tui::slash_handler::{SlashContext, SlashOutcome};
 use crate::tui::slash_handler::{handle_slash_submit, overlay_deferred_message};
 use crate::tui::slash_palette::SlashPaletteKeyAction;
 use crate::tui::slash_palette::{build_snapshot, resolve_snapshot_key_action, sync_selection};
-use crate::tui::tool_approval::choice_from_key;
-use crate::tui::tool_approval::{PendingToolApproval, ToolApprovalPrompt};
+use crate::tui::status_dialog::{StatusZone, build_status_dialog_kind};
+use crate::tui::tool_approval::PendingToolApproval;
+use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
 use crate::tui::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle};
-use crate::tui::user_question::{PendingUserQuestion, UserQuestionPrompt};
-use crate::tui::user_question::{confirm_from_key, option_index_from_key};
+use crate::tui::user_question::PendingUserQuestion;
+use crate::tui::user_question::{
+    QuestionInputFocus, apply_step_submit_outcome, cycle_question_input_focus, format_multi_select_answer,
+    pick_numbered_option_index_from_key, question_tab_reverse, reset_ui_for_step, resolve_user_text_submit_answer,
+    select_value_at, step_activity_label,
+};
+use crate::tui::user_question_bar::{UserQuestionBar, UserQuestionView};
+use elph_tui::components::ConfirmButtonFocus;
+use elph_tui::components::multi_choice_selected_indices;
 
 const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
@@ -278,6 +286,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut slash_palette_query = hooks.use_ref(String::new);
     let mut palette_refresh_pending = hooks.use_state(|| false);
     let mut shell_focus = hooks.use_state(ShellFocus::default);
+    let mut question_selected = hooks.use_state(|| 0usize);
+    let mut question_confirm_focus = hooks.use_state(ConfirmButtonFocus::default);
+    let mut question_answer = hooks.use_state(String::new);
+    let mut question_multi_checked = hooks.use_state(Vec::<bool>::new);
+    let mut question_input_focus = hooks.use_state(QuestionInputFocus::default);
+    let mut approval_selected = hooks.use_state(|| 0usize);
 
     let extension_host = props.extension_host.clone();
     let cwd = props.cwd.clone();
@@ -336,8 +350,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             if chrome_refresh_pending.get() || chrome_tick.get() % CHROME_REFRESH_TICKS == 0 {
                 chrome_refresh_pending.set(false);
                 let paths = paths.read().clone();
-                let branch = read_git_branch(paths.project_dir());
-                project_label.set(project_footer_label(&paths, branch.as_deref()));
+                let git_footer = read_git_footer_info(paths.project_dir());
+                project_label.set(project_footer_label(&paths, git_footer.as_ref()));
 
                 if let Some(session) = agent_session_for_chrome.as_ref() {
                     let resources = session.harness().get_resources().await;
@@ -429,11 +443,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     if let AgentUiEvent::ToolApprovalRequired(req) = event {
                         let tool_name = req.tool_name.clone();
                         activity_label.set(format!("Approve: {tool_name}"));
+                        approval_selected.set(0);
+                        shell_focus.set(ShellFocus::StatusDialog);
                         pending_tool_approval.set(Some(PendingToolApproval::from_request(req)));
                         {
                             let mut msgs = messages.write();
                             msgs.push(TranscriptMessage::text(
-                                format!("Tool approval required: {tool_name} (y/n/a)"),
+                                format!("Tool approval required: {tool_name}"),
                                 TranscriptStyle::Meta,
                             ));
                         }
@@ -442,8 +458,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     }
 
                     if let AgentUiEvent::UserQuestionRequired(req) = event {
-                        activity_label.set("Awaiting your answer".to_string());
-                        pending_user_question.set(Some(PendingUserQuestion::from_request(req)));
+                        let pending = PendingUserQuestion::from_request(req);
+                        activity_label.set(step_activity_label(&pending));
+                        reset_ui_for_step(
+                            &pending,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                        );
+                        shell_focus.set(ShellFocus::StatusDialog);
+                        pending_user_question.set(Some(pending));
                         transcript_changed = true;
                         continue;
                     }
@@ -535,6 +561,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
             let mut pending_tool_approval = pending_tool_approval;
             let mut pending_user_question = pending_user_question;
+            let mut question_multi_checked = question_multi_checked;
+            let mut question_input_focus = question_input_focus;
             let mut pending_quit_confirm = pending_quit_confirm;
             if pending_quit_confirm.get() && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) {
                 match code {
@@ -564,54 +592,191 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             }
 
-            if pending_tool_approval.read().is_some()
-                && let Some(choice) = choice_from_key(modifiers, code)
-            {
-                if let Some(pending) = pending_tool_approval.write().take() {
-                    pending.respond(choice);
-                }
-                activity_label.set(match choice {
-                    ToolApprovalChoice::Approve => "Running approved tool…".to_string(),
-                    ToolApprovalChoice::AllowSession => "Running tool (session allow)…".to_string(),
-                    ToolApprovalChoice::Reject => "Tool denied".to_string(),
-                });
-                return;
-            }
+            let status_dialog_open = pending_tool_approval.read().is_some() || pending_user_question.read().is_some();
 
-            let user_question_confirm = pending_user_question
-                .read()
-                .as_ref()
-                .is_some_and(|pending| pending.is_confirm)
-                .then(|| confirm_from_key(modifiers, code))
-                .flatten();
-            if let Some(yes) = user_question_confirm {
-                if let Some(question) = pending_user_question.write().take() {
-                    question.respond_confirm(yes);
+            if status_dialog_open {
+                let approval_choice = {
+                    let user_question_active = pending_user_question.read().is_some();
+                    if pending_tool_approval.read().is_some() && !user_question_active {
+                        if modifiers.is_empty() && code == KeyCode::Esc {
+                            Some(ToolApprovalChoice::Reject)
+                        } else {
+                            pick_tool_approval_index_from_key(modifiers, code)
+                                .and_then(choice_at_index)
+                                .or_else(|| {
+                                    (modifiers.is_empty() && code == KeyCode::Enter)
+                                        .then(|| choice_at_index(approval_selected.get()))
+                                        .flatten()
+                                })
+                        }
+                    } else {
+                        None
+                    }
+                };
+                if let Some(choice) = approval_choice {
+                    if let Some(pending) = pending_tool_approval.write().take() {
+                        pending.respond(choice);
+                    }
+                    shell_focus.set(ShellFocus::Prompt);
+                    activity_label.set(match choice {
+                        ToolApprovalChoice::Approve => "Running approved tool…".to_string(),
+                        ToolApprovalChoice::AllowSession => "Running tool (session allow)…".to_string(),
+                        ToolApprovalChoice::Reject => "Tool denied".to_string(),
+                    });
+                    return;
                 }
-                activity_label.set("Thinking".to_string());
-                return;
-            }
 
-            let user_question_option = pending_user_question.read().as_ref().and_then(|pending| {
-                let index = option_index_from_key(modifiers, code)?;
-                pending
-                    .options
-                    .as_ref()?
-                    .get(index.saturating_sub(1))
-                    .map(|option| option.value.clone())
-            });
-            if let Some(value) = user_question_option {
-                if let Some(question) = pending_user_question.write().take() {
-                    question.respond_option(value);
+                let tab_focus_change = {
+                    let pending_ref = pending_user_question.read();
+                    match (pending_ref.as_ref(), question_tab_reverse(modifiers, code)) {
+                        (Some(pending), Some(_)) => cycle_question_input_focus(pending, question_input_focus.get()),
+                        _ => None,
+                    }
+                };
+                if let Some(focus) = tab_focus_change {
+                    question_input_focus.set(focus);
+                    return;
                 }
-                activity_label.set("Thinking".to_string());
-                return;
+
+                let focus_to_custom = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending)
+                            if pending.allow_custom()
+                                && question_input_focus.get().is_choices()
+                                && modifiers.is_empty()
+                                && matches!(code, KeyCode::Down | KeyCode::Char('j')) =>
+                        {
+                            let option_count = pending.options().map_or(0, |options| options.len());
+                            let at_last = question_selected.get() >= option_count.saturating_sub(1);
+                            at_last.then_some(QuestionInputFocus::Custom)
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(focus) = focus_to_custom {
+                    question_input_focus.set(focus);
+                    return;
+                }
+
+                let focus_to_choices = (question_input_focus.get().is_custom()
+                    && modifiers.is_empty()
+                    && matches!(code, KeyCode::Up | KeyCode::Char('k')))
+                .then_some(QuestionInputFocus::Choices);
+                if let Some(focus) = focus_to_choices {
+                    question_input_focus.set(focus);
+                    return;
+                }
+
+                let multi_select_answer = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending)
+                            if pending.is_multi_select()
+                                && question_input_focus.get().is_choices()
+                                && modifiers.is_empty()
+                                && code == KeyCode::Enter =>
+                        {
+                            let options = pending.options().unwrap_or(&[]);
+                            let custom = question_answer.read().clone();
+                            let answer = if !custom.trim().is_empty() {
+                                custom.trim().to_string()
+                            } else {
+                                let indices = multi_choice_selected_indices(&question_multi_checked.read());
+                                format_multi_select_answer(options, &indices)
+                            };
+                            Some(answer)
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(answer) = multi_select_answer {
+                    let outcome = pending_user_question
+                        .write()
+                        .take()
+                        .map(|pending| pending.respond(answer));
+                    if let Some(outcome) = outcome {
+                        apply_step_submit_outcome(
+                            outcome,
+                            &mut pending_user_question,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                            &mut shell_focus,
+                            &mut activity_label,
+                        );
+                    }
+                    return;
+                }
+
+                let picked_option = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending) if pending.is_single_select() && !pending.allow_custom() => {
+                            let options = pending.options().unwrap_or(&[]);
+                            pick_numbered_option_index_from_key(modifiers, code, options.len())
+                                .and_then(|index| options.get(index).map(|option| option.value.clone()))
+                                .or_else(|| {
+                                    (modifiers.is_empty() && code == KeyCode::Enter)
+                                        .then(|| select_value_at(options, question_selected.get()))
+                                        .flatten()
+                                })
+                        }
+                        Some(pending)
+                            if pending.is_single_select()
+                                && pending.allow_custom()
+                                && question_input_focus.get().is_choices() =>
+                        {
+                            let options = pending.options().unwrap_or(&[]);
+                            pick_numbered_option_index_from_key(modifiers, code, options.len())
+                                .and_then(|index| options.get(index).map(|option| option.value.clone()))
+                                .or_else(|| {
+                                    (modifiers.is_empty() && code == KeyCode::Enter)
+                                        .then(|| select_value_at(options, question_selected.get()))
+                                        .flatten()
+                                })
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(value) = picked_option {
+                    let outcome = pending_user_question
+                        .write()
+                        .take()
+                        .map(|pending| pending.respond_option(value));
+                    if let Some(outcome) = outcome {
+                        apply_step_submit_outcome(
+                            outcome,
+                            &mut pending_user_question,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                            &mut shell_focus,
+                            &mut activity_label,
+                        );
+                    }
+                    return;
+                }
+
+                if !shell_global_shortcut(modifiers, code) {
+                    return;
+                }
             }
 
             let draft_text = live_draft.read().clone();
             let palette_snapshot = build_snapshot(&draft_text, &slash_commands.read(), screen_height);
-            if let Some(action) =
-                resolve_snapshot_key_action(&draft_text, &palette_snapshot, slash_palette_index.get(), code, modifiers)
+            if !status_dialog_open
+                && let Some(action) = resolve_snapshot_key_action(
+                    &draft_text,
+                    &palette_snapshot,
+                    slash_palette_index.get(),
+                    code,
+                    modifiers,
+                )
             {
                 match action {
                     SlashPaletteKeyAction::CompleteDraft {
@@ -638,7 +803,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             }
 
-            if shell_focus.get() == ShellFocus::Transcript
+            if !status_dialog_open
+                && shell_focus.get() == ShellFocus::Transcript
                 && let Some(ch) = prompt_focus_char(code, modifiers)
             {
                 shell_focus.set(ShellFocus::Prompt);
@@ -654,7 +820,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 (m, KeyCode::Esc) if m.is_empty() && shell_focus.get() == ShellFocus::Transcript => {
                     shell_focus.set(ShellFocus::Prompt);
                 }
-                (m, KeyCode::Tab) if m.is_empty() => {
+                (m, KeyCode::Tab) if m.is_empty() && !status_dialog_open => {
                     let next = agent_mode.get().next();
                     agent_mode.set(next);
                     persist_session_prefs(&paths, next, thinking_level.get());
@@ -707,8 +873,11 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         pending.respond(ToolApprovalChoice::Reject);
                     }
                     if let Some(question) = pending_user_question.write().take() {
-                        question.respond(String::new());
+                        question.cancel();
                     }
+                    shell_focus.set(ShellFocus::Prompt);
+                    question_answer.set(String::new());
+                    question_input_focus.set(QuestionInputFocus::Choices);
                     if let Some(session) = agent_session.as_ref() {
                         TurnDispatcher::spawn_abort(Arc::clone(session));
                     } else {
@@ -766,8 +935,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         chrome.model_label.clone()
     };
     let supports_images = chrome.supports_images;
-    let prompt_focused = shell_focus.get() == ShellFocus::Prompt;
-    let transcript_focused = shell_focus.get() == ShellFocus::Transcript;
+    let user_question_open = pending_user_question.read().is_some();
+    let status_dialog_open = pending_tool_approval.read().is_some() || user_question_open;
+    let prompt_focused =
+        !status_dialog_open && matches!(shell_focus.get(), ShellFocus::Prompt | ShellFocus::StatusDialog);
+    let transcript_focused = !status_dialog_open && shell_focus.get() == ShellFocus::Transcript;
+    let question_has_focus = user_question_open;
+    let approval_has_focus = pending_tool_approval.read().is_some() && !user_question_open;
+    let user_question_view = pending_user_question
+        .read()
+        .as_ref()
+        .map(UserQuestionView::from_pending);
+    let status_dialog = build_status_dialog_kind(pending_tool_approval.read().as_ref());
     let busy_token_info = if busy.get() {
         let base = turn_token_tracker
             .read()
@@ -824,8 +1003,126 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 sticky_scroll: props.sticky_scroll,
                 has_focus: transcript_focused,
             )
-            StatusRow(
+            #(user_question_view.map(|view| -> AnyElement<'static> {
+                element! {
+                    UserQuestionBar(
+                        screen_width: screen_width,
+                        screen_height: screen_height,
+                        view: view,
+                        selected_index: Some(question_selected),
+                        multi_checked: Some(question_multi_checked),
+                        confirm_focus: Some(question_confirm_focus),
+                        answer: Some(question_answer),
+                        input_focus: question_input_focus.get(),
+                        has_focus: question_has_focus,
+                        on_confirm_yes: move |_| {
+                            let outcome = pending_user_question
+                                .write()
+                                .take()
+                                .map(|question| question.respond_confirm(true));
+                            if let Some(outcome) = outcome {
+                                apply_step_submit_outcome(
+                                    outcome,
+                                    &mut pending_user_question,
+                                    &mut question_selected,
+                                    &mut question_confirm_focus,
+                                    &mut question_answer,
+                                    &mut question_multi_checked,
+                                    &mut question_input_focus,
+                                    &mut shell_focus,
+                                    &mut activity_label,
+                                );
+                            }
+                        },
+                        on_confirm_no: move |_| {
+                            let outcome = pending_user_question
+                                .write()
+                                .take()
+                                .map(|question| question.respond_confirm(false));
+                            if let Some(outcome) = outcome {
+                                apply_step_submit_outcome(
+                                    outcome,
+                                    &mut pending_user_question,
+                                    &mut question_selected,
+                                    &mut question_confirm_focus,
+                                    &mut question_answer,
+                                    &mut question_multi_checked,
+                                    &mut question_input_focus,
+                                    &mut shell_focus,
+                                    &mut activity_label,
+                                );
+                            }
+                        },
+                        on_text_submit: move |_| {
+                            let (answer, allow_empty) = {
+                                let pending_ref = pending_user_question.read();
+                                let Some(pending) = pending_ref.as_ref() else {
+                                    return;
+                                };
+                                let text = question_answer.read().clone();
+                                let Some(answer) = resolve_user_text_submit_answer(
+                                    pending,
+                                    &text,
+                                    question_selected.get(),
+                                    &question_multi_checked.read(),
+                                ) else {
+                                    return;
+                                };
+                                (answer, pending.needs_text_input())
+                            };
+                            if answer.is_empty() && !allow_empty {
+                                return;
+                            }
+                            let outcome = pending_user_question
+                                .write()
+                                .take()
+                                .map(|question| question.respond(answer));
+                            if let Some(outcome) = outcome {
+                                apply_step_submit_outcome(
+                                    outcome,
+                                    &mut pending_user_question,
+                                    &mut question_selected,
+                                    &mut question_confirm_focus,
+                                    &mut question_answer,
+                                    &mut question_multi_checked,
+                                    &mut question_input_focus,
+                                    &mut shell_focus,
+                                    &mut activity_label,
+                                );
+                            }
+                        },
+                        on_text_cancel: move |_| {
+                            if !pending_user_question
+                                .read()
+                                .as_ref()
+                                .is_some_and(|pending| pending.needs_text_input())
+                            {
+                                return;
+                            }
+                            let outcome = pending_user_question
+                                .write()
+                                .take()
+                                .map(|question| question.respond(String::new()));
+                            if let Some(outcome) = outcome {
+                                apply_step_submit_outcome(
+                                    outcome,
+                                    &mut pending_user_question,
+                                    &mut question_selected,
+                                    &mut question_confirm_focus,
+                                    &mut question_answer,
+                                    &mut question_multi_checked,
+                                    &mut question_input_focus,
+                                    &mut shell_focus,
+                                    &mut activity_label,
+                                );
+                            }
+                        },
+                    )
+                }.into()
+            }))
+            StatusZone(
                 screen_width: screen_width,
+                screen_height: screen_height,
                 busy: busy.get(),
                 activity_label: activity_label.read().clone(),
                 accent: scanner_accent,
@@ -833,155 +1130,33 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 elapsed_secs: elapsed_secs.get(),
                 idle_notice: idle_status_notice.read().as_ref().map(|notice| notice.text.clone()),
                 busy_token_info: busy_token_info.clone(),
+                dialog: status_dialog,
+                approval_selected: Some(approval_selected),
+                approval_has_focus: approval_has_focus,
             )
-            #(if let Some(pending) = pending_tool_approval.read().as_ref() {
-                element! {
-                    View(
-                        width: screen_width,
-                        flex_shrink: 0f32,
-                        flex_direction: FlexDirection::Column,
-                    ) {
-                        ToolApprovalPrompt(
-                            screen_width: screen_width,
-                            tool_name: pending.tool_name.clone(),
-                            args_summary: pending.args_summary.clone(),
-                        )
-                        Footer(
-                            screen_width: screen_width,
-                            project_label: footer_left.clone(),
-                            model_label: model_label.clone(),
-                            thinking_level: thinking_level.get(),
-                            supports_images: supports_images,
-                        )
-                    }
-                }
-            } else if let Some(question) = pending_user_question.read().as_ref()
-                && !question.needs_text_input() {
-                element! {
-                    View(
-                        width: screen_width,
-                        flex_shrink: 0f32,
-                        flex_direction: FlexDirection::Column,
-                    ) {
-                        UserQuestionPrompt(
-                            screen_width: screen_width,
-                            question: question.question.clone(),
-                            options: question.options.clone(),
-                            is_confirm: question.is_confirm,
-                            needs_text_input: false,
-                        )
-                        Footer(
-                            screen_width: screen_width,
-                            project_label: footer_left.clone(),
-                            model_label: model_label.clone(),
-                            thinking_level: thinking_level.get(),
-                            supports_images: supports_images,
-                        )
-                    }
-                }
-            } else {
-                element! {
-                    View(
-                        width: screen_width,
-                        flex_shrink: 0f32,
-                        flex_direction: FlexDirection::Column,
-                    ) {
-                        #(pending_user_question.read().as_ref().filter(|question| question.needs_text_input()).map(|question| -> AnyElement<'static> {
-                            element! {
-                                UserQuestionPrompt(
-                                    screen_width: screen_width,
-                                    question: question.question.clone(),
-                                    options: None,
-                                    is_confirm: false,
-                                    needs_text_input: true,
-                                )
-                            }.into()
-                        }))
-                        PromptChrome(
-                        screen_width: screen_width,
-                        screen_height: screen_height,
-                        agent_mode: agent_mode.get(),
-                        thinking_level: thinking_level.get(),
-                        has_focus: prompt_focused,
-                        project_label: footer_left.clone(),
-                        model_label: model_label.clone(),
-                        supports_images: supports_images,
-                        draft: Some(draft),
-                        live_draft: Some(live_draft),
-                        suppress_enter_newline: Some(suppress_enter_newline),
-                        slash_palette_active: Some(slash_palette_active),
-                        force_palette_sync: Some(force_palette_sync),
-                        force_editor_clear: Some(force_editor_clear),
-                        slash_palette_snapshot: slash_palette_snapshot,
-                        slash_palette_selected: Some(slash_palette_index),
-                        on_escape: move |_| {
-                            shell_focus.set(ShellFocus::Transcript);
-                        },
-                        on_submit: move |text: String| {
-                    shell_focus.set(ShellFocus::Prompt);
-                    if is_force_quit_command(&text) || is_quit_command(&text) {
-                        let _ = request_quit(
-                            PendingQuitAction {
-                                pending_quit_confirm: &mut pending_quit_confirm,
-                                should_exit: &mut should_exit,
-                                busy: &busy,
-                                turn_cancel_requested: &mut turn_cancel_requested,
-                                prompt_queue: &mut prompt_queue,
-                                pending_tool_approval: &mut pending_tool_approval,
-                                pending_user_question: &mut pending_user_question,
-                                agent_session: &agent_session,
-                            },
-                            &mut messages,
-                            &mut messages_revision,
-                            is_force_quit_command(&text),
-                        );
-                        draft.set(String::new());
-                        live_draft.set(String::new());
-                        suppress_enter_newline.set(true);
-                        return;
-                    }
-                    if let Some(question) = pending_user_question.write().take() {
-                        let answer = if text.trim().is_empty() {
-                            question.default.clone().unwrap_or_default()
-                        } else {
-                            text
-                        };
-                        question.respond(answer);
-                        draft.set(String::new());
-                        live_draft.set(String::new());
-                        suppress_enter_newline.set(true);
-                        activity_label.set("Thinking".to_string());
-                        return;
-                    }
-                    if text.trim().is_empty() {
-                        return;
-                    }
-
-                    let is_slash = text.trim_start().starts_with('/');
-                    push_transcript_message(
-                        &mut messages,
-                        &mut messages_revision,
-                        TranscriptMessage::text(text.clone(), TranscriptStyle::for_user_submit(&text)),
-                    );
-
-                    let extension_registry = extension_host.registry();
-                    let ext_registry = extension_registry.read();
-                    let templates = prompt_templates.read().clone();
-                    let loaded_skills = skills.read().clone();
-                    let paths_snapshot = paths.read().clone();
-                    let outcome = handle_slash_submit(SlashContext {
-                        input: &text,
-                        extensions: Some(&ext_registry),
-                        prompt_templates: Some(&templates),
-                        skills: Some(&loaded_skills),
-                        agent_session: agent_session.clone(),
-                        extension_host: Some(&extension_host),
-                        paths: Some(&paths_snapshot),
-                        cwd: Some(&cwd),
-                    });
-
-                    match outcome {
-                        SlashOutcome::Quit => {
+            PromptChrome(
+                screen_width: screen_width,
+                screen_height: screen_height,
+                agent_mode: agent_mode.get(),
+                thinking_level: thinking_level.get(),
+                has_focus: prompt_focused,
+                project_label: footer_left.clone(),
+                model_label: model_label.clone(),
+                supports_images: supports_images,
+                draft: Some(draft),
+                live_draft: Some(live_draft),
+                suppress_enter_newline: Some(suppress_enter_newline),
+                slash_palette_active: Some(slash_palette_active),
+                force_palette_sync: Some(force_palette_sync),
+                force_editor_clear: Some(force_editor_clear),
+                slash_palette_snapshot: slash_palette_snapshot,
+                slash_palette_selected: Some(slash_palette_index),
+                on_escape: move |_| {
+                    shell_focus.set(ShellFocus::Transcript);
+                },
+                on_submit: move |text: String| {
+                        shell_focus.set(ShellFocus::Prompt);
+                        if is_force_quit_command(&text) || is_quit_command(&text) {
                             let _ = request_quit(
                                 PendingQuitAction {
                                     pending_quit_confirm: &mut pending_quit_confirm,
@@ -995,88 +1170,134 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 },
                                 &mut messages,
                                 &mut messages_revision,
-                                false,
+                                is_force_quit_command(&text),
                             );
+                            draft.set(String::new());
+                            live_draft.set(String::new());
+                            suppress_enter_newline.set(true);
+                            return;
                         }
-                        SlashOutcome::Status(message) => {
-                            push_transcript_message(
-                                &mut messages,
-                                &mut messages_revision,
-                                TranscriptMessage::text(message, TranscriptStyle::Meta),
-                            );
+                        if text.trim().is_empty() {
+                            return;
                         }
-                        SlashOutcome::Unimplemented(message) => {
-                            push_transcript_message(
-                                &mut messages,
-                                &mut messages_revision,
-                                TranscriptMessage::text(message, TranscriptStyle::Meta),
-                            );
-                        }
-                        SlashOutcome::OverlayDeferred(overlay) => {
-                            push_transcript_message(
-                                &mut messages,
-                                &mut messages_revision,
-                                TranscriptMessage::text(overlay_deferred_message(&overlay), TranscriptStyle::Meta),
-                            );
-                        }
-                        SlashOutcome::SpawnAgentTurn if is_slash => {
-                            if agent_session.is_some() {
-                                chrome_refresh_pending.set(true);
-                                idle_status_notice.set(None);
-                                turn_cancel_requested.set(false);
-                                mark_busy(
-                                    &mut BusyActivation {
-                                        busy: &mut busy,
-                                        busy_started_at: &mut busy_started_at,
-                                        elapsed_secs: &mut elapsed_secs,
-                                        spinner_tick: &mut spinner_tick,
-                                        activity_label: &mut activity_label,
+
+                        let is_slash = text.trim_start().starts_with('/');
+                        push_transcript_message(
+                            &mut messages,
+                            &mut messages_revision,
+                            TranscriptMessage::text(text.clone(), TranscriptStyle::for_user_submit(&text)),
+                        );
+
+                        let extension_registry = extension_host.registry();
+                        let ext_registry = extension_registry.read();
+                        let templates = prompt_templates.read().clone();
+                        let loaded_skills = skills.read().clone();
+                        let paths_snapshot = paths.read().clone();
+                        let outcome = handle_slash_submit(SlashContext {
+                            input: &text,
+                            extensions: Some(&ext_registry),
+                            prompt_templates: Some(&templates),
+                            skills: Some(&loaded_skills),
+                            agent_session: agent_session.clone(),
+                            extension_host: Some(&extension_host),
+                            paths: Some(&paths_snapshot),
+                            cwd: Some(&cwd),
+                        });
+
+                        match outcome {
+                            SlashOutcome::Quit => {
+                                let _ = request_quit(
+                                    PendingQuitAction {
+                                        pending_quit_confirm: &mut pending_quit_confirm,
+                                        should_exit: &mut should_exit,
+                                        busy: &busy,
+                                        turn_cancel_requested: &mut turn_cancel_requested,
+                                        prompt_queue: &mut prompt_queue,
+                                        pending_tool_approval: &mut pending_tool_approval,
+                                        pending_user_question: &mut pending_user_question,
+                                        agent_session: &agent_session,
                                     },
+                                    &mut messages,
+                                    &mut messages_revision,
                                     false,
                                 );
-                                begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
                             }
-                        }
-                        SlashOutcome::SpawnAgentTurn => {
-                            if busy.get() {
-                                prompt_queue.write().push(text);
-                            } else if let Some(session) = agent_session.as_ref() {
-                                chrome_refresh_pending.set(true);
-                                idle_status_notice.set(None);
-                                turn_cancel_requested.set(false);
-                                mark_busy(
-                                    &mut BusyActivation {
-                                        busy: &mut busy,
-                                        busy_started_at: &mut busy_started_at,
-                                        elapsed_secs: &mut elapsed_secs,
-                                        spinner_tick: &mut spinner_tick,
-                                        activity_label: &mut activity_label,
-                                    },
-                                    false,
-                                );
-                                begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
-                                TurnDispatcher::spawn_turn(Arc::clone(session), text, false);
-                            } else {
+                            SlashOutcome::Status(message) => {
                                 push_transcript_message(
                                     &mut messages,
                                     &mut messages_revision,
-                                    TranscriptMessage::text(
-                                        "Agent session unavailable — check logs or run `elph doctor`.",
-                                        TranscriptStyle::Meta,
-                                    ),
+                                    TranscriptMessage::text(message, TranscriptStyle::Meta),
                                 );
                             }
+                            SlashOutcome::Unimplemented(message) => {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(message, TranscriptStyle::Meta),
+                                );
+                            }
+                            SlashOutcome::OverlayDeferred(overlay) => {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(overlay_deferred_message(&overlay), TranscriptStyle::Meta),
+                                );
+                            }
+                            SlashOutcome::SpawnAgentTurn if is_slash => {
+                                if agent_session.is_some() {
+                                    chrome_refresh_pending.set(true);
+                                    idle_status_notice.set(None);
+                                    turn_cancel_requested.set(false);
+                                    mark_busy(
+                                        &mut BusyActivation {
+                                            busy: &mut busy,
+                                            busy_started_at: &mut busy_started_at,
+                                            elapsed_secs: &mut elapsed_secs,
+                                            spinner_tick: &mut spinner_tick,
+                                            activity_label: &mut activity_label,
+                                        },
+                                        false,
+                                    );
+                                    begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
+                                }
+                            }
+                            SlashOutcome::SpawnAgentTurn => {
+                                if busy.get() {
+                                    prompt_queue.write().push(text);
+                                } else if let Some(session) = agent_session.as_ref() {
+                                    chrome_refresh_pending.set(true);
+                                    idle_status_notice.set(None);
+                                    turn_cancel_requested.set(false);
+                                    mark_busy(
+                                        &mut BusyActivation {
+                                            busy: &mut busy,
+                                            busy_started_at: &mut busy_started_at,
+                                            elapsed_secs: &mut elapsed_secs,
+                                            spinner_tick: &mut spinner_tick,
+                                            activity_label: &mut activity_label,
+                                        },
+                                        false,
+                                    );
+                                    begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
+                                    TurnDispatcher::spawn_turn(Arc::clone(session), text, false);
+                                } else {
+                                    push_transcript_message(
+                                        &mut messages,
+                                        &mut messages_revision,
+                                        TranscriptMessage::text(
+                                            "Agent session unavailable — check logs or run `elph doctor`.",
+                                            TranscriptStyle::Meta,
+                                        ),
+                                    );
+                                }
+                            }
                         }
-                    }
 
                     draft.set(String::new());
                     live_draft.set(String::new());
                     suppress_enter_newline.set(true);
                 },
-                        )
-                    }
-                }
-            })
+            )
         }
     }
 }

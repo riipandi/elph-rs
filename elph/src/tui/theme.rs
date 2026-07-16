@@ -17,17 +17,14 @@ pub const SCROLLBAR_THUMB: Color = Color::Rgb { r: 88, g: 88, b: 88 };
 /// Pi `text` — primary body foreground (`#d4d4d4`).
 pub const TEXT_FG: Color = Color::Rgb { r: 212, g: 212, b: 212 };
 
-/// Pi `userMessageBg` (`#343541`).
+/// Pi `userMessageBg` (`#343541`) — all user-submitted transcript bubbles (chat, slash, skill).
 pub const BUBBLE_BG: Color = Color::Rgb { r: 52, g: 53, b: 65 };
 
-/// Pi `customMessageBg` (`#2d2838`).
-pub const SKILL_BG: Color = Color::Rgb { r: 45, g: 40, b: 56 };
+/// Alias for [`BUBBLE_BG`]; every user-originated prompt card uses this fill.
+pub const USER_INPUT_BG: Color = BUBBLE_BG;
 
 /// Pi `customMessageLabel` (`#9575cd`).
 pub const SKILL_FG: Color = Color::Rgb { r: 149, g: 117, b: 205 };
-
-/// Pi export `infoBg` (`#3c3728`).
-pub const META_BG: Color = Color::Rgb { r: 60, g: 55, b: 40 };
 
 /// Pi `mdHeading` (`#f0c674`).
 pub const META_FG: Color = Color::Rgb { r: 240, g: 198, b: 116 };
@@ -60,10 +57,6 @@ pub const TOOL_FAILED_BG: Color = Color::Rgb { r: 60, g: 40, b: 40 };
 /// Pi `error` / `red` (`#cc6666`).
 pub const TOOL_FAILED_FG: Color = Color::Rgb { r: 204, g: 102, b: 102 };
 
-/// Pi `borderMuted` (`#505050`).
-pub const EDITOR_BORDER: Color = Color::Rgb { r: 80, g: 80, b: 80 };
-/// Muted editor chrome when transcript has focus.
-pub const EDITOR_BORDER_DIMMED: Color = Color::Rgb { r: 56, g: 56, b: 56 };
 pub const EDITOR_TEXT_FOCUSED: Color = Color::Grey;
 pub const EDITOR_TEXT_DIMMED: Color = Color::DarkGrey;
 pub const EDITOR_CURSOR: Color = Color::White;

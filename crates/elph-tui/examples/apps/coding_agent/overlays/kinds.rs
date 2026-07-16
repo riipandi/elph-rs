@@ -57,12 +57,13 @@ pub fn overlay_chrome(screen_width: u16, screen_height: u16, kind: OverlayKind) 
             "Choose how much autonomy the agent has for this session.",
             0,
             Some(max_body),
+            false,
         ),
         OverlayKind::Question => {
-            dialog_select_body_plan(&options, true, body_width, theme, &question, 0, Some(max_body))
+            dialog_select_body_plan(&options, true, body_width, theme, &question, 0, Some(max_body), false)
         }
         OverlayKind::MultiChoice => {
-            dialog_select_body_plan(&options, true, body_width, theme, &question, 1, Some(max_body))
+            dialog_select_body_plan(&options, true, body_width, theme, &question, 1, Some(max_body), false)
         }
         OverlayKind::TodoList => {
             let natural = dialog_todo_list_content_rows(&todos, body_width, theme, theme.dialog_row_gap());

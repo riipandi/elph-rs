@@ -94,6 +94,7 @@ fn dialog_layout(width: u16, height: u16, preset: Preset) -> (DialogChrome, u16)
             "Which model should handle the next turn?",
             0,
             Some(max_body),
+            false,
         ),
         Preset::ModeSelect => dialog_select_body_plan(
             &dialog_mode_select_options(),
@@ -103,6 +104,7 @@ fn dialog_layout(width: u16, height: u16, preset: Preset) -> (DialogChrome, u16)
             "Choose how much autonomy the agent has for this session.",
             0,
             Some(max_body),
+            false,
         ),
         Preset::TodoList => {
             let natural = dialog_todo_list_content_rows(&todos, body_width, theme, theme.dialog_row_gap());

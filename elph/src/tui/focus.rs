@@ -8,6 +8,7 @@ pub enum ShellFocus {
     #[default]
     Prompt,
     Transcript,
+    StatusDialog,
 }
 
 /// Plain letter, space, or `/` — refocus the prompt and seed the first keystroke.
@@ -21,6 +22,15 @@ pub fn prompt_focus_char(code: KeyCode, modifiers: KeyModifiers) -> Option<char>
         KeyCode::Char(c) if c.is_ascii_alphabetic() => Some(c),
         _ => None,
     }
+}
+
+/// Ctrl+C / Ctrl+D — still honored while a modal inline dialog is open.
+pub fn shell_global_shortcut(modifiers: KeyModifiers, code: KeyCode) -> bool {
+    modifiers.contains(KeyModifiers::CONTROL)
+        && matches!(
+            code,
+            KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Char('d') | KeyCode::Char('D')
+        )
 }
 
 /// Keys that scroll the transcript when it has focus (plain arrows and Shift+arrows).
@@ -50,6 +60,14 @@ mod tests {
         assert_eq!(prompt_focus_char(KeyCode::Char('/'), KeyModifiers::empty()), Some('/'));
         assert_eq!(prompt_focus_char(KeyCode::Char('1'), KeyModifiers::empty()), None);
         assert_eq!(prompt_focus_char(KeyCode::Char('a'), KeyModifiers::CONTROL), None);
+    }
+
+    #[test]
+    fn shell_global_shortcut_matches_ctrl_c_and_ctrl_d() {
+        assert!(shell_global_shortcut(KeyModifiers::CONTROL, KeyCode::Char('c')));
+        assert!(shell_global_shortcut(KeyModifiers::CONTROL, KeyCode::Char('D')));
+        assert!(!shell_global_shortcut(KeyModifiers::empty(), KeyCode::Char('c')));
+        assert!(!shell_global_shortcut(KeyModifiers::CONTROL, KeyCode::Char('q')));
     }
 
     #[test]
