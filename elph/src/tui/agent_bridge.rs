@@ -3,7 +3,8 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
-use crate::agent::{AgentUiEvent, CodingAgentSession};
+use crate::agent::goal_slash::handle_goal_slash;
+use crate::agent::{AgentUiEvent, CodingAgentSession, SlashDispatch};
 
 use super::transcript::{TranscriptMessage, TranscriptStyle};
 
@@ -24,6 +25,29 @@ impl TurnDispatcher {
             if let Err(err) = session.abort().await {
                 log::warn!("agent abort failed: {err}");
             }
+        });
+    }
+}
+
+/// Runs wired slash commands on the agent session and reports via UI events.
+pub struct SlashDispatcher;
+
+impl SlashDispatcher {
+    pub fn spawn(session: Arc<CodingAgentSession>, dispatch: SlashDispatch) {
+        tokio::spawn(async move {
+            let ui_tx = session.ui_event_sender();
+            let status = match dispatch {
+                SlashDispatch::Compact => match session.compact().await {
+                    Ok(_) => "History compacted.".into(),
+                    Err(err) => format!("Compact failed: {err}"),
+                },
+                SlashDispatch::Goal { args } => match handle_goal_slash(session.goal_runtime().as_ref(), &args).await {
+                    Ok(message) => message,
+                    Err(err) => format!("Goal error: {err}"),
+                },
+                SlashDispatch::Quit | SlashDispatch::Unimplemented(_) => return,
+            };
+            let _ = ui_tx.send(AgentUiEvent::Status(status));
         });
     }
 }
@@ -81,8 +105,8 @@ impl TranscriptEventApplier {
                     false
                 }
             }
-            AgentUiEvent::Status(_)
-            | AgentUiEvent::ThinkingDelta(_)
+            AgentUiEvent::Status(message) => self.push_status(messages, message.trim()),
+            AgentUiEvent::ThinkingDelta(_)
             | AgentUiEvent::PlanConfirmationRequired(_)
             | AgentUiEvent::UserQuestionRequired(_) => false,
             // ToolApprovalRequired is handled in shell (must respond on response_tx).
@@ -284,6 +308,16 @@ mod tests {
             },
         );
         assert_eq!(messages[0].tool.as_ref().unwrap().output, "running 1 test");
+    }
+
+    #[test]
+    fn status_events_become_meta_lines() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(false);
+        assert!(applier.apply(&mut messages, AgentUiEvent::Status("History compacted.".into())));
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].style, TranscriptStyle::Meta);
+        assert_eq!(messages[0].content, "History compacted.");
     }
 
     #[test]

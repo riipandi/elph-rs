@@ -130,7 +130,7 @@ impl TranscriptMessage {
         if let Some(tool) = &self.tool {
             let mut lines = vec![format!("{} {}", tool_marker(self.style), tool.name)];
             if !tool.args.is_empty() {
-                lines.push(format!("  {}", tool.args));
+                lines.push(tool.args.clone());
             }
             if !tool.output.is_empty() {
                 lines.push(String::new());
@@ -166,6 +166,7 @@ enum TranscriptStyle {
 }
 
 const COLORED_CARD_PAD: u16 = 1;
+const COLORED_CARD_PAD_H: u16 = COLORED_CARD_PAD + 1;
 const COLORED_CARD_GAP: u16 = 1;
 const THINKING_RESPONSE_GAP: u16 = 1;
 
@@ -213,7 +214,7 @@ impl TranscriptStyle {
 
     fn horizontal_padding(self) -> u16 {
         if self.is_flush_text() || self.has_tinted_background() {
-            COLORED_CARD_PAD
+            COLORED_CARD_PAD_H
         } else {
             0
         }
@@ -333,8 +334,8 @@ fn thinking_response_pair_card(
             margin_bottom: margin_bottom,
             padding_top: 0,
             padding_bottom: 0,
-            padding_left: COLORED_CARD_PAD,
-            padding_right: COLORED_CARD_PAD,
+            padding_left: COLORED_CARD_PAD_H,
+            padding_right: COLORED_CARD_PAD_H,
             flex_direction: FlexDirection::Column,
             gap: THINKING_RESPONSE_GAP,
         ) {
@@ -388,7 +389,10 @@ fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom:
             background_color: style.background_color(),
             border_style: BorderStyle::None,
             margin_bottom: margin_bottom,
-            padding: COLORED_CARD_PAD,
+            padding_top: COLORED_CARD_PAD,
+            padding_bottom: COLORED_CARD_PAD,
+            padding_left: COLORED_CARD_PAD_H,
+            padding_right: COLORED_CARD_PAD_H,
             flex_direction: FlexDirection::Column,
             gap: 0,
         ) {
@@ -398,7 +402,7 @@ fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom:
                     Text(
                         color: Color::Rgb { r: 160, g: 160, b: 160 },
                         wrap: TextWrap::Wrap,
-                        content: format!("  {}", tool.args),
+                        content: tool.args.clone(),
                     )
                 })
             } else {

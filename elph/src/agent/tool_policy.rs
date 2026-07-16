@@ -53,18 +53,6 @@ impl AgentModePolicy {
         Self::ensure_list_available_tool(names)
     }
 
-    /// Legacy helper — Ask-mode read-only tool names (without MCP registry filtering).
-    pub fn read_only_tool_names() -> Vec<String> {
-        Self::active_tool_names_for_mode(AgentMode::Ask, &Self::builtin_surface_names(), None)
-    }
-
-    fn builtin_surface_names() -> Vec<String> {
-        elph_agent::EXPLORATION_BUILTIN_TOOLS
-            .iter()
-            .map(|s| (*s).to_string())
-            .collect()
-    }
-
     fn ensure_list_available_tool(mut names: Vec<String>) -> Vec<String> {
         if !names.iter().any(|n| n == "list_available_tools") {
             names.push("list_available_tools".into());
@@ -191,12 +179,14 @@ mod tests {
     }
 
     #[test]
-    fn read_only_tool_names_matches_ask_mode() {
-        let all = vec!["read_file".into(), "write_file".into(), "web_search".into()];
-        assert_eq!(
-            AgentModePolicy::read_only_tool_names(),
-            AgentModePolicy::active_tool_names_for_mode(AgentMode::Ask, &all, None)
-        );
+    fn ask_mode_matches_exploration_surface() {
+        let all: Vec<String> = elph_agent::EXPLORATION_BUILTIN_TOOLS
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect();
+        let active = AgentModePolicy::active_tool_names_for_mode(AgentMode::Ask, &all, None);
+        assert!(active.contains(&"read_file".to_string()));
+        assert!(!active.contains(&"write_file".to_string()));
     }
 
     #[test]

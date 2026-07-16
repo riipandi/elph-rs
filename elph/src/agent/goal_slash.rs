@@ -1,6 +1,6 @@
 //! `/goal` slash command handler.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use elph_agent::{GoalRuntime, GoalStatus};
 
 pub async fn handle_goal_slash(goal_runtime: &GoalRuntime, args: &str) -> Result<String> {
@@ -69,17 +69,4 @@ fn format_goal(goal: Option<elph_agent::Goal>) -> Result<String> {
 
 fn display_budget(budget: i64) -> String {
     if budget <= 0 { "∞".into() } else { budget.to_string() }
-}
-
-pub async fn handle_goal_slash_result(
-    goal_runtime: &GoalRuntime,
-    args: &str,
-) -> Result<(String, Option<elph_agent::Goal>)> {
-    let message = handle_goal_slash(goal_runtime, args).await?;
-    let goal = goal_runtime
-        .store()
-        .get_latest_goal(goal_runtime.session_id())
-        .await
-        .context("load goal after slash")?;
-    Ok((message, goal))
 }

@@ -1,6 +1,4 @@
-//! Shared types previously defined in elph-tui.
-//! ans: copied from elph-tui during TUI reset — elph-tui will be re-implemented later
-//! and these types will move back.
+//! Shared UI and session types for the Elph binary.
 
 /// Agent permission / interaction mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

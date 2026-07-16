@@ -150,8 +150,8 @@ fn format_fetch(result: &FetchResult) -> String {
 
 fn trim_body(body: &str) -> String {
     let trimmed = body.trim();
-    if trimmed.len() > 240 {
-        format!("{}...", &trimmed[..240])
+    if trimmed.chars().count() > 240 {
+        format!("{}...", super::common::truncate_at_chars(trimmed, 240))
     } else {
         trimmed.to_string()
     }

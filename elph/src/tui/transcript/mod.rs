@@ -9,10 +9,9 @@ use elph_tui::{
 use iocraft::prelude::*;
 
 use super::theme::{BORDER_MUTED, SCROLLBAR_THUMB, SCROLLBAR_TRACK};
-
-pub use message::{ToolCardDetail, TranscriptMessage, TranscriptStyle, seed_transcript_messages};
-
 use message::{build_transcript_bubbles, transcript_sticky_overlay};
+
+pub use message::{TranscriptMessage, TranscriptStyle};
 
 const TRANSCRIPT_SCROLL_STEP: i32 = 3;
 /// Minimum scrollable lines below a sticky user prompt.

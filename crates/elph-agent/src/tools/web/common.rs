@@ -57,10 +57,19 @@ pub async fn do_post_json(
     Ok(resp.json().await?)
 }
 
+/// Truncate at a Unicode scalar boundary (never mid-codepoint).
+pub(crate) fn truncate_at_chars(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        s.chars().take(max_chars).collect()
+    }
+}
+
 fn trim_error_body(body: &str) -> String {
     let s = body.trim();
-    if s.len() > 240 {
-        format!("{}...", &s[..240])
+    if s.chars().count() > 240 {
+        format!("{}...", truncate_at_chars(s, 240))
     } else {
         s.to_string()
     }
@@ -202,5 +211,22 @@ mod tests {
     fn strip_html_decodes_entities() {
         assert_eq!(strip_html("<b>hello</b>"), "hello");
         assert_eq!(strip_html("a &amp; b"), "a & b");
+    }
+
+    #[test]
+    fn truncate_at_chars_respects_scalar_boundaries() {
+        let bullet = "•";
+        let input = format!("{}a", bullet.repeat(100));
+        let truncated = truncate_at_chars(&input, 100);
+        assert_eq!(truncated.chars().count(), 100);
+        assert!(std::str::from_utf8(truncated.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn trim_error_body_does_not_panic_on_multibyte_chars() {
+        let body = format!("{}end", "•".repeat(250));
+        let trimmed = trim_error_body(&body);
+        assert!(trimmed.ends_with("..."));
+        assert!(trimmed.chars().count() <= 244);
     }
 }

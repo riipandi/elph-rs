@@ -1,6 +1,5 @@
 //! iocraft-based TUI for Elph.
 //!
-//! Layout reference: `crates/elph-tui/examples/chat_layout.rs` (basic demo; not synced with production).
 //! Zones (top → bottom): Header, Transcript, status row, Editor, Footer.
 
 mod activity;
@@ -68,7 +67,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     let settings = Settings::load(&paths)?;
 
     let agent = try_bootstrap_agent(&paths, &settings, options.resume_id.as_deref()).await;
-    let (agent_session, ui_events, demo_transcript, session_id, context_limit, supports_images) = match agent {
+    let (agent_session, ui_events, session_id, context_limit, supports_images, bootstrap_notice) = match agent {
         Ok(agent) => {
             log::info!("agent session ready: {}", agent.session.session_id());
             let session_id = agent.session.session_id().to_string();
@@ -77,16 +76,23 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
             (
                 Some(agent.session),
                 Some(agent.ui_rx),
-                false,
                 session_id,
                 context_limit,
                 supports_images,
+                None,
             )
         }
         Err(err) => {
-            log::warn!("agent session unavailable, running demo shell: {err}");
-            let session_id = options.resume_id.clone().unwrap_or_else(|| "demo".to_string());
-            (None, None, true, session_id, 200_000, false)
+            log::warn!("agent session unavailable: {err}");
+            let session_id = options.resume_id.clone().unwrap_or_else(|| "unavailable".to_string());
+            (
+                None,
+                None,
+                session_id,
+                200_000,
+                false,
+                Some(format!("Agent unavailable: {err}")),
+            )
         }
     };
 
@@ -95,8 +101,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     let project_label = project_footer_label(&paths, git_branch.as_deref());
 
     element!(MainShell(
-        resume_id: options.resume_id,
         session_id: session_id,
+        bootstrap_notice: bootstrap_notice,
         initial_agent_mode: agent_mode_from_setting(&settings.session.agent_mode),
         initial_thinking_level: ThinkingLevel::from_setting(&settings.session.thinking_level),
         model_label: model_label,
@@ -108,7 +114,6 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         show_thinking: settings.show_thinking,
         agent_session: agent_session,
         ui_events: ui_events,
-        demo_transcript: demo_transcript,
     ))
     .render_loop()
     .fullscreen()

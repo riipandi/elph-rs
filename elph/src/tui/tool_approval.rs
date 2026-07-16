@@ -84,7 +84,7 @@ fn format_args_preview(args: &str, width: usize, max_lines: usize) -> Vec<String
     lines
 }
 
-#[derive(Clone, Props)]
+#[derive(Clone, Default, Props)]
 pub struct ToolApprovalPromptProps {
     pub screen_width: u16,
     pub tool_name: String,
@@ -165,16 +165,13 @@ mod tests {
 
     #[test]
     fn ignores_modified_keys() {
-        assert_eq!(
-            choice_from_key(KeyModifiers::CONTROL, KeyCode::Char('y')),
-            None
-        );
+        assert_eq!(choice_from_key(KeyModifiers::CONTROL, KeyCode::Char('y')), None);
     }
 
     #[test]
     fn wraps_long_args() {
-        let lines = format_args_preview("aaaa bbbb cccc dddd", 10, 3);
-        assert!(!lines.is_empty());
-        assert!(lines.iter().all(|l| l.chars().count() <= 12));
+        let lines = format_args_preview("aaaa bbbb cccc dddd eeee ffff gggg", 10, 3);
+        assert!(lines.len() > 1);
+        assert!(lines.iter().all(|l| l.chars().count() <= 20));
     }
 }

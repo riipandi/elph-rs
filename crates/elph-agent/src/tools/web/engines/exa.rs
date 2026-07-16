@@ -3,7 +3,7 @@
 use reqwest::Client;
 use serde_json::json;
 
-use super::super::common::do_post_json;
+use super::super::common::{do_post_json, truncate_at_chars};
 use super::super::ranking::SearchResult;
 
 pub async fn search(client: &Client, query: &str, api_key: &str) -> anyhow::Result<Vec<SearchResult>> {
@@ -38,11 +38,7 @@ pub async fn search(client: &Client, query: &str, api_key: &str) -> anyhow::Resu
                         .and_then(|v| v.as_str())
                         .or_else(|| r["text"].as_str())
                         .unwrap_or("");
-                    let snippet = if snippet.len() > 300 {
-                        snippet[..300].to_string()
-                    } else {
-                        snippet.to_string()
-                    };
+                    let snippet = truncate_at_chars(snippet, 300);
                     SearchResult {
                         title,
                         url: r["url"].as_str().unwrap_or("").to_string(),

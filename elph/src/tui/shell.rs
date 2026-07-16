@@ -7,30 +7,32 @@ use elph_tui::rgb;
 use iocraft::prelude::*;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::agent::{AgentUiEvent, CodingAgentSession, ToolApprovalChoice};
+use crate::agent::{
+    AgentUiEvent, CodingAgentSession, SlashDispatch, ToolApprovalChoice, dispatch_slash_command,
+    slash_unimplemented_message,
+};
 use crate::platform::Paths;
 use crate::types::{AgentMode, ThinkingLevel, is_quit_command};
 
 use super::activity::activity_label_for_event;
-use super::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
+use super::agent_bridge::{PromptQueue, SlashDispatcher, TranscriptEventApplier, TurnDispatcher};
 use super::chrome::{ChromeStats, header_stats_from_chrome, read_git_branch, refresh_chrome_stats};
+use super::footer::Footer;
 use super::header::Header;
 use super::labels::{project_footer_label, session_label};
 use super::prompt_chrome::PromptChrome;
 use super::session_prefs::persist_session_prefs;
 use super::status_row::{StatusRow, format_elapsed_secs};
 use super::tool_approval::{PendingToolApproval, ToolApprovalPrompt, choice_from_key};
-use super::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle, seed_transcript_messages};
-use super::footer::Footer;
+use super::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle};
 
 const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
-const DEMO_BUSY_SECS: u64 = 3;
 
 #[derive(Props)]
 pub struct MainShellProps {
-    pub resume_id: Option<String>,
     pub session_id: String,
+    pub bootstrap_notice: Option<String>,
     pub initial_agent_mode: AgentMode,
     pub initial_thinking_level: ThinkingLevel,
     pub model_label: String,
@@ -42,14 +44,13 @@ pub struct MainShellProps {
     pub show_thinking: bool,
     pub agent_session: Option<Arc<CodingAgentSession>>,
     pub ui_events: Option<Arc<Mutex<UnboundedReceiver<AgentUiEvent>>>>,
-    pub demo_transcript: bool,
 }
 
 impl Default for MainShellProps {
     fn default() -> Self {
         Self {
-            resume_id: None,
-            session_id: "demo".to_string(),
+            session_id: "unavailable".to_string(),
+            bootstrap_notice: None,
             initial_agent_mode: AgentMode::default(),
             initial_thinking_level: ThinkingLevel::default(),
             model_label: String::new(),
@@ -61,7 +62,6 @@ impl Default for MainShellProps {
             show_thinking: false,
             agent_session: None,
             ui_events: None,
-            demo_transcript: true,
         }
     }
 }
@@ -72,25 +72,31 @@ struct BusyActivation<'a> {
     elapsed_secs: &'a mut State<f64>,
     spinner_tick: &'a mut State<u32>,
     activity_label: &'a mut State<String>,
-    demo_busy_generation: &'a mut Ref<u64>,
 }
 
-fn mark_busy(ctx: &mut BusyActivation<'_>, steer: bool, has_agent: bool) {
+fn mark_busy(ctx: &mut BusyActivation<'_>, steer: bool) {
     ctx.busy.set(true);
     ctx.busy_started_at.set(Some(Instant::now()));
     ctx.elapsed_secs.set(0.0);
     ctx.spinner_tick.set(0);
     ctx.activity_label.set(if steer {
         "Steering".to_string()
-    } else if has_agent {
-        "Thinking".to_string()
     } else {
-        "Responding".to_string()
+        "Thinking".to_string()
     });
-    if !has_agent {
-        ctx.demo_busy_generation
-            .set(ctx.demo_busy_generation.get().saturating_add(1));
-    }
+}
+
+fn push_transcript_message(
+    messages: &mut State<Vec<TranscriptMessage>>,
+    messages_revision: &mut State<u64>,
+    message: TranscriptMessage,
+) {
+    messages.set({
+        let mut list = messages.read().clone();
+        list.push(message);
+        list
+    });
+    messages_revision.set(messages_revision.get().wrapping_add(1));
 }
 
 #[component]
@@ -102,12 +108,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut thinking_level = hooks.use_state(|| props.initial_thinking_level);
     let mut draft = hooks.use_state(String::new);
     let mut live_draft = hooks.use_ref(String::new);
-    let initial_messages = if props.demo_transcript {
-        seed_transcript_messages()
-    } else {
-        Vec::new()
-    };
-    let mut messages = hooks.use_state(move || initial_messages);
+    let bootstrap_notice = props.bootstrap_notice.clone();
+    let mut messages = hooks.use_state(move || {
+        bootstrap_notice
+            .map(|notice| vec![TranscriptMessage::text(notice, TranscriptStyle::Meta)])
+            .unwrap_or_default()
+    });
     let mut messages_revision = hooks.use_state(|| 0u64);
     let mut suppress_enter_newline = hooks.use_ref(|| false);
     let mut busy = hooks.use_state(|| false);
@@ -118,13 +124,11 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut busy_started_at = hooks.use_ref(|| None::<Instant>);
     let mut prompt_queue = hooks.use_ref(PromptQueue::default);
     let mut event_applier = hooks.use_ref(|| TranscriptEventApplier::new(props.show_thinking));
-    let mut demo_busy_generation = hooks.use_ref(|| 0u64);
     let mut pending_tool_approval = hooks.use_ref(|| None::<PendingToolApproval>);
 
     let agent_session = props.agent_session.clone();
     let agent_session_for_loop = agent_session.clone();
     let agent_session_for_chrome = agent_session.clone();
-    let has_agent = agent_session.is_some();
     let ui_events = props.ui_events.clone();
     let paths = hooks.use_state(|| Paths::resolve().expect("resolve elph paths"));
     let mut turn_count = hooks.use_state(|| 0u32);
@@ -211,14 +215,6 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         }
                     }
                 }
-            } else if busy.get() {
-                let generation = demo_busy_generation.get();
-                if let Some(started) = busy_started_at.read().as_ref()
-                    && started.elapsed() >= Duration::from_secs(DEMO_BUSY_SECS)
-                    && demo_busy_generation.get() == generation
-                {
-                    run_completed = true;
-                }
             }
 
             if transcript_changed {
@@ -239,10 +235,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             elapsed_secs: &mut elapsed_secs,
                             spinner_tick: &mut spinner_tick,
                             activity_label: &mut activity_label,
-                            demo_busy_generation: &mut demo_busy_generation,
                         },
                         false,
-                        has_agent,
                     );
                     if let Some(session) = agent_session_for_loop.as_ref() {
                         TurnDispatcher::spawn_turn(Arc::clone(session), next, false);
@@ -266,10 +260,11 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             }
 
+            let mut pending_tool_approval = pending_tool_approval;
             if pending_tool_approval.read().is_some()
                 && let Some(choice) = choice_from_key(modifiers, code)
             {
-                if let Some(pending) = pending_tool_approval.take() {
+                if let Some(pending) = pending_tool_approval.write().take() {
                     pending.respond(choice);
                 }
                 activity_label.set(match choice {
@@ -395,7 +390,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             } else {
                 element! {
-                    PromptChrome(
+                    View(
+                        width: screen_width,
+                        flex_shrink: 0f32,
+                        flex_direction: FlexDirection::Column,
+                    ) {
+                        PromptChrome(
                         screen_width: screen_width,
                         screen_height: screen_height,
                         agent_mode: agent_mode.get(),
@@ -418,20 +418,44 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         return;
                     }
 
-                    messages.set({
-                        let mut list = messages.read().clone();
-                        list.push(TranscriptMessage::text(
-                            text.clone(),
-                            TranscriptStyle::for_user_submit(&text),
-                        ));
-                        list
-                    });
-                    messages_revision.set(messages_revision.get().wrapping_add(1));
-                    turn_count.set(turn_count.get().saturating_add(1));
+                    push_transcript_message(
+                        &mut messages,
+                        &mut messages_revision,
+                        TranscriptMessage::text(text.clone(), TranscriptStyle::for_user_submit(&text)),
+                    );
 
-                    if busy.get() {
+                    if let Some(dispatch) = dispatch_slash_command(&text, None) {
+                        match dispatch {
+                            SlashDispatch::Quit => should_exit.set(true),
+                            SlashDispatch::Compact | SlashDispatch::Goal { .. } => {
+                                if let Some(session) = agent_session.as_ref() {
+                                    SlashDispatcher::spawn(Arc::clone(session), dispatch);
+                                } else {
+                                    push_transcript_message(
+                                        &mut messages,
+                                        &mut messages_revision,
+                                        TranscriptMessage::text(
+                                            "Agent session required for this command.",
+                                            TranscriptStyle::Meta,
+                                        ),
+                                    );
+                                }
+                            }
+                            SlashDispatch::Unimplemented(command) => {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(
+                                        slash_unimplemented_message(&command),
+                                        TranscriptStyle::Meta,
+                                    ),
+                                );
+                            }
+                        }
+                    } else if busy.get() {
                         prompt_queue.write().push(text);
-                    } else {
+                    } else if let Some(session) = agent_session.as_ref() {
+                        turn_count.set(turn_count.get().saturating_add(1));
                         mark_busy(
                             &mut BusyActivation {
                                 busy: &mut busy,
@@ -439,21 +463,27 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 elapsed_secs: &mut elapsed_secs,
                                 spinner_tick: &mut spinner_tick,
                                 activity_label: &mut activity_label,
-                                demo_busy_generation: &mut demo_busy_generation,
                             },
                             false,
-                            has_agent,
                         );
-                        if let Some(session) = agent_session.as_ref() {
-                            TurnDispatcher::spawn_turn(Arc::clone(session), text, false);
-                        }
+                        TurnDispatcher::spawn_turn(Arc::clone(session), text, false);
+                    } else {
+                        push_transcript_message(
+                            &mut messages,
+                            &mut messages_revision,
+                            TranscriptMessage::text(
+                                "Agent session unavailable — check logs or run `elph doctor`.",
+                                TranscriptStyle::Meta,
+                            ),
+                        );
                     }
 
                     draft.set(String::new());
                     live_draft.set(String::new());
                     suppress_enter_newline.set(true);
                 },
-                    )
+                        )
+                    }
                 }
             })
         }
