@@ -146,7 +146,6 @@ impl CodingAgentSession {
 
     pub async fn submit_prompt(&self, text: String, steer: bool) -> Result<()> {
         let start = Instant::now();
-        let _ = self.ui_tx.send(AgentUiEvent::Status("Thinking…".into()));
         let result = if steer {
             self.harness.steer(text, None).await.map(|_| ())
         } else {
@@ -192,7 +191,6 @@ impl CodingAgentSession {
     pub async fn prompt_from_template(&self, name: &str, args: &str) -> Result<()> {
         let start = Instant::now();
         let parsed = parse_command_args(args);
-        let _ = self.ui_tx.send(AgentUiEvent::Status("Thinking…".into()));
         let result = self.harness.prompt_from_template(name, &parsed).await.map(|_| ());
         let elapsed_secs = start.elapsed().as_secs_f64();
         let _ = self.harness.wait_for_idle().await;

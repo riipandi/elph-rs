@@ -31,11 +31,7 @@ pub struct EditorProps {
 pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
     let label_color = rgb_color(props.agent_mode.label_rgb());
     let has_focus = props.has_focus;
-    let border_color = if has_focus {
-        EDITOR_BORDER
-    } else {
-        EDITOR_BORDER_DIMMED
-    };
+    let border_color = if has_focus { EDITOR_BORDER } else { EDITOR_BORDER_DIMMED };
     let text_color = if has_focus {
         EDITOR_TEXT_FOCUSED
     } else {

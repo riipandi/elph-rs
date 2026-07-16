@@ -73,10 +73,7 @@ mod tests {
 
     #[test]
     fn session_label_includes_mcp_and_skills() {
-        assert_eq!(
-            session_label("abc123", 2, 5),
-            "Session: abc123 | MCP: 2 | Skills: 5"
-        );
+        assert_eq!(session_label("abc123", 2, 5), "Session: abc123 | MCP: 2 | Skills: 5");
     }
 
     #[test]

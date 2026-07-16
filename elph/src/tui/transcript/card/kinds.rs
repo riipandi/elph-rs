@@ -8,7 +8,7 @@ use super::super::types::{TranscriptMessage, TranscriptStyle};
 use super::chrome::{
     COLORED_CARD_PAD_H, FLUSH_CARD_PAD, THINKING_RESPONSE_GAP, TOOL_OUTPUT_SECTION_GAP, TranscriptCardChrome,
 };
-use super::frame::{render_flush_card, render_tinted_card};
+use super::frame::{assistant_message_elements, render_assistant_card, render_flush_card, render_tinted_card};
 use super::tool_format::{format_tool_args_display, format_tool_output_display};
 
 pub fn tool_status_marker(style: TranscriptStyle) -> &'static str {
@@ -37,7 +37,7 @@ pub fn thinking_card(screen_width: u16, message: &TranscriptMessage, margin_bott
 
 pub fn chat_response_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let chrome = TranscriptCardChrome::from_style(screen_width, message.style, margin_bottom);
-    render_flush_card(&chrome, message)
+    render_assistant_card(&chrome, message)
 }
 
 pub fn error_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
@@ -113,6 +113,16 @@ pub fn thinking_response_pair_card(
     } else {
         (second, first)
     };
+    let assistant_body = if assistant.markdown.is_some() {
+        assistant_message_elements(assistant, TEXT_FG)
+    } else {
+        vec![
+            element! {
+                Text(color: TEXT_FG, wrap: TextWrap::Wrap, content: assistant.content.as_str())
+            }
+            .into(),
+        ]
+    };
     element! {
         View(
             width: chrome.outer_width,
@@ -127,7 +137,13 @@ pub fn thinking_response_pair_card(
             gap: THINKING_RESPONSE_GAP,
         ) {
             Text(color: THINKING_FG, wrap: TextWrap::Wrap, content: thinking.content.as_str())
-            Text(color: TEXT_FG, wrap: TextWrap::Wrap, content: assistant.content.as_str())
+            View(
+                width: 100pct,
+                flex_direction: FlexDirection::Column,
+                gap: 0,
+            ) {
+                #(assistant_body)
+            }
         }
     }
     .into()

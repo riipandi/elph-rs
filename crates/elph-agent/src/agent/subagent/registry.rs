@@ -92,12 +92,22 @@ impl AgentRegistry {
     }
 
     pub async fn count_active(&self) -> usize {
+        self.running_records().await.len()
+    }
+
+    pub async fn running_records(&self) -> Vec<SubagentRecord> {
         self.agents
             .lock()
             .await
             .values()
-            .filter(|r| matches!(r.info.status, SubagentStatus::Pending | SubagentStatus::Running))
-            .count()
+            .filter(|record| {
+                matches!(
+                    record.info.status,
+                    SubagentStatus::Pending | SubagentStatus::Running
+                )
+            })
+            .cloned()
+            .collect()
     }
 
     pub async fn remove(&self, id: &str) -> Option<SubagentRecord> {

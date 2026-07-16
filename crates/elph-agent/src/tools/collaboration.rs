@@ -6,9 +6,11 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
+use tokio_util::sync::CancellationToken;
+
 use crate::agent::subagent::AgentControl;
 use crate::tools::simple_tool;
-use crate::types::{AgentTool, AgentToolResult};
+use crate::types::{AgentTool, AgentToolResult, ToolExecuteFn};
 
 pub fn create_collaboration_tools(control: Arc<AgentControl>) -> Vec<AgentTool> {
     vec![
@@ -78,8 +80,11 @@ fn followup_task_tool(control: Arc<AgentControl>) -> AgentTool {
 }
 
 fn wait_agent_tool(control: Arc<AgentControl>) -> AgentTool {
-    simple_tool(
-        elph_ai::Tool {
+    let execute_fn: ToolExecuteFn = Arc::new(move |_id, args, signal, _on_update| {
+        wait_agent_exec(control.clone(), args, signal)
+    });
+    AgentTool {
+        tool: elph_ai::Tool {
             name: "wait_agent".into(),
             description: "Wait until a subagent finishes its current turn.".into(),
             parameters: json!({
@@ -90,9 +95,11 @@ fn wait_agent_tool(control: Arc<AgentControl>) -> AgentTool {
                 "required": ["agent_id"]
             }),
         },
-        "Wait for subagent",
-        move |_, args| wait_agent_exec(control.clone(), args),
-    )
+        label: "Wait for subagent".into(),
+        execution_mode: None,
+        prepare_arguments: None,
+        execute: execute_fn,
+    }
 }
 
 fn list_agents_tool(control: Arc<AgentControl>) -> AgentTool {
@@ -161,11 +168,12 @@ fn followup_task_exec(
 fn wait_agent_exec(
     control: Arc<AgentControl>,
     args: Value,
+    signal: Option<CancellationToken>,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<AgentToolResult>> + Send>> {
     Box::pin(async move {
         let agent_id = required_str(&args, "agent_id")?;
         control
-            .wait_agent(&agent_id)
+            .wait_agent_cancellable(&agent_id, signal.as_ref())
             .await
             .map(|()| AgentToolResult::text(format!("{agent_id} is idle")))
             .map_err(|e| anyhow::anyhow!(e))

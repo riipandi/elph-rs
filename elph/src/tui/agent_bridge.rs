@@ -9,6 +9,8 @@ use crate::agent::{AgentUiEvent, CodingAgentSession, SlashDispatch};
 use crate::extensions::ExtensionHost;
 use crate::platform::Paths;
 
+use super::activity::normalize_agent_status;
+use super::transcript::markdown::AssistantMarkdownBuffer;
 use super::transcript::{TranscriptMessage, TranscriptStyle};
 
 /// Spawns agent work on the tokio runtime without blocking the TUI render loop.
@@ -124,6 +126,10 @@ impl PromptQueue {
     pub fn pop_front(&mut self) -> Option<String> {
         self.items.pop_front()
     }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
 }
 
 /// Applies streaming agent events to transcript messages.
@@ -175,6 +181,10 @@ impl TranscriptEventApplier {
         if line.is_empty() {
             return false;
         }
+        // Ephemeral turn activity (spinner + status row) must not become a meta transcript card.
+        if normalize_agent_status(line) == "Thinking" {
+            return false;
+        }
         if let Some(last) = messages.last_mut()
             && last.style == TranscriptStyle::Meta
         {
@@ -200,7 +210,9 @@ impl TranscriptEventApplier {
         {
             trim_flush_trailing_ws(last);
         }
-        messages.push(TranscriptMessage::text(delta, TranscriptStyle::Assistant));
+        let mut message = TranscriptMessage::text(delta, TranscriptStyle::Assistant);
+        message.markdown = Some(AssistantMarkdownBuffer::new());
+        messages.push(message);
         true
     }
 
@@ -270,7 +282,20 @@ impl TranscriptEventApplier {
 
     fn finalize(&mut self, messages: &mut [TranscriptMessage]) -> bool {
         self.live_tool_indexes.clear();
-        messages.iter().any(|m| m.style == TranscriptStyle::Assistant)
+        let Some(last) = messages.last_mut() else {
+            return false;
+        };
+        if last.style != TranscriptStyle::Assistant {
+            return false;
+        }
+        trim_flush_trailing_ws(last);
+        if last.markdown.is_none() {
+            last.markdown = Some(AssistantMarkdownBuffer::new());
+        }
+        if let Some(markdown) = last.markdown.as_mut() {
+            markdown.mark_stream_complete();
+        }
+        true
     }
 }
 
@@ -293,6 +318,18 @@ mod tests {
         assert!(applier.apply(&mut messages, AgentUiEvent::TextDelta("lo".into())));
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].content, "Hello");
+        assert!(messages[0].markdown.is_some());
+    }
+
+    #[test]
+    fn run_completed_marks_assistant_markdown_stream_complete() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(false);
+        applier.apply(&mut messages, AgentUiEvent::TextDelta("Hi\n\n".into()));
+        applier.apply(&mut messages, AgentUiEvent::TextDelta("Done.".into()));
+        assert!(applier.apply(&mut messages, AgentUiEvent::RunCompleted { elapsed_secs: 0.0 }));
+        let markdown = messages[0].markdown.as_ref().expect("markdown buffer");
+        assert!(markdown.stream_complete);
     }
 
     #[test]
@@ -377,6 +414,14 @@ mod tests {
     }
 
     #[test]
+    fn thinking_status_stays_out_of_transcript() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(false);
+        assert!(!applier.apply(&mut messages, AgentUiEvent::Status("Thinking…".into())));
+        assert!(messages.is_empty());
+    }
+
+    #[test]
     fn assistant_start_trims_trailing_whitespace_from_thinking() {
         let mut messages = vec![TranscriptMessage::text("thinking line\n\n", TranscriptStyle::Thinking)];
         let mut applier = TranscriptEventApplier::new(true);
@@ -393,5 +438,14 @@ mod tests {
         assert!(queue.pop_front().is_none());
         queue.push("next".into());
         assert_eq!(queue.pop_front().as_deref(), Some("next"));
+    }
+
+    #[test]
+    fn prompt_queue_clear_drops_queued_turns() {
+        let mut queue = PromptQueue::default();
+        queue.push("one".into());
+        queue.push("two".into());
+        queue.clear();
+        assert!(queue.pop_front().is_none());
     }
 }

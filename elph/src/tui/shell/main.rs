@@ -15,12 +15,12 @@ use crate::platform::{Paths, PromptInterrupt, handle_prompt_interrupt_text};
 use crate::types::{AgentMode, SlashCommand, ThinkingLevel, is_quit_command};
 
 use crate::tui::activity::activity_label_for_event;
-use crate::tui::focus::{ShellFocus, prompt_focus_char};
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
 use crate::tui::chrome::{
     ChromeStats, Header, StatusRow, format_elapsed_secs, header_stats_from_chrome, read_git_branch,
     refresh_chrome_stats,
 };
+use crate::tui::focus::{ShellFocus, prompt_focus_char};
 use crate::tui::labels::{footer_left_label, project_footer_label, session_label};
 use crate::tui::prompt::{Footer, PromptChrome};
 use crate::tui::session_prefs::persist_session_prefs;
@@ -31,6 +31,9 @@ use crate::tui::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle
 
 const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
+/// Cap transcript repaints during streaming so the prompt editor stays responsive.
+const TRANSCRIPT_PUBLISH_MS: u64 = 66;
+const MAX_UI_EVENTS_PER_TICK: usize = 64;
 
 fn slash_turn_sets_busy(input: &str, templates: &[PromptTemplate]) -> bool {
     let trimmed = input.trim();
@@ -183,6 +186,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let fallback_supports_images = props.supports_images;
     let footer_token_display = props.footer_token_display.clone();
     let session_id = props.session_id.clone();
+    let mut transcript_pending = hooks.use_ref(|| false);
+    let mut last_transcript_publish = hooks.use_ref(|| Instant::now() - Duration::from_millis(TRANSCRIPT_PUBLISH_MS));
 
     hooks.use_future(async move {
         loop {
@@ -237,7 +242,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             if let Some(rx) = ui_events.as_ref()
                 && let Ok(mut guard) = rx.lock()
             {
-                while let Ok(event) = guard.try_recv() {
+                let mut events_processed = 0usize;
+                while events_processed < MAX_UI_EVENTS_PER_TICK {
+                    let Ok(event) = guard.try_recv() else {
+                        break;
+                    };
+                    events_processed += 1;
                     if let AgentUiEvent::RunCompleted { .. } = &event {
                         run_completed = true;
                     }
@@ -276,7 +286,20 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             }
 
             if transcript_changed {
+                transcript_pending.set(true);
+            }
+
+            if transcript_pending.get()
+                && (run_completed
+                    || last_transcript_publish
+                        .get()
+                        .elapsed()
+                        .as_millis()
+                        >= TRANSCRIPT_PUBLISH_MS as u128)
+            {
                 messages_revision.set(messages_revision.get().wrapping_add(1));
+                transcript_pending.set(false);
+                last_transcript_publish.set(Instant::now());
             }
 
             if run_completed {
@@ -408,6 +431,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 (m, KeyCode::Char('d')) if m.contains(KeyModifiers::CONTROL) => should_exit.set(true),
                 (m, KeyCode::Char('c')) if m.contains(KeyModifiers::CONTROL) && busy.get() => {
                     activity_label.set("Cancelling…".to_string());
+                    prompt_queue.write().clear();
                     if let Some(session) = agent_session.as_ref() {
                         TurnDispatcher::spawn_abort(Arc::clone(session));
                     } else {

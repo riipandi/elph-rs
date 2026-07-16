@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use elph_ai::{Message, Model, UserContent};
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 use super::harness::spawn_subagent_harness;
 use super::id::{MAX_NAME_ATTEMPTS, generate_agent_name};
@@ -215,14 +216,48 @@ impl AgentControl {
     }
 
     pub async fn wait_agent(&self, agent_id: &str) -> Result<(), String> {
+        self.wait_agent_cancellable(agent_id, None).await
+    }
+
+    pub async fn wait_agent_cancellable(
+        &self,
+        agent_id: &str,
+        signal: Option<&CancellationToken>,
+    ) -> Result<(), String> {
         let record = self
             .registry
             .get(agent_id)
             .await
             .ok_or_else(|| format!("Unknown agent: {agent_id}"))?;
-        record.harness.wait_idle().await?;
-        self.registry.set_status(agent_id, SubagentStatus::Idle).await;
-        Ok(())
+
+        let result = if let Some(token) = signal {
+            tokio::select! {
+                result = record.harness.wait_idle() => result,
+                () = token.cancelled() => {
+                    let _ = record.harness.harness().cancel_active_run().await;
+                    Err("Operation aborted".to_string())
+                }
+            }
+        } else {
+            record.harness.wait_idle().await
+        };
+
+        let status = if result.is_ok() {
+            SubagentStatus::Idle
+        } else {
+            SubagentStatus::Error
+        };
+        self.registry.set_status(agent_id, status).await;
+        result
+    }
+
+    /// Abort every subagent that is still pending or running.
+    pub async fn abort_all_running(&self) {
+        for record in self.registry.running_records().await {
+            let id = record.info.id.clone();
+            let _ = record.harness.harness().cancel_active_run().await;
+            self.registry.set_status(&id, SubagentStatus::Error).await;
+        }
     }
 }
 

@@ -11,6 +11,7 @@ use super::card::{
     COLORED_CARD_GAP, COLORED_CARD_PAD, COLORED_CARD_PAD_H, FLUSH_CARD_GAP, FLUSH_CARD_PAD, THINKING_RESPONSE_GAP,
     format_tool_args_display, format_tool_output_display, tool_status_marker,
 };
+use super::markdown::AssistantMarkdownBuffer;
 
 /// Structured payload for tool invocation cards in the transcript.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub struct TranscriptMessage {
     pub content: String,
     pub style: TranscriptStyle,
     pub tool: Option<ToolCardDetail>,
+    pub markdown: Option<AssistantMarkdownBuffer>,
 }
 
 impl TranscriptMessage {
@@ -33,6 +35,7 @@ impl TranscriptMessage {
             content: content.into(),
             style,
             tool: None,
+            markdown: None,
         }
     }
 
@@ -45,6 +48,7 @@ impl TranscriptMessage {
                 args_summary: args_summary.into(),
                 output: String::new(),
             }),
+            markdown: None,
         }
     }
 

@@ -44,30 +44,17 @@ mod tests {
 
     #[test]
     fn prompt_focus_char_accepts_alphabet_space_and_slash() {
-        assert_eq!(
-            prompt_focus_char(KeyCode::Char('h'), KeyModifiers::empty()),
-            Some('h')
-        );
-        assert_eq!(
-            prompt_focus_char(KeyCode::Char('Z'), KeyModifiers::empty()),
-            Some('Z')
-        );
+        assert_eq!(prompt_focus_char(KeyCode::Char('h'), KeyModifiers::empty()), Some('h'));
+        assert_eq!(prompt_focus_char(KeyCode::Char('Z'), KeyModifiers::empty()), Some('Z'));
         assert_eq!(prompt_focus_char(KeyCode::Char(' '), KeyModifiers::empty()), Some(' '));
         assert_eq!(prompt_focus_char(KeyCode::Char('/'), KeyModifiers::empty()), Some('/'));
         assert_eq!(prompt_focus_char(KeyCode::Char('1'), KeyModifiers::empty()), None);
-        assert_eq!(
-            prompt_focus_char(KeyCode::Char('a'), KeyModifiers::CONTROL),
-            None
-        );
+        assert_eq!(prompt_focus_char(KeyCode::Char('a'), KeyModifiers::CONTROL), None);
     }
 
     #[test]
     fn transcript_nav_includes_shift_arrows_and_page_keys() {
-        assert!(transcript_nav_key(
-            KeyCode::Up,
-            KeyEventKind::Press,
-            KeyModifiers::SHIFT
-        ));
+        assert!(transcript_nav_key(KeyCode::Up, KeyEventKind::Press, KeyModifiers::SHIFT));
         assert!(transcript_nav_key(KeyCode::PageUp, KeyEventKind::Press, KeyModifiers::empty()));
         assert!(!transcript_nav_key(
             KeyCode::Char('a'),

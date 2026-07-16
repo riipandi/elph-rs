@@ -25,15 +25,12 @@ where
     pub async fn abort(&self) -> HarnessOpResult<AbortResult> {
         let cleared_steer: Vec<AgentMessage> = self.shared.steer_queue.lock().await.drain(..).collect();
         let cleared_follow_up: Vec<AgentMessage> = self.shared.follow_up_queue.lock().await.drain(..).collect();
-        if let Some(run) = self.shared.active_run.lock().await.as_ref() {
-            run.abort_token.cancel();
-        }
+        let control = self.shared.agent_control.lock().await.clone();
+        control.abort_all_running().await;
+        self.cancel_active_run().await?;
 
         let mut errors = Vec::new();
         if let Err(error) = self.emit_queue_update().await {
-            errors.push(error.to_string());
-        }
-        if let Err(error) = self.wait_for_idle().await {
             errors.push(error.to_string());
         }
         if let Err(error) = self
@@ -54,6 +51,14 @@ where
             cleared_steer,
             cleared_follow_up,
         })
+    }
+
+    /// Cancel the active turn and wait for the harness to return to idle.
+    pub async fn cancel_active_run(&self) -> HarnessOpResult<()> {
+        if let Some(run) = self.shared.active_run.lock().await.as_ref() {
+            run.abort_token.cancel();
+        }
+        self.wait_for_idle().await
     }
 
     pub async fn wait_for_idle(&self) -> HarnessOpResult<()> {

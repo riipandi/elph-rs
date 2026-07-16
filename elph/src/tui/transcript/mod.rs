@@ -2,6 +2,7 @@
 
 mod card;
 mod layout;
+pub(crate) mod markdown;
 mod panel;
 mod types;
 

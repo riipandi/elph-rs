@@ -1,20 +1,34 @@
 //! Scrollable transcript panel with sticky user prompts.
 
+use std::time::Duration;
+
 use elph_tui::{
-    active_sticky_user_message_index, layout_sticky_header, scroll_view_down, scroll_view_max_offset,
-    scroll_view_up, transcript_bubble_inner_width,
+    active_sticky_user_message_index, layout_sticky_header, scroll_view_down, scroll_view_max_offset, scroll_view_up,
+    transcript_bubble_inner_width,
 };
 use iocraft::prelude::*;
 
 use super::card::{build_transcript_bubbles, transcript_sticky_overlay};
 use super::layout::layout_transcript_rows;
-use super::types::TranscriptMessage;
+use super::markdown::refresh_assistant_markdown;
+use super::types::{TranscriptMessage, TranscriptStyle};
 use crate::tui::focus::transcript_nav_key;
 use crate::tui::theme::{BORDER_MUTED, SCROLLBAR_THUMB, SCROLLBAR_TRACK, TRANSCRIPT_BORDER_FOCUSED};
 
 const TRANSCRIPT_SCROLL_STEP: i32 = 3;
 /// Minimum scrollable lines below a sticky user prompt.
 const STICKY_MIN_SCROLL_ROWS: u16 = 3;
+const MARKDOWN_DEBOUNCE_MS: u64 = 150;
+
+fn has_streaming_assistant(messages: &[TranscriptMessage]) -> bool {
+    messages.iter().any(|message| {
+        message.style == TranscriptStyle::Assistant
+            && message
+                .markdown
+                .as_ref()
+                .is_some_and(|markdown| !markdown.stream_complete)
+    })
+}
 
 #[derive(Clone, Default, Props)]
 pub struct TranscriptPanelProps {
@@ -27,7 +41,8 @@ pub struct TranscriptPanelProps {
 }
 
 struct TranscriptRenderCache {
-    revision: u64,
+    messages_revision: u64,
+    markdown_layout_revision: u64,
     screen_width: u16,
     row_layouts: Vec<elph_tui::TranscriptRowLayout>,
     is_sticky_prompt: Vec<bool>,
@@ -38,22 +53,41 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
     let scroll_handle = hooks.use_ref_default::<ScrollViewHandle>();
     let mut render_cache = hooks.use_ref(|| None::<TranscriptRenderCache>);
     let scroll_generation = hooks.use_state(|| 0u32);
+    let mut markdown_layout_revision = hooks.use_state(|| 0u64);
     let empty_messages = hooks.use_state(Vec::<TranscriptMessage>::new);
-    let messages_state = props.messages.unwrap_or(empty_messages);
+    let mut messages_state = props.messages.unwrap_or(empty_messages);
+    let mut screen_width_ref = hooks.use_ref(|| props.screen_width);
+    screen_width_ref.set(props.screen_width);
+
+    hooks.use_future(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(MARKDOWN_DEBOUNCE_MS)).await;
+            let width = screen_width_ref.get();
+            let changed = if has_streaming_assistant(&messages_state.read()) {
+                false
+            } else {
+                let mut msgs = messages_state.write();
+                refresh_assistant_markdown(&mut msgs, width)
+            };
+            if changed {
+                markdown_layout_revision.set(markdown_layout_revision.get().wrapping_add(1));
+            }
+        }
+    });
+
     let messages = messages_state.read();
     let _scroll_generation = scroll_generation.get();
-    let cache_key = (props.messages_revision, props.screen_width);
+    let cache_key = (props.messages_revision, markdown_layout_revision.get(), props.screen_width);
 
-    if render_cache
-        .read()
-        .as_ref()
-        .is_none_or(|c| c.revision != cache_key.0 || c.screen_width != cache_key.1)
-    {
+    if render_cache.read().as_ref().is_none_or(|c| {
+        c.messages_revision != cache_key.0 || c.markdown_layout_revision != cache_key.1 || c.screen_width != cache_key.2
+    }) {
         let row_layouts = layout_transcript_rows(&messages, props.screen_width);
         let is_sticky_prompt: Vec<_> = messages.iter().map(|m| m.style.is_sticky_prompt()).collect();
         render_cache.set(Some(TranscriptRenderCache {
-            revision: cache_key.0,
-            screen_width: cache_key.1,
+            messages_revision: cache_key.0,
+            markdown_layout_revision: cache_key.1,
+            screen_width: cache_key.2,
             row_layouts,
             is_sticky_prompt,
         }));
