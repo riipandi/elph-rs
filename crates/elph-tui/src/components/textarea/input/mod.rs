@@ -4,6 +4,11 @@ mod paste_burst;
 mod submit;
 mod wire_edit;
 
+/// Commit an idle raw paste burst before palette handlers read the buffer.
+pub(crate) fn flush_idle_burst(state: &mut TextareaState, burst: &mut PasteBurstState) -> bool {
+    paste_burst::merge_idle_burst(burst, state)
+}
+
 use std::time::Instant;
 
 use iocraft::prelude::*;
@@ -11,7 +16,8 @@ use iocraft::prelude::*;
 use super::state::TextareaState;
 use crate::paste::PasteBurstState;
 use crate::text_editing::{
-    is_cursor_navigation_key, is_plain_submit_enter, is_slash_palette_capture_key, is_transcript_scroll_key,
+    is_cursor_navigation_key, is_file_picker_dismiss_key, is_file_picker_nav_key, is_file_picker_toggle_hidden_key,
+    is_palette_capture_key, is_plain_submit_enter, is_transcript_scroll_key,
 };
 
 /// Raw key bursts shorter than this are treated as fast typing, not paste streams.
@@ -37,6 +43,7 @@ pub struct TextareaInputContext<'a> {
     pub submit_on_enter: bool,
     pub suppress_enter_newline: Option<Ref<bool>>,
     pub slash_palette_active: Option<Ref<bool>>,
+    pub file_picker_active: Option<Ref<bool>>,
     pub pending_esc: &'a mut bool,
     pub paste_burst: &'a mut PasteBurstState,
     pub last_key_at: &'a mut Option<Instant>,
@@ -74,16 +81,6 @@ pub fn handle_textarea_terminal_event(
         return TextareaInputResult::Consumed;
     }
 
-    if ctx.slash_palette_active.is_some_and(|active| active.get())
-        && is_slash_palette_capture_key(code, kind, modifiers)
-    {
-        // Shell may set suppress_enter on the same key; clear it so the next Enter can submit.
-        if let Some(mut suppress) = ctx.suppress_enter_newline {
-            suppress.set(false);
-        }
-        return TextareaInputResult::Consumed;
-    }
-
     let now = Instant::now();
     if kind != KeyEventKind::Release && code != KeyCode::Enter {
         if let Some(mut suppress) = ctx.suppress_enter_newline {
@@ -102,6 +99,25 @@ pub fn handle_textarea_terminal_event(
         && (!plain_submit_enter || raw_paste_blocks_submit);
     let merged_idle_burst =
         ctx.paste_burst.active && !continues_burst && paste_burst::merge_idle_burst(ctx.paste_burst, state);
+
+    if (ctx.slash_palette_active.is_some_and(|active| active.get())
+        || ctx.file_picker_active.is_some_and(|active| active.get()))
+        && (is_palette_capture_key(code, kind, modifiers)
+            || (ctx.file_picker_active.is_some_and(|active| active.get())
+                && (is_file_picker_nav_key(code, kind, modifiers)
+                    || is_file_picker_toggle_hidden_key(code, kind, modifiers)
+                    || is_file_picker_dismiss_key(code, kind, modifiers))))
+    {
+        // Shell may set suppress_enter on the same key; clear it so the next Enter can submit.
+        if let Some(mut suppress) = ctx.suppress_enter_newline {
+            suppress.set(false);
+        }
+        return if merged_idle_burst {
+            TextareaInputResult::Changed
+        } else {
+            TextareaInputResult::Consumed
+        };
+    }
 
     if is_transcript_scroll_key(code, kind, modifiers) {
         return if merged_idle_burst {
@@ -199,6 +215,12 @@ mod tests {
         TerminalEvent::Key(event)
     }
 
+    fn key_press_mod(code: KeyCode, modifiers: KeyModifiers) -> TerminalEvent {
+        let mut event = KeyEvent::new(KeyEventKind::Press, code);
+        event.modifiers = modifiers;
+        TerminalEvent::Key(event)
+    }
+
     fn test_context<'a>(
         esc: &'a mut bool,
         burst: &'a mut PasteBurstState,
@@ -212,6 +234,7 @@ mod tests {
             submit_on_enter,
             suppress_enter_newline: None,
             slash_palette_active: None,
+            file_picker_active: None,
             pending_esc: esc,
             paste_burst: burst,
             last_key_at: last,
@@ -304,6 +327,7 @@ mod tests {
                 submit_on_enter: false,
                 suppress_enter_newline: None,
                 slash_palette_active: None,
+                file_picker_active: None,
                 pending_esc: &mut esc,
                 paste_burst: &mut burst,
                 last_key_at: &mut last,
@@ -325,6 +349,7 @@ mod tests {
             submit_on_enter: false,
             suppress_enter_newline: None,
             slash_palette_active: None,
+            file_picker_active: None,
             pending_esc: &mut esc,
             paste_burst: &mut burst,
             last_key_at: &mut last,
@@ -475,6 +500,52 @@ mod tests {
     #[test]
     fn bracketed_elph_waka_paste_cursor_at_eof() {
         assert_bracketed_paste_cursor(ELPH_PASTE_WAKA);
+    }
+
+    #[test]
+    fn rapid_typing_then_ctrl_backspace_deletes_word_in_one_press() {
+        let mut state = TextareaState::default();
+        let mut esc = false;
+        let mut burst = PasteBurstState::default();
+        let mut last = None;
+        let mut on_escape = HandlerMut::default();
+
+        for ch in "hello world".chars() {
+            let ctx = test_context(&mut esc, &mut burst, &mut last, false, &mut on_escape);
+            handle_textarea_terminal_event(key_press(KeyCode::Char(ch)), &mut state, ctx);
+        }
+        assert!(burst.active, "rapid typing should leave an in-progress burst");
+
+        let ctx = test_context(&mut esc, &mut burst, &mut last, false, &mut on_escape);
+        assert_eq!(
+            handle_textarea_terminal_event(key_press_mod(KeyCode::Backspace, KeyModifiers::CONTROL), &mut state, ctx,),
+            TextareaInputResult::Changed
+        );
+        assert_eq!(state.text, "hello ");
+        assert_eq!(state.cursor, 6);
+    }
+
+    #[test]
+    fn rapid_typing_then_cmd_backspace_deletes_line_in_one_press() {
+        let mut state = TextareaState::default();
+        let mut esc = false;
+        let mut burst = PasteBurstState::default();
+        let mut last = None;
+        let mut on_escape = HandlerMut::default();
+
+        for ch in "hello".chars() {
+            let ctx = test_context(&mut esc, &mut burst, &mut last, false, &mut on_escape);
+            handle_textarea_terminal_event(key_press(KeyCode::Char(ch)), &mut state, ctx);
+        }
+        assert!(burst.active, "rapid typing should leave an in-progress burst");
+
+        let ctx = test_context(&mut esc, &mut burst, &mut last, false, &mut on_escape);
+        assert_eq!(
+            handle_textarea_terminal_event(key_press_mod(KeyCode::Backspace, KeyModifiers::SUPER), &mut state, ctx,),
+            TextareaInputResult::Changed
+        );
+        assert_eq!(state.text, "");
+        assert_eq!(state.cursor, 0);
     }
 
     #[test]

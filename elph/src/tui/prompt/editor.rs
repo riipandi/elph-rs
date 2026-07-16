@@ -1,5 +1,6 @@
 //! Multiline prompt editor with dynamic prefix and agent-mode overlap label.
 
+use elph_tui::PaletteKeyInput;
 use elph_tui::Textarea;
 use elph_tui::components::UiTheme;
 use elph_tui::{InputPrefixKind, PREFIX_COLUMN_WIDTH, PromptPrefixConfig, effective_prefix_kind, prefix_symbol};
@@ -27,10 +28,16 @@ pub struct EditorProps {
     pub live_draft: Option<Ref<String>>,
     pub suppress_enter_newline: Option<Ref<bool>>,
     pub slash_palette_active: Option<Ref<bool>>,
+    pub file_picker_active: Option<Ref<bool>>,
+    pub styled_content: Option<Ref<String>>,
+    pub live_cursor: Option<Ref<usize>>,
     pub force_palette_sync: Option<Ref<bool>>,
     pub force_clear: Option<Ref<bool>>,
     pub on_submit: HandlerMut<'static, String>,
     pub on_escape: HandlerMut<'static, ()>,
+    pub on_file_picker_key: HandlerMut<'static, PaletteKeyInput>,
+    pub file_picker_key_handled: Option<Ref<bool>>,
+    pub prompt_editor_mirror: Option<Ref<(String, usize)>>,
     /// Shown centered when the editor is blocked by an inline dialog.
     pub blocked_hint: Option<String>,
 }
@@ -114,11 +121,17 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
                     live_draft: props.live_draft,
                     suppress_enter_newline: props.suppress_enter_newline,
                     slash_palette_active: props.slash_palette_active,
+                    file_picker_active: props.file_picker_active,
+                    styled_content: props.styled_content,
+                    live_cursor: props.live_cursor,
                     force_palette_sync: props.force_palette_sync,
                     force_clear: props.force_clear,
                     submit_on_enter: true,
                     on_submit: props.on_submit.take(),
                     on_escape: props.on_escape.take(),
+                    on_file_picker_key: props.on_file_picker_key.take(),
+                    file_picker_key_handled: props.file_picker_key_handled,
+                    prompt_editor_mirror: props.prompt_editor_mirror,
                     text_color: Some(text_color),
                     cursor_color: Some(EDITOR_CURSOR),
                 )

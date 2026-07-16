@@ -11,10 +11,21 @@ use crate::components::scroll_bar::VerticalScrollbar;
 use crate::components::theme::resolve_ui_theme;
 use crate::input_prefix::{InputPrefixKind, PromptPrefixConfig, absorb_inline_triggers};
 use crate::input_prefix::{backspace_trigger_kind, try_consume_trigger};
+use crate::text_editing::{is_file_picker_dismiss_key, is_file_picker_nav_key, is_palette_capture_key};
 use crate::text_input_layout::WrappedTextLayout;
 use crate::text_input_layout::overlay_editor_wrap_width;
 use crate::text_input_layout::update_scroll_offset;
 use iocraft::prelude::*;
+
+/// Key event plus flushed editor buffer for parent palette handlers.
+#[derive(Debug, Clone)]
+pub struct PaletteKeyInput {
+    pub code: KeyCode,
+    pub kind: KeyEventKind,
+    pub modifiers: KeyModifiers,
+    pub draft: String,
+    pub cursor: usize,
+}
 
 /// Prefer viewport slicing above this source length (paste-sized buffers).
 const VIEWPORT_SLICE_MIN_CHARS: usize = 2_048;
@@ -186,6 +197,27 @@ fn sync_editor_from_parent(ed: &mut TextareaState, external: &str, has_focus: bo
     ed.sync_external(external);
 }
 
+fn apply_palette_draft_to_editor(ed: &mut TextareaState, external: &str, forced_cursor: Option<usize>) {
+    ed.sync_external_with_cursor(external, forced_cursor);
+}
+
+fn mirror_editor_buffer(
+    ed: &TextareaState,
+    live_draft: Option<Ref<String>>,
+    live_cursor: Option<Ref<usize>>,
+    prompt_editor_mirror: Option<Ref<(String, usize)>>,
+) {
+    if let Some(mut live) = live_draft {
+        live.set(ed.text.clone());
+    }
+    if let Some(mut cursor_ref) = live_cursor {
+        cursor_ref.set(ed.cursor);
+    }
+    if let Some(mut mirror) = prompt_editor_mirror {
+        mirror.set((ed.text.clone(), ed.cursor));
+    }
+}
+
 /// Multiline text input with optional external state.
 #[component]
 pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
@@ -193,6 +225,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
     let mut value = props.value.unwrap_or(internal);
     let suppress_enter_newline = props.suppress_enter_newline;
     let slash_palette_active = props.slash_palette_active;
+    let file_picker_active = props.file_picker_active;
+    let styled_content = props.styled_content;
+    let live_cursor = props.live_cursor;
     let force_palette_sync = props.force_palette_sync;
     let force_clear = props.force_clear;
     let live_draft = props.live_draft;
@@ -212,6 +247,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
     let mut generation = hooks.use_state(|| 0u32);
     let on_submit = props.on_submit.take();
     let on_escape = props.on_escape.take();
+    let on_file_picker_key = props.on_file_picker_key.take();
+    let file_picker_key_handled = props.file_picker_key_handled;
+    let prompt_editor_mirror = props.prompt_editor_mirror;
 
     if !has_focus {
         pending_esc.set(false);
@@ -236,7 +274,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
             generation.set(generation.get().wrapping_add(1));
         }
         if force_palette_sync.is_some_and(|signal| signal.get()) {
-            ed.sync_external(&value.read());
+            let external = value.read().clone();
+            let forced_cursor = live_cursor.as_ref().map(|cursor_ref| cursor_ref.get());
+            apply_palette_draft_to_editor(&mut ed, &external, forced_cursor);
             if let Some(mut signal) = force_palette_sync {
                 signal.set(false);
             }
@@ -268,7 +308,13 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
         if next_scroll != scroll_row.get() {
             scroll_row.set(next_scroll);
         }
-        let use_viewport_slice = ed.text.len() >= VIEWPORT_SLICE_MIN_CHARS;
+        if let Some(mut cursor_ref) = live_cursor {
+            cursor_ref.set(ed.cursor);
+        }
+        if let Some(mut mirror) = prompt_editor_mirror {
+            mirror.set((ed.text.clone(), ed.cursor));
+        }
+        let use_viewport_slice = styled_content.is_none() && ed.text.len() >= VIEWPORT_SLICE_MIN_CHARS;
         let visible_row_count = layout.viewport_height.saturating_add(1);
         let (rendered_text, text_wrap, content_scroll_offset, cursor_display_row) = if use_viewport_slice {
             let slice_key = (ed.text.clone(), next_scroll, visible_row_count);
@@ -290,7 +336,13 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
             (content, TextWrap::NoWrap, 0i32, cursor_row.saturating_sub(next_scroll))
         } else {
             viewport_cache.set(None);
-            (ed.text.clone(), TextWrap::Wrap, next_scroll as i32, cursor_row)
+            let plain = ed.text.clone();
+            let display = styled_content
+                .as_ref()
+                .map(|styled| styled.read().clone())
+                .filter(|styled| !styled.is_empty())
+                .unwrap_or_else(|| plain.clone());
+            (display, TextWrap::Wrap, next_scroll as i32, cursor_row)
         };
         let cursor_col_clamped = if layout.input_width > 0 {
             cursor_col.min(layout.input_width.saturating_sub(1))
@@ -313,6 +365,7 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
         let mut generation = generation;
         let mut on_submit = on_submit;
         let mut on_escape = on_escape;
+        let mut on_file_picker_key = on_file_picker_key;
         let mut pending_esc = pending_esc;
         let mut paste_burst = paste_burst;
         let mut last_key_at = last_key_at;
@@ -321,6 +374,59 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
         move |event| {
             if !has_focus {
                 return;
+            }
+
+            {
+                let ed = editor.read();
+                if let Some(mut mirror) = prompt_editor_mirror {
+                    mirror.set((ed.text.clone(), ed.cursor));
+                }
+            }
+
+            if file_picker_active.is_some_and(|active| active.get())
+                && !on_file_picker_key.is_default()
+                && let TerminalEvent::Key(KeyEvent {
+                    code, kind, modifiers, ..
+                }) = &event
+                && *kind != KeyEventKind::Release
+                && (is_palette_capture_key(*code, *kind, *modifiers)
+                    || is_file_picker_nav_key(*code, *kind, *modifiers)
+                    || is_file_picker_dismiss_key(*code, *kind, *modifiers))
+            {
+                let mut ed = editor.write();
+                let mut burst = paste_burst.write();
+                if burst.active {
+                    super::input::flush_idle_burst(&mut ed, &mut burst);
+                }
+                let input = PaletteKeyInput {
+                    code: *code,
+                    kind: *kind,
+                    modifiers: *modifiers,
+                    draft: ed.text.clone(),
+                    cursor: ed.cursor,
+                };
+                drop(burst);
+                drop(ed);
+                on_file_picker_key(input);
+                if file_picker_key_handled.is_some_and(|handled| handled.get()) {
+                    if force_palette_sync.is_some_and(|signal| signal.get()) {
+                        let external = value.read().clone();
+                        let forced_cursor = live_cursor.as_ref().map(|cursor_ref| cursor_ref.get());
+                        {
+                            let mut ed = editor.write();
+                            apply_palette_draft_to_editor(&mut ed, &external, forced_cursor);
+                            mirror_editor_buffer(&ed, live_draft, live_cursor, prompt_editor_mirror);
+                        }
+                        value.set(external);
+                        if let Some(mut signal) = force_palette_sync {
+                            signal.set(false);
+                        }
+                        layout_cache.set(None);
+                        viewport_cache.set(None);
+                    }
+                    generation.set(generation.get().wrapping_add(1));
+                    return;
+                }
             }
 
             let mut esc = pending_esc.get();
@@ -346,6 +452,7 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                         submit_on_enter,
                         suppress_enter_newline,
                         slash_palette_active,
+                        file_picker_active,
                         pending_esc: &mut esc,
                         paste_burst: &mut burst,
                         last_key_at: &mut last,
@@ -355,21 +462,24 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
             };
             pending_esc.set(esc);
 
-            let sync_live_draft = |text: &str| {
+            let sync_live_draft = |text: &str, cursor: usize| {
                 if let Some(mut live) = live_draft {
                     live.set(text.to_string());
+                }
+                if let Some(mut cursor_ref) = live_cursor {
+                    cursor_ref.set(cursor);
                 }
             };
 
             match result {
                 TextareaInputResult::Submit(draft) => {
-                    sync_live_draft(&draft);
+                    sync_live_draft(&draft, editor.read().cursor);
                     if !on_submit.is_default() {
                         on_submit(draft);
                     }
                     let mut ed = editor.write();
                     ed.clear_after_submit();
-                    sync_live_draft("");
+                    sync_live_draft("", 0);
                     value.set(String::new());
                     if let Some(mut kind) = input_prefix_kind {
                         kind.set(InputPrefixKind::Default);
@@ -380,8 +490,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                 }
                 TextareaInputResult::Changed => {
                     if !paste_burst.read().active {
-                        let text = editor.read().text.clone();
-                        sync_live_draft(&text);
+                        let ed = editor.read();
+                        let text = ed.text.clone();
+                        sync_live_draft(&text, ed.cursor);
                         value.set(text);
                     }
                     if sync_prefix_draft(prefix_config, input_prefix_kind, &mut editor, &mut value, live_draft) {
@@ -395,7 +506,16 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                     }
                     generation.set(generation.get().wrapping_add(1));
                 }
-                TextareaInputResult::Consumed | TextareaInputResult::Ignored => {}
+                TextareaInputResult::Consumed => {
+                    if file_picker_active.is_some_and(|active| active.get())
+                        || slash_palette_active.is_some_and(|active| active.get())
+                    {
+                        let ed = editor.read();
+                        sync_live_draft(&ed.text, ed.cursor);
+                        value.set(ed.text.clone());
+                    }
+                }
+                TextareaInputResult::Ignored => {}
             }
         }
     });

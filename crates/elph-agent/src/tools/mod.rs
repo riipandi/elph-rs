@@ -10,7 +10,7 @@ mod collaboration;
 #[cfg(feature = "tools-edit-file")]
 mod edit_file;
 #[cfg(any(feature = "tools-grep", feature = "tools-find-path", feature = "tools-list-dir"))]
-mod fff_picker;
+pub mod fff_picker;
 #[cfg(feature = "tools-find-path")]
 mod find_path;
 #[cfg(feature = "tools-grep")]

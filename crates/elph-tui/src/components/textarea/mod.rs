@@ -8,6 +8,7 @@ mod input;
 mod layout;
 mod state;
 
+pub use component::PaletteKeyInput;
 pub use component::Textarea;
 pub use layout::TextareaLayout;
 pub use layout::{
@@ -37,6 +38,12 @@ pub struct TextareaProps {
     pub suppress_enter_newline: Option<Ref<bool>>,
     /// When true, Tab/→/Enter are left to the slash palette (no caret move or submit).
     pub slash_palette_active: Option<Ref<bool>>,
+    /// When true, Tab/→/Enter are left to the `@` file picker (no caret move or submit).
+    pub file_picker_active: Option<Ref<bool>>,
+    /// Optional ANSI-styled text for rendering (logical buffer unchanged).
+    pub styled_content: Option<Ref<String>>,
+    /// Mirror of the editor caret offset for parent palettes (`@` mentions).
+    pub live_cursor: Option<Ref<usize>>,
     /// Parent sets true after palette completion to force a one-shot draft sync.
     pub force_palette_sync: Option<Ref<bool>>,
     /// Parent sets `true` to clear the live buffer (e.g. Ctrl+C while idle).
@@ -51,6 +58,12 @@ pub struct TextareaProps {
     pub on_submit: HandlerMut<'static, String>,
     /// Plain `Esc` (no CSI-u prefix) — e.g. blur the editor for transcript scroll.
     pub on_escape: HandlerMut<'static, ()>,
+    /// `@` file picker keys — runs with a flushed editor buffer before the default handler.
+    pub on_file_picker_key: HandlerMut<'static, PaletteKeyInput>,
+    /// Set to true by [`Self::on_file_picker_key`] when the key was fully handled.
+    pub file_picker_key_handled: Option<Ref<bool>>,
+    /// Flushed editor buffer for parent key handlers (updated each render and input event).
+    pub prompt_editor_mirror: Option<Ref<(String, usize)>>,
 }
 
 use crate::components::scroll_bar::ScrollbarStyle;

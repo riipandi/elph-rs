@@ -1,6 +1,7 @@
 //! Editor + footer column (bottom chrome).
 
 use elph_tui::InputPrefixKind;
+use elph_tui::PaletteKeyInput;
 use iocraft::prelude::*;
 
 use crate::tui::labels::GitFooterInfo;
@@ -8,6 +9,7 @@ use crate::types::{AgentMode, ThinkingLevel};
 
 use super::editor::Editor;
 use super::footer::Footer;
+use crate::tui::file_picker::{FilePickerPalette, FilePickerSnapshot};
 use crate::tui::slash_palette::palette_anchor_bottom;
 use crate::tui::slash_palette::{SlashCommandPalette, SlashPaletteSnapshot};
 
@@ -28,14 +30,23 @@ pub struct PromptChromeProps {
     pub input_prefix_kind: Option<Ref<InputPrefixKind>>,
     pub suppress_enter_newline: Option<Ref<bool>>,
     pub slash_palette_active: Option<Ref<bool>>,
+    pub file_picker_active: Option<Ref<bool>>,
+    pub styled_content: Option<Ref<String>>,
+    pub live_cursor: Option<Ref<usize>>,
     pub force_palette_sync: Option<Ref<bool>>,
     pub force_editor_clear: Option<Ref<bool>>,
     pub slash_palette_snapshot: SlashPaletteSnapshot,
     pub slash_palette_selected: Option<State<usize>>,
+    pub file_picker_snapshot: FilePickerSnapshot,
+    pub file_picker_selected: Option<State<usize>>,
+    pub file_picker_show_hidden: bool,
     /// Inline dialog anchored above the editor (e.g. model picker); same slot as slash palette.
     pub editor_overlay: Option<AnyElement<'static>>,
     pub on_submit: HandlerMut<'static, String>,
     pub on_escape: HandlerMut<'static, ()>,
+    pub on_file_picker_key: HandlerMut<'static, PaletteKeyInput>,
+    pub file_picker_key_handled: Option<Ref<bool>>,
+    pub prompt_editor_mirror: Option<Ref<(String, usize)>>,
     pub blocked_hint: Option<String>,
 }
 
@@ -78,15 +89,21 @@ pub fn PromptChrome(props: &mut PromptChromeProps) -> impl Into<AnyElement<'stat
                     live_draft: props.live_draft,
                     suppress_enter_newline: props.suppress_enter_newline,
                     slash_palette_active: props.slash_palette_active,
+                    file_picker_active: props.file_picker_active,
+                    styled_content: props.styled_content,
+                    live_cursor: props.live_cursor,
                     force_palette_sync: props.force_palette_sync,
                     force_clear: props.force_editor_clear,
                     blocked_hint: props.blocked_hint.clone(),
                     on_submit: props.on_submit.take(),
-                    on_escape: if props.slash_palette_snapshot.visible {
+                    on_escape: if props.slash_palette_snapshot.visible || props.file_picker_snapshot.visible {
                         HandlerMut::default()
                     } else {
                         props.on_escape.take()
                     },
+                    on_file_picker_key: props.on_file_picker_key.take(),
+                    file_picker_key_handled: props.file_picker_key_handled,
+                    prompt_editor_mirror: props.prompt_editor_mirror,
                 )
                 SlashCommandPalette(
                     screen_width: props.screen_width,
@@ -95,6 +112,15 @@ pub fn PromptChrome(props: &mut PromptChromeProps) -> impl Into<AnyElement<'stat
                     snapshot: props.slash_palette_snapshot.clone(),
                     anchor_bottom: palette_anchor,
                     selected_index: props.slash_palette_selected,
+                )
+                FilePickerPalette(
+                    screen_width: props.screen_width,
+                    screen_height: props.screen_height,
+                    agent_mode: props.agent_mode,
+                    snapshot: props.file_picker_snapshot.clone(),
+                    anchor_bottom: palette_anchor,
+                    selected_index: props.file_picker_selected,
+                    show_hidden_files: props.file_picker_show_hidden,
                 )
                 #(props.editor_overlay.take().map(|overlay| -> AnyElement<'static> {
                     element! {

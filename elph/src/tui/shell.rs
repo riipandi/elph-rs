@@ -34,6 +34,12 @@ use crate::tui::chrome::{format_elapsed_secs, read_git_footer_info, refresh_chro
 use crate::tui::focus::ShellFocus;
 use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
 
+use crate::tui::file_picker::FilePickerKeyAction;
+use crate::tui::file_picker::{
+    FilePickerApplyContext, FilePickerSnapshot, active_mention_at_cursor, apply_file_picker_key,
+    build_snapshot as build_file_picker_snapshot, file_picker_open, mention_highlight_ansi, mention_picker_visible,
+    resolve_key_action as resolve_file_picker_key_action, sync_selection as sync_file_picker_selection,
+};
 use crate::tui::model_selector::ModelSelectorFocus;
 use crate::tui::model_selector_bar::{ModelSelectorBar, ModelSelectorView};
 use crate::tui::model_selector_shell::{
@@ -51,7 +57,7 @@ use crate::tui::shell_submit::{
 use crate::tui::slash_handler::{SlashContext, SlashOutcome};
 use crate::tui::slash_handler::{handle_slash_submit, overlay_deferred_message, slash_echoes_prompt_in_transcript};
 use crate::tui::slash_palette::SlashPaletteKeyAction;
-use crate::tui::slash_palette::{build_snapshot, resolve_snapshot_key_action, sync_selection};
+use crate::tui::slash_palette::{build_snapshot, palette_visible, resolve_snapshot_key_action, sync_selection};
 use crate::tui::status_dialog::{StatusZone, build_status_dialog_kind};
 use crate::tui::tool_approval::PendingToolApproval;
 use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
@@ -64,6 +70,8 @@ use crate::tui::user_question::{
     step_activity_label, try_resolve_submittable_answer,
 };
 use crate::tui::user_question_bar::{UserQuestionBar, UserQuestionView};
+use elph_agent::tools::fff_picker::MentionSearchIndex;
+use elph_tui::PaletteKeyInput;
 use elph_tui::components::ConfirmButtonFocus;
 
 const SHELL_TICK_MS: u64 = 50;
@@ -308,6 +316,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut messages_revision = hooks.use_state(|| 0u64);
     let mut suppress_enter_newline = hooks.use_ref(|| false);
     let mut slash_palette_active = hooks.use_ref(|| false);
+    let mut file_picker_active = hooks.use_ref(|| false);
+    let mut file_picker_suppressed = hooks.use_ref(|| false);
+    let mut file_picker_key_handled = hooks.use_ref(|| false);
     let mut force_palette_sync = hooks.use_ref(|| false);
     let mut force_editor_clear = hooks.use_ref(|| false);
     let mut busy = hooks.use_state(|| false);
@@ -329,6 +340,19 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut skills = hooks.use_state(|| props.skills.clone());
     let mut slash_palette_index = hooks.use_state(|| 0usize);
     let mut slash_palette_query = hooks.use_ref(String::new);
+    let mut file_picker_index = hooks.use_state(|| 0usize);
+    let mut file_picker_query = hooks.use_ref(String::new);
+    let mut live_cursor = hooks.use_ref(|| 0usize);
+    let prompt_editor_mirror = hooks.use_ref(|| (String::new(), 0usize));
+    let mut styled_content = hooks.use_ref(String::new);
+    let mut mention_index = hooks.use_ref(|| None::<Arc<MentionSearchIndex>>);
+    let mut file_picker_show_hidden = hooks.use_state(|| {
+        Paths::resolve()
+            .ok()
+            .and_then(|paths| Settings::load(&paths).ok())
+            .map(|settings| settings.file_picker.show_hidden_files)
+            .unwrap_or(false)
+    });
     let mut palette_refresh_pending = hooks.use_state(|| false);
     let mut shell_focus = hooks.use_state(ShellFocus::default);
     let mut question_selected = hooks.use_state(|| 0usize);
@@ -390,9 +414,17 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut pending_quit_confirm = hooks.use_ref(|| false);
     let mut turn_token_tracker = hooks.use_ref(|| None::<TurnTokenTracker>);
 
+    let cwd_for_mention_index = cwd.clone();
     hooks.use_future(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(SHELL_TICK_MS)).await;
+
+            if mention_index.read().is_none() {
+                let base = cwd_for_mention_index.to_string_lossy().into_owned();
+                if let Ok(Ok(index)) = tokio::task::spawn_blocking(move || MentionSearchIndex::build(&base)).await {
+                    mention_index.set(Some(Arc::new(index)));
+                }
+            }
 
             if palette_refresh_pending.get() {
                 if let Some(session) = agent_session_for_palette.as_ref() {
@@ -722,6 +754,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             };
             if kind == KeyEventKind::Release {
+                return;
+            }
+
+            // Textarea handles `@` picker keys before this hook; do not fall through to agent-mode Tab.
+            if file_picker_key_handled.get() {
+                file_picker_key_handled.set(false);
                 return;
             }
 
@@ -1287,7 +1325,43 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             }
 
             let prefix_config = PromptPrefixConfig::default();
-            let draft_body = live_draft.read().clone();
+            let (mirror_draft, mirror_cursor) = prompt_editor_mirror.read().clone();
+            let live_body = live_draft.read().clone();
+            let stored_body = draft.read().clone();
+            let use_mirror = mirror_draft.len() >= live_body.len() && mirror_draft.len() >= stored_body.len();
+            let draft_body = if use_mirror {
+                mirror_draft
+            } else if live_body.len() >= stored_body.len() {
+                live_body
+            } else {
+                stored_body
+            };
+            let editor_cursor = if use_mirror {
+                mirror_cursor.min(draft_body.len())
+            } else {
+                live_cursor.get().min(draft_body.len())
+            };
+            let mention_index_ref = mention_index.read();
+            let picker_index = mention_index_ref.as_ref().map(|arc| arc.as_ref());
+            let picker_open = input_prefix_kind.get() == InputPrefixKind::Default
+                && !status_dialog_open
+                && !file_picker_suppressed.get()
+                && file_picker_open(
+                    &draft_body,
+                    editor_cursor,
+                    screen_height,
+                    file_picker_show_hidden.get(),
+                    picker_index,
+                );
+            if picker_open
+                && modifiers.is_empty()
+                && matches!(
+                    code,
+                    KeyCode::Tab | KeyCode::Enter | KeyCode::Right | KeyCode::Up | KeyCode::Down | KeyCode::Esc
+                )
+            {
+                return;
+            }
             let draft_text = compose_palette_draft(input_prefix_kind.get(), &draft_body);
             let palette_snapshot = build_snapshot(&draft_text, &slash_commands.read(), screen_height);
             if !status_dialog_open
@@ -1307,9 +1381,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         let (kind, body) = absorb_inline_triggers(input_prefix_kind.get(), &completed, &prefix_config);
                         input_prefix_kind.set(kind);
                         draft.set(body.clone());
-                        live_draft.set(body);
+                        live_draft.set(body.clone());
+                        live_cursor.set(body.len());
                         suppress_enter_newline.set(suppress_enter);
                         force_palette_sync.set(true);
+                        if !palette_visible(&compose_palette_draft(kind, &body)) {
+                            slash_palette_active.set(false);
+                        }
                         slash_palette_query.write().clear();
                         slash_palette_index.set(0);
                     }
@@ -1319,7 +1397,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     SlashPaletteKeyAction::Dismiss => {
                         draft.set(String::new());
                         live_draft.set(String::new());
+                        live_cursor.set(0);
                         input_prefix_kind.set(InputPrefixKind::Default);
+                        slash_palette_active.set(false);
                         slash_palette_index.set(0);
                         suppress_enter_newline.set(true);
                     }
@@ -1350,8 +1430,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         });
 
                         if slash_echoes_prompt_in_transcript(&outcome) {
-                            let mut submitted =
-                                TranscriptMessage::text(body.clone(), TranscriptStyle::for_user_submit(&slash_input));
+                            let mut submitted = TranscriptMessage::text(
+                                body.clone(),
+                                TranscriptStyle::for_slash_turn_echo(&slash_input),
+                            );
                             if submitted.style.is_user_input_card() {
                                 submitted.submitted_at = Some(chrono::Utc::now());
                             }
@@ -1411,6 +1493,53 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             }
 
+            let file_picker_snapshot = build_file_picker_snapshot(
+                &draft_body,
+                editor_cursor,
+                screen_height,
+                file_picker_show_hidden.get(),
+                picker_index,
+            );
+            if picker_open {
+                file_picker_active.set(true);
+            }
+            if !status_dialog_open
+                && !palette_snapshot.visible
+                && input_prefix_kind.get() == InputPrefixKind::Default
+                && file_picker_snapshot.visible
+                && modifiers.contains(KeyModifiers::CONTROL)
+                && matches!(code, KeyCode::Char('.'))
+                && let Some(action) = resolve_file_picker_key_action(
+                    &draft_body,
+                    editor_cursor,
+                    &file_picker_snapshot,
+                    file_picker_index.get(),
+                    code,
+                    modifiers,
+                )
+                && action == FilePickerKeyAction::ToggleHiddenFiles
+            {
+                let next = !file_picker_show_hidden.get();
+                file_picker_show_hidden.set(next);
+                if let Ok(paths) = Paths::resolve()
+                    && let Ok(mut settings) = Settings::load(&paths)
+                {
+                    settings.file_picker.show_hidden_files = next;
+                    let _ = Settings::save(&paths, &settings);
+                }
+                let message = if next {
+                    "File picker: showing hidden files."
+                } else {
+                    "File picker: hiding hidden files."
+                };
+                push_transcript_message(
+                    &mut messages,
+                    &mut messages_revision,
+                    TranscriptMessage::text(message, TranscriptStyle::Meta),
+                );
+                return;
+            }
+
             if !status_dialog_open
                 && shell_focus.get() == ShellFocus::Transcript
                 && let Some(ch) = prompt_focus_char(code, modifiers)
@@ -1431,6 +1560,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 suppress_enter_newline.set(false);
                 return;
             }
+
+            let palette_tab_reserved = palette_snapshot.visible
+                || slash_palette_active.get()
+                || picker_open
+                || file_picker_active.get()
+                || file_picker_snapshot.visible;
 
             match (modifiers, code) {
                 (m, KeyCode::Char('l')) | (m, KeyCode::Char('L'))
@@ -1464,7 +1599,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 (m, KeyCode::Esc) if m.is_empty() && shell_focus.get() == ShellFocus::Transcript => {
                     shell_focus.set(ShellFocus::Prompt);
                 }
-                (m, KeyCode::Tab) if m.is_empty() && !status_dialog_open => {
+                (m, KeyCode::Tab) if m.is_empty() && !status_dialog_open && !palette_tab_reserved => {
                     let next = agent_mode.get().next();
                     agent_mode.set(next);
                     persist_session_prefs(&paths, next, thinking_level.get());
@@ -1666,6 +1801,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     });
     let status_dialog = build_status_dialog_kind(pending_tool_approval.read().as_ref());
     let draft_for_palette = compose_palette_draft(input_prefix_kind.get(), &live_draft.read());
+    let draft_body = live_draft.read().clone();
+    let editor_cursor = live_cursor.get();
     let slash_palette_snapshot = build_snapshot(&draft_for_palette, &slash_commands.read(), screen_height);
     slash_palette_active.set(slash_palette_snapshot.visible);
     {
@@ -1677,6 +1814,48 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         // calling set during render without this guard causes an infinite re-render loop.
         if index != old_index {
             slash_palette_index.set(index);
+        }
+    }
+
+    if file_picker_suppressed.get() {
+        if let Some(mention) = active_mention_at_cursor(&draft_body, editor_cursor)
+            && !mention.query.is_empty()
+        {
+            file_picker_suppressed.set(false);
+        } else if !mention_picker_visible(&draft_body, editor_cursor) {
+            file_picker_suppressed.set(false);
+        }
+    }
+    let picker_eligible = input_prefix_kind.get() == InputPrefixKind::Default
+        && !slash_palette_snapshot.visible
+        && !file_picker_suppressed.get()
+        && file_picker_open(
+            &draft_body,
+            editor_cursor,
+            screen_height,
+            file_picker_show_hidden.get(),
+            mention_index.read().as_ref().map(|arc| arc.as_ref()),
+        );
+    let file_picker_snapshot = if picker_eligible {
+        build_file_picker_snapshot(
+            &draft_body,
+            editor_cursor,
+            screen_height,
+            file_picker_show_hidden.get(),
+            mention_index.read().as_ref().map(|arc| arc.as_ref()),
+        )
+    } else {
+        FilePickerSnapshot::hidden()
+    };
+    file_picker_active.set(picker_eligible);
+    styled_content.set(mention_highlight_ansi(&draft_body, editor_cursor));
+    {
+        let old_index = file_picker_index.get();
+        let mut query = file_picker_query.write();
+        let mut index = old_index;
+        sync_file_picker_selection(&mut query, &mut index, &file_picker_snapshot);
+        if index != old_index {
+            file_picker_index.set(index);
         }
     }
 
@@ -1905,10 +2084,17 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 input_prefix_kind: Some(input_prefix_kind),
                 suppress_enter_newline: Some(suppress_enter_newline),
                 slash_palette_active: Some(slash_palette_active),
+                file_picker_active: Some(file_picker_active),
+                styled_content: Some(styled_content),
+                live_cursor: Some(live_cursor),
+                prompt_editor_mirror: Some(prompt_editor_mirror),
                 force_palette_sync: Some(force_palette_sync),
                 force_editor_clear: Some(force_editor_clear),
                 slash_palette_snapshot: slash_palette_snapshot,
                 slash_palette_selected: Some(slash_palette_index),
+                file_picker_snapshot: file_picker_snapshot,
+                file_picker_selected: Some(file_picker_index),
+                file_picker_show_hidden: file_picker_show_hidden.get(),
                 editor_overlay: model_selector_overlay,
                 blocked_hint: if user_question_open {
                     Some("Answer the question above".to_string())
@@ -1920,6 +2106,44 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 on_escape: move |_| {
                     shell_focus.set(ShellFocus::Transcript);
                 },
+                on_file_picker_key: {
+                    let mention_index = mention_index;
+                    let mut draft = draft;
+                    let mut live_draft = live_draft;
+                    let mut live_cursor = live_cursor;
+                    let mut file_picker_index = file_picker_index;
+                    let mut file_picker_query = file_picker_query;
+                    let mut file_picker_active = file_picker_active;
+                    let mut file_picker_suppressed = file_picker_suppressed;
+                    let mut file_picker_key_handled = file_picker_key_handled;
+                    let mut suppress_enter_newline = suppress_enter_newline;
+                    let mut force_palette_sync = force_palette_sync;
+                    let mut shell_focus = shell_focus;
+                    let show_hidden = file_picker_show_hidden.get();
+                    move |input: PaletteKeyInput| {
+                        let index_ref = mention_index.read();
+                        apply_file_picker_key(
+                            input,
+                            &mut FilePickerApplyContext {
+                                screen_height,
+                                show_hidden,
+                                mention_index: index_ref.as_ref().map(|arc| arc.as_ref()),
+                                draft: &mut draft,
+                                live_draft: &mut live_draft,
+                                live_cursor: &mut live_cursor,
+                                file_picker_index: &mut file_picker_index,
+                                file_picker_query: &mut file_picker_query,
+                                file_picker_active: &mut file_picker_active,
+                                file_picker_suppressed: &mut file_picker_suppressed,
+                                file_picker_key_handled: &mut file_picker_key_handled,
+                                suppress_enter_newline: &mut suppress_enter_newline,
+                                force_palette_sync: &mut force_palette_sync,
+                                shell_focus: &mut shell_focus,
+                            },
+                        );
+                    }
+                },
+                file_picker_key_handled: Some(file_picker_key_handled),
                 on_submit: move |text: String| {
                         shell_focus.set(ShellFocus::Prompt);
                         if is_force_quit_command(&text) || is_quit_command(&text) {
@@ -2041,7 +2265,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         if slash_echoes_prompt_in_transcript(&outcome) {
                             let mut submitted = TranscriptMessage::text(
                                 body.clone(),
-                                TranscriptStyle::for_user_submit(&slash_input),
+                                TranscriptStyle::for_slash_turn_echo(&slash_input),
                             );
                             if submitted.style.is_user_input_card() {
                                 submitted.submitted_at = Some(chrono::Utc::now());

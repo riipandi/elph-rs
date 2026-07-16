@@ -8,8 +8,11 @@ use super::model::{
     complete_command, complete_slash_arg, palette_submit_slash_input, palette_visible, query_from_draft,
     selected_arg_value, selected_command_name,
 };
+use crate::agent::slash_arg_completions;
 use crate::agent::slash_palette_submit_on_enter;
 use crate::types::SlashCommand;
+
+use super::model::parse_slash_draft;
 
 fn overlay_or_complete_action(draft: &str, command_name: &str) -> SlashPaletteKeyAction {
     if slash_palette_submit_on_enter(command_name) {
@@ -43,14 +46,26 @@ fn enter_args_palette_action(
     options: &[elph_tui::types::SelectOption],
     selected_index: usize,
 ) -> Option<SlashPaletteKeyAction> {
-    let mut action = args_complete_action(draft, command, options, selected_index)?;
-    if let SlashPaletteKeyAction::CompleteDraft {
-        suppress_enter_newline, ..
-    } = &mut action
-    {
-        *suppress_enter_newline = true;
+    if let Some(parts) = parse_slash_draft(draft) {
+        let query = parts.args_query;
+        if !query.is_empty() {
+            let exact_known =
+                slash_arg_completions(command).is_some_and(|entries| entries.iter().any(|entry| entry.value == query));
+            let no_palette_prefix = options
+                .iter()
+                .all(|option| !option.name.to_ascii_lowercase().starts_with(&query));
+            if exact_known || no_palette_prefix {
+                return Some(SlashPaletteKeyAction::SubmitCommand {
+                    slash_input: draft.trim().to_string(),
+                });
+            }
+        }
     }
-    Some(action)
+
+    let arg = selected_arg_value(options, selected_index)?;
+    Some(SlashPaletteKeyAction::SubmitCommand {
+        slash_input: complete_slash_arg(draft, command, arg).trim().to_string(),
+    })
 }
 
 fn enter_palette_action(
@@ -320,6 +335,34 @@ mod tests {
     #[test]
     fn keys_ignored_when_command_has_no_arg_completions() {
         assert!(resolve_key_action("/help args", &sample_commands(), 0, KeyCode::Down, KeyModifiers::NONE).is_none());
+    }
+
+    #[test]
+    fn args_phase_closes_when_arg_is_complete() {
+        use super::super::model::{build_snapshot, palette_visible};
+
+        let mut commands = sample_commands();
+        commands.push(crate::types::SlashCommand::new("tools", "Show tools").with_args_hint("[json|list|table]"));
+        assert!(!palette_visible("/tools json"));
+        let snapshot = build_snapshot("/tools json", &commands, 40);
+        assert!(!snapshot.should_render());
+        assert!(resolve_snapshot_key_action("/tools json", &snapshot, 0, KeyCode::Enter, KeyModifiers::NONE).is_none());
+    }
+
+    #[test]
+    fn args_phase_enter_completes_partial_arg_and_submits() {
+        use super::super::model::build_snapshot;
+
+        let mut commands = sample_commands();
+        commands.push(crate::types::SlashCommand::new("tools", "Show tools").with_args_hint("[json|list|table]"));
+        let snapshot = build_snapshot("/tools j", &commands, 40);
+        let action = resolve_snapshot_key_action("/tools j", &snapshot, 0, KeyCode::Enter, KeyModifiers::NONE).unwrap();
+        assert_eq!(
+            action,
+            SlashPaletteKeyAction::SubmitCommand {
+                slash_input: "/tools json".into(),
+            }
+        );
     }
 
     #[test]

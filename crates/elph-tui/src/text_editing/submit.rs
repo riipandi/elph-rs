@@ -41,9 +41,29 @@ pub fn is_transcript_scroll_key(code: KeyCode, kind: KeyEventKind, modifiers: Ke
 
 /// Tab / → / Enter complete the slash palette — the editor must not move the caret or submit.
 pub fn is_slash_palette_capture_key(code: KeyCode, kind: KeyEventKind, modifiers: KeyModifiers) -> bool {
+    is_palette_capture_key(code, kind, modifiers)
+}
+
+/// Tab / → / Enter complete an autocomplete palette — the editor must not move the caret or submit.
+pub fn is_palette_capture_key(code: KeyCode, kind: KeyEventKind, modifiers: KeyModifiers) -> bool {
     kind != KeyEventKind::Release
         && modifiers.is_empty()
         && matches!(code, KeyCode::Tab | KeyCode::Right | KeyCode::Enter)
+}
+
+/// Up/Down move file picker selection — the editor must not move the caret.
+pub fn is_file_picker_nav_key(code: KeyCode, kind: KeyEventKind, modifiers: KeyModifiers) -> bool {
+    kind != KeyEventKind::Release && modifiers.is_empty() && matches!(code, KeyCode::Up | KeyCode::Down)
+}
+
+/// Ctrl+. toggles hidden files while the `@` file picker is open.
+pub fn is_file_picker_toggle_hidden_key(code: KeyCode, kind: KeyEventKind, modifiers: KeyModifiers) -> bool {
+    kind != KeyEventKind::Release && modifiers.contains(KeyModifiers::CONTROL) && matches!(code, KeyCode::Char('.'))
+}
+
+/// `Esc` dismisses the `@` file picker while keeping the trigger character in the draft.
+pub fn is_file_picker_dismiss_key(code: KeyCode, kind: KeyEventKind, modifiers: KeyModifiers) -> bool {
+    kind != KeyEventKind::Release && modifiers.is_empty() && matches!(code, KeyCode::Esc)
 }
 
 /// Arrow / Home / End keys must not open the raw-paste burst window or advance `last_key_at`.

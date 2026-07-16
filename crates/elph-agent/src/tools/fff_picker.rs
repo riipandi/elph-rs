@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use fff_search::file_picker::{FFFMode, FilePicker, FilePickerOptions, FuzzySearchOptions};
 use fff_search::grep::{GrepMode, GrepResult, GrepSearchOptions};
 use fff_search::types::PaginationArgs;
-use fff_search::{AiGrepConfig, FFFQuery};
+use fff_search::{AiGrepConfig, FFFQuery, MixedItemRef, MixedSearchConfig};
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::utils::truncate::GREP_MAX_LINE_LENGTH;
@@ -181,4 +181,146 @@ pub fn resolve_search_base(absolute_path: &str, is_file: bool) -> String {
 
 pub fn resolve_path_scope(absolute_path: &str, is_file: bool) -> String {
     grep_search_scope(absolute_path, is_file).1
+}
+
+/// One fuzzy-search hit for `@` mention completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MentionSearchHit {
+    pub path: String,
+    pub is_directory: bool,
+}
+
+/// Workspace file index for `@` mention fuzzy search in the TUI.
+pub struct MentionSearchIndex {
+    picker: parking_lot::Mutex<FilePicker>,
+}
+
+impl MentionSearchIndex {
+    pub fn build(base_path: &str) -> Result<Self> {
+        let picker = build_picker(base_path)?;
+        Ok(Self {
+            picker: parking_lot::Mutex::new(picker),
+        })
+    }
+
+    pub fn fuzzy_search_paths(&self, query: &str, limit: usize, show_hidden: bool) -> Vec<MentionSearchHit> {
+        let picker = self.picker.lock();
+        fuzzy_search_relative_paths(&picker, query, limit, show_hidden)
+    }
+}
+
+/// Ensure a directory path ends with exactly one `/` separator.
+pub fn format_directory_path(path: &str) -> String {
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    format!("{trimmed}/")
+}
+
+/// Fuzzy-search indexed files and directories; optionally hide dot-prefixed path segments.
+pub fn fuzzy_search_relative_paths(
+    picker: &FilePicker,
+    query: &str,
+    limit: usize,
+    show_hidden: bool,
+) -> Vec<MentionSearchHit> {
+    use fff_search::{FuzzySearchOptions, PaginationArgs, QueryParser};
+
+    let trimmed = query.trim();
+    let parser = QueryParser::new(MixedSearchConfig);
+    let parsed = parser.parse(trimmed);
+    let fetch_limit = if show_hidden {
+        limit
+    } else {
+        limit.saturating_mul(4).max(limit)
+    };
+    let result = picker.fuzzy_search_mixed(
+        &parsed,
+        None,
+        FuzzySearchOptions {
+            pagination: PaginationArgs {
+                offset: 0,
+                limit: fetch_limit,
+            },
+            ..Default::default()
+        },
+    );
+
+    let mut hits = Vec::with_capacity(result.items.len().min(fetch_limit));
+    hits.extend(
+        result
+            .items
+            .iter()
+            .map(|item| mixed_item_relative_path(picker, item))
+            .filter(|hit| show_hidden || !path_has_hidden_component(&hit.path)),
+    );
+    hits.truncate(limit);
+    hits
+}
+
+fn mixed_item_relative_path(picker: &FilePicker, item: &MixedItemRef<'_>) -> MentionSearchHit {
+    match item {
+        MixedItemRef::File(file) => MentionSearchHit {
+            path: file.relative_path(picker),
+            is_directory: false,
+        },
+        MixedItemRef::Dir(dir) => MentionSearchHit {
+            path: format_directory_path(&dir.relative_path(picker)),
+            is_directory: true,
+        },
+    }
+}
+
+fn path_has_hidden_component(path: &str) -> bool {
+    path.split('/')
+        .any(|segment| segment.starts_with('.') && !segment.is_empty())
+}
+
+#[cfg(test)]
+mod mention_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn path_has_hidden_component_detects_dotfiles() {
+        assert!(path_has_hidden_component(".env"));
+        assert!(path_has_hidden_component("src/.hidden/foo.rs"));
+        assert!(!path_has_hidden_component("src/main.rs"));
+    }
+
+    #[test]
+    fn mention_index_fuzzy_search_finds_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("hello.rs");
+        fs::write(&file, "fn main() {}\n").expect("write");
+        let index = MentionSearchIndex::build(&dir.path().to_string_lossy()).expect("index");
+        let hits = index.fuzzy_search_paths("hello", 10, true);
+        assert!(
+            hits.iter()
+                .any(|hit| hit.path.ends_with("hello.rs") && !hit.is_directory)
+        );
+    }
+
+    #[test]
+    fn mention_index_fuzzy_search_finds_directory() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let subdir = dir.path().join("components");
+        fs::create_dir_all(&subdir).expect("mkdir");
+        fs::write(subdir.join("button.rs"), "fn main() {}\n").expect("write");
+        let index = MentionSearchIndex::build(&dir.path().to_string_lossy()).expect("index");
+        let hits = index.fuzzy_search_paths("components", 10, true);
+        let dir_hit = hits
+            .iter()
+            .find(|hit| hit.is_directory)
+            .expect("expected directory in hits");
+        assert_eq!(dir_hit.path, "components/");
+    }
+
+    #[test]
+    fn format_directory_path_adds_single_trailing_slash() {
+        assert_eq!(format_directory_path("src"), "src/");
+        assert_eq!(format_directory_path("src/"), "src/");
+        assert_eq!(format_directory_path("src//"), "src/");
+    }
 }

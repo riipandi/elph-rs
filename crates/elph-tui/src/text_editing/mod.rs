@@ -15,7 +15,8 @@ pub use input::wire_input_shortcuts;
 pub use line::{is_word_char, line_end_offset, line_start_offset, next_word_offset, prev_word_offset};
 pub use submit::{PASTE_BURST_WINDOW, PASTE_ECHO_GUARD_BASE, PASTE_ECHO_GUARD_PER_CHAR, PASTE_SUBMIT_GUARD_WINDOW};
 pub use submit::{
-    is_cursor_navigation_key, is_plain_submit_enter, is_slash_palette_capture_key, is_transcript_scroll_key,
+    is_cursor_navigation_key, is_file_picker_dismiss_key, is_file_picker_nav_key, is_file_picker_toggle_hidden_key,
+    is_palette_capture_key, is_plain_submit_enter, is_slash_palette_capture_key, is_transcript_scroll_key,
 };
 pub use submit::{key_event_in_paste_burst, paste_echo_guard_duration, paste_submit_guarded, should_submit_on_enter};
 pub use wire::WireEditResult;

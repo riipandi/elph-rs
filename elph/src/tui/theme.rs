@@ -48,6 +48,18 @@ pub const TOOL_RUNNING_FG: Color = Color::Rgb { r: 128, g: 128, b: 128 };
 /// Muted args line under the tool header.
 pub const TOOL_ARGS_FG: Color = Color::Rgb { r: 160, g: 160, b: 160 };
 
+/// Idle file picker row foreground — dimmer than [`TEXT_FG`].
+pub const FILE_PICKER_ROW_IDLE_FG: Color = TOOL_RUNNING_FG;
+
+/// Selected file picker row foreground — brighter than [`TEXT_FG`].
+pub const FILE_PICKER_ROW_SELECTED_FG: Color = Color::White;
+
+/// Selected file picker row background — aligns with elph-tui `dialog_selection_bg`.
+pub const FILE_PICKER_ROW_SELECTED_BG: Color = Color::Rgb { r: 58, g: 52, b: 36 };
+
+/// Fuzzy-match foreground for all file picker rows.
+pub const FILE_PICKER_FUZZY_MATCH_FG: Color = USER_INPUT_ACCENT;
+
 /// Dim body text for streamed/final tool output.
 pub const TOOL_OUTPUT_FG: Color = Color::DarkGrey;
 

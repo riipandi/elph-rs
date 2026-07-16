@@ -53,18 +53,31 @@ impl TextareaState {
 
     /// Sync from an external [`State`] when the parent mutates the draft.
     pub fn sync_external(&mut self, external: &str) {
+        self.sync_external_with_cursor(external, None);
+    }
+
+    /// Sync from parent draft, optionally forcing the caret byte index.
+    pub fn sync_external_with_cursor(&mut self, external: &str, forced_cursor: Option<usize>) {
         if self.text == external {
+            if let Some(pos) = forced_cursor {
+                self.cursor = pos.min(self.text.len());
+                self.vertical_col_preference = None;
+            }
             return;
         }
         let was_at_eof = self.cursor == self.text.len();
         let suffix_append = external.len() > self.text.len() && external.starts_with(&self.text);
         let slash_completion = self.text.starts_with('/') && external.starts_with('/');
+        let mention_completion = mention_completion_replaces_query(&self.text, external);
         self.text = external.to_string();
-        self.cursor = if (was_at_eof && suffix_append) || slash_completion {
-            self.text.len()
-        } else {
-            self.cursor.min(self.text.len())
-        };
+        self.cursor = forced_cursor.unwrap_or_else(|| {
+            if (was_at_eof && suffix_append) || slash_completion || (was_at_eof && mention_completion) {
+                self.text.len()
+            } else {
+                self.cursor.min(self.text.len())
+            }
+        });
+        self.cursor = self.cursor.min(self.text.len());
         self.vertical_col_preference = None;
     }
 
@@ -233,6 +246,16 @@ impl TextareaState {
     }
 }
 
+fn mention_completion_replaces_query(before: &str, after: &str) -> bool {
+    let Some(ed_at) = before.rfind('@') else {
+        return false;
+    };
+    let Some(ext_at) = after.rfind('@') else {
+        return false;
+    };
+    ed_at == ext_at && before[..ed_at] == after[..ext_at] && after.len() > before.len()
+}
+
 fn slash_command_query(draft: &str) -> Option<&str> {
     let trimmed = draft.trim_start();
     if !trimmed.starts_with('/') {
@@ -292,6 +315,23 @@ mod tests {
         state.sync_external("/compact ");
         assert_eq!(state.text, "/compact ");
         assert_eq!(state.cursor, 9);
+    }
+
+    #[test]
+    fn sync_external_mention_completion_lands_cursor_at_eof() {
+        let mut state = TextareaState::from_text("fix @main".into());
+        state.cursor = state.text.len();
+        state.sync_external("fix @src/main.rs ");
+        assert_eq!(state.text, "fix @src/main.rs ");
+        assert_eq!(state.cursor, state.text.len());
+    }
+
+    #[test]
+    fn sync_external_with_cursor_overrides_mention_heuristic() {
+        let mut state = TextareaState::from_text("fix @main".into());
+        state.cursor = 4;
+        state.sync_external_with_cursor("fix @src/main.rs ", Some(17));
+        assert_eq!(state.cursor, 17);
     }
 
     #[test]

@@ -6,6 +6,7 @@ mod activity;
 mod agent_bridge;
 mod ask_user_tool_card;
 mod chrome;
+mod file_picker;
 mod focus;
 mod inline_dialog;
 mod labels;

@@ -36,6 +36,16 @@ pub struct Settings {
     /// Curated `provider/model_id` entries shown in the model picker Scoped tab.
     #[serde(default)]
     pub scoped_model_items: Vec<String>,
+    #[serde(default)]
+    pub file_picker: FilePickerSettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FilePickerSettings {
+    /// When true, `@` file search includes dotfiles and dot-directories.
+    #[serde(default = "default_false")]
+    pub show_hidden_files: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -102,6 +112,7 @@ impl Settings {
             auto_compact_limit: default_compact_limit(),
             footer_token_display: default_footer_token_display(),
             scoped_model_items: Vec::new(),
+            file_picker: FilePickerSettings::default(),
         }
     }
 
@@ -194,6 +205,12 @@ mod tests {
         assert!(decoded.memory.embed_quantized);
         assert_eq!(decoded.session.provider_id.as_deref(), Some("opencode"));
         assert_eq!(decoded.session.model_id.as_deref(), Some("big-pickle"));
+    }
+
+    #[test]
+    fn file_picker_settings_default_hidden_off() {
+        let settings = Settings::defaults();
+        assert!(!settings.file_picker.show_hidden_files);
     }
 
     #[test]

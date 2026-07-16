@@ -92,6 +92,14 @@ pub fn parse_slash_draft(draft: &str) -> Option<SlashDraftParts> {
     }
 }
 
+/// True when the args token is a complete known value (Tab/Enter selection done).
+pub fn args_selection_complete(command: &str, args_query: &str) -> bool {
+    let Some(completions) = slash_arg_completions(command) else {
+        return false;
+    };
+    !args_query.is_empty() && completions.iter().any(|entry| entry.value == args_query)
+}
+
 /// Palette is shown while typing a command name or args with known completions.
 pub fn palette_visible(draft: &str) -> bool {
     let Some(parts) = parse_slash_draft(draft) else {
@@ -101,7 +109,10 @@ pub fn palette_visible(draft: &str) -> bool {
         return true;
     }
     let command = parts.args_command.as_deref().unwrap_or("");
-    slash_arg_completions(command).is_some()
+    if slash_arg_completions(command).is_none() {
+        return false;
+    }
+    !args_selection_complete(command, &parts.args_query)
 }
 
 pub fn query_from_draft(draft: &str) -> Option<String> {
@@ -272,10 +283,25 @@ mod tests {
         assert!(!palette_visible("hello"));
         assert!(palette_visible("/model"));
         assert!(palette_visible("  /go"));
-        assert!(palette_visible("/goal pause"));
+        assert!(!palette_visible("/goal pause"));
         assert!(palette_visible("/tools j"));
         assert!(!palette_visible("/help args"));
         assert!(!palette_visible("/model filter"));
+    }
+
+    #[test]
+    fn palette_hides_after_command_without_args() {
+        assert!(!palette_visible("/compact "));
+        assert!(!palette_visible("/model "));
+    }
+
+    #[test]
+    fn palette_hides_after_args_selected() {
+        assert!(palette_visible("/goal "));
+        assert!(!palette_visible("/tools json "));
+        assert!(!palette_visible("/tools json"));
+        assert!(!palette_visible("/goal pause "));
+        assert!(palette_visible("/tools j"));
     }
 
     #[test]

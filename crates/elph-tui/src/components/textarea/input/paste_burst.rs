@@ -72,6 +72,11 @@ pub(crate) fn handle_raw_burst_key(key: RawBurstKey<'_>) -> Option<TextareaInput
     if !key.in_burst {
         return None;
     }
+    // Editing shortcuts (Ctrl/Cmd+Backspace, etc.) must not rewind/re-merge the burst —
+    // that would swallow the first press and leave the buffer unchanged.
+    if !crate::paste::raw_burst_accepts_key(key.code, key.kind, key.modifiers, true) {
+        return None;
+    }
 
     if !key.burst.active {
         paste_burst_begin_with_rewind(key.burst, &key.state.text, key.state.cursor);

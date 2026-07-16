@@ -25,5 +25,6 @@ pub use layout::palette_anchor_bottom;
 pub use model::SlashPaletteSnapshot;
 pub use model::build_snapshot;
 pub use model::list_viewport_cap;
+pub use model::palette_visible;
 pub use model::palette_window_start;
 pub use state::sync_selection;

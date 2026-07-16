@@ -178,12 +178,11 @@ impl TranscriptStyle {
         }
     }
 
-    pub fn for_user_submit(text: &str) -> Self {
-        let trimmed = text.trim_start();
+    /// Style for a slash command line echoed when it spawns an agent turn.
+    pub fn for_slash_turn_echo(slash_input: &str) -> Self {
+        let trimmed = slash_input.trim_start();
         if trimmed.starts_with("/skill:") {
             Self::SkillPrompt
-        } else if trimmed.starts_with('/') {
-            Self::Meta
         } else {
             Self::User
         }
@@ -304,13 +303,13 @@ mod tests {
     }
 
     #[test]
-    fn for_user_submit_detects_skill_and_chat_prompts() {
+    fn slash_turn_echo_uses_user_bubble_for_templates_and_skills() {
         assert_eq!(
-            TranscriptStyle::for_user_submit("/skill:tui-design"),
+            TranscriptStyle::for_slash_turn_echo("/skill:tui-design"),
             TranscriptStyle::SkillPrompt
         );
-        assert_eq!(TranscriptStyle::for_user_submit("/help"), TranscriptStyle::Meta);
-        assert_eq!(TranscriptStyle::for_user_submit("hello"), TranscriptStyle::User);
+        assert_eq!(TranscriptStyle::for_slash_turn_echo("/my-template args"), TranscriptStyle::User);
+        assert_eq!(TranscriptStyle::for_slash_turn_echo("/goal pause"), TranscriptStyle::User);
     }
 
     #[test]
