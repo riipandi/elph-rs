@@ -19,7 +19,7 @@ use crate::types::{is_force_quit_command, is_quit_command};
 
 use crate::tui::activity::TurnTokenTracker;
 use crate::tui::activity::{
-    activity_label_for_event, format_busy_right_with_quit_confirm, format_busy_token_info, format_quit_canceled_notice,
+    accumulate_session_elapsed, activity_label_for_event, format_quit_canceled_notice,
     format_quit_while_busy_transcript, format_turn_canceled_notice, format_turn_complete_notice,
 };
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
@@ -40,13 +40,13 @@ use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_k
 use crate::tui::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle};
 use crate::tui::user_question::PendingUserQuestion;
 use crate::tui::user_question::{
-    QuestionInputFocus, apply_step_submit_outcome, cycle_question_input_focus, format_multi_select_answer,
-    pick_numbered_option_index_from_key, question_tab_reverse, reset_ui_for_step, resolve_user_text_submit_answer,
-    select_value_at, step_activity_label,
+    QuestionInputFocus, StepNavOutcome, advance_question_selection, apply_step_nav_outcome, apply_step_submit_outcome,
+    current_choice_index, is_custom_choice_index, navigate_step_delta, pick_step_tab_from_key,
+    question_option_nav_delta, question_step_nav_delta, reset_ui_for_step, select_value_at, snapshot_current_answer,
+    step_activity_label, try_resolve_submittable_answer,
 };
 use crate::tui::user_question_bar::{UserQuestionBar, UserQuestionView};
 use elph_tui::components::ConfirmButtonFocus;
-use elph_tui::components::multi_choice_selected_indices;
 
 const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
@@ -59,6 +59,16 @@ const TURN_COMPLETE_NOTICE_MS: u64 = 5_000;
 struct IdleStatusNotice {
     text: String,
     since: Instant,
+}
+
+fn live_turn_elapsed_secs(busy: bool, busy_started_at: &Option<Instant>) -> f64 {
+    if !busy {
+        return 0.0;
+    }
+    busy_started_at
+        .as_ref()
+        .map(|started| format_elapsed_secs(*started))
+        .unwrap_or(0.0)
 }
 
 fn agent_event_keeps_busy(event: &AgentUiEvent) -> bool {
@@ -123,21 +133,29 @@ impl Default for MainShellProps {
 struct BusyActivation<'a> {
     busy: &'a mut State<bool>,
     busy_started_at: &'a mut Ref<Option<Instant>>,
+    activity_started_at: &'a mut Ref<Option<Instant>>,
     elapsed_secs: &'a mut State<f64>,
+    activity_elapsed_secs: &'a mut State<f64>,
     spinner_tick: &'a mut State<u32>,
     activity_label: &'a mut State<String>,
+    last_activity_label: &'a mut Ref<String>,
 }
 
 fn mark_busy(ctx: &mut BusyActivation<'_>, steer: bool) {
-    ctx.busy.set(true);
-    ctx.busy_started_at.set(Some(Instant::now()));
-    ctx.elapsed_secs.set(0.0);
-    ctx.spinner_tick.set(0);
-    ctx.activity_label.set(if steer {
+    let now = Instant::now();
+    let label = if steer {
         "Steering".to_string()
     } else {
         "Thinking".to_string()
-    });
+    };
+    ctx.busy.set(true);
+    ctx.busy_started_at.set(Some(now));
+    ctx.activity_started_at.set(Some(now));
+    ctx.elapsed_secs.set(0.0);
+    ctx.activity_elapsed_secs.set(0.0);
+    ctx.spinner_tick.set(0);
+    ctx.activity_label.set(label.clone());
+    ctx.last_activity_label.set(label);
 }
 
 struct PendingQuitAction<'a> {
@@ -272,9 +290,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut busy = hooks.use_state(|| false);
     let mut activity_label = hooks.use_state(|| "Thinking".to_string());
     let mut elapsed_secs = hooks.use_state(|| 0.0f64);
+    let mut activity_elapsed_secs = hooks.use_state(|| 0.0f64);
+    let mut session_elapsed_secs = hooks.use_state(|| 0.0f64);
     let mut spinner_tick = hooks.use_state(|| 0u32);
     let show_thinking = props.show_thinking;
     let mut busy_started_at = hooks.use_ref(|| None::<Instant>);
+    let mut activity_started_at = hooks.use_ref(|| None::<Instant>);
+    let mut last_activity_label = hooks.use_ref(String::new);
     let mut prompt_queue = hooks.use_ref(PromptQueue::default);
     let mut event_applier = hooks.use_ref(|| TranscriptEventApplier::new(props.show_thinking));
     let mut pending_tool_approval = hooks.use_ref(|| None::<PendingToolApproval>);
@@ -291,6 +313,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut question_answer = hooks.use_state(String::new);
     let mut question_multi_checked = hooks.use_state(Vec::<bool>::new);
     let mut question_input_focus = hooks.use_state(QuestionInputFocus::default);
+    let mut question_validation_error = hooks.use_state(|| None::<String>);
     let mut approval_selected = hooks.use_state(|| 0usize);
 
     let extension_host = props.extension_host.clone();
@@ -373,10 +396,22 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             }
 
             if busy.get() {
+                let current_label = activity_label.read().clone();
+                if current_label != *last_activity_label.read() {
+                    last_activity_label.set(current_label);
+                    activity_started_at.set(Some(Instant::now()));
+                    activity_elapsed_secs.set(0.0);
+                }
                 if let Some(started) = busy_started_at.read().as_ref() {
                     let next = format_elapsed_secs(*started);
                     if (elapsed_secs.get() - next).abs() > f64::EPSILON {
                         elapsed_secs.set(next);
+                    }
+                }
+                if let Some(started) = activity_started_at.read().as_ref() {
+                    let next = format_elapsed_secs(*started);
+                    if (activity_elapsed_secs.get() - next).abs() > f64::EPSILON {
+                        activity_elapsed_secs.set(next);
                     }
                 }
                 spinner_tick.set(spinner_tick.get().wrapping_add(1));
@@ -408,9 +443,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             &mut BusyActivation {
                                 busy: &mut busy,
                                 busy_started_at: &mut busy_started_at,
+                                activity_started_at: &mut activity_started_at,
                                 elapsed_secs: &mut elapsed_secs,
+                                activity_elapsed_secs: &mut activity_elapsed_secs,
                                 spinner_tick: &mut spinner_tick,
                                 activity_label: &mut activity_label,
+                                last_activity_label: &mut last_activity_label,
                             },
                             false,
                         );
@@ -501,9 +539,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
             if run_completed {
                 pending_quit_confirm.set(false);
+                if let Some(turn_elapsed) = run_completed_elapsed {
+                    session_elapsed_secs.set(accumulate_session_elapsed(session_elapsed_secs.get(), turn_elapsed));
+                }
                 busy.set(false);
                 busy_started_at.set(None);
+                activity_started_at.set(None);
                 elapsed_secs.set(0.0);
+                activity_elapsed_secs.set(0.0);
                 activity_label.set("Thinking".to_string());
                 turn_token_tracker.set(None);
                 chrome_refresh_pending.set(true);
@@ -515,9 +558,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         &mut BusyActivation {
                             busy: &mut busy,
                             busy_started_at: &mut busy_started_at,
+                            activity_started_at: &mut activity_started_at,
                             elapsed_secs: &mut elapsed_secs,
+                            activity_elapsed_secs: &mut activity_elapsed_secs,
                             spinner_tick: &mut spinner_tick,
                             activity_label: &mut activity_label,
+                            last_activity_label: &mut last_activity_label,
                         },
                         false,
                     );
@@ -563,6 +609,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             let mut pending_user_question = pending_user_question;
             let mut question_multi_checked = question_multi_checked;
             let mut question_input_focus = question_input_focus;
+            let mut question_validation_error = question_validation_error;
             let mut pending_quit_confirm = pending_quit_confirm;
             if pending_quit_confirm.get() && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) {
                 match code {
@@ -595,6 +642,169 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             let status_dialog_open = pending_tool_approval.read().is_some() || pending_user_question.read().is_some();
 
             if status_dialog_open {
+                let step_tab_jump = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending) if pending.step_count() > 1 => {
+                            pick_step_tab_from_key(modifiers, code, pending.step_count()).map(|target| {
+                                let snapshot = snapshot_current_answer(
+                                    pending,
+                                    &question_answer.read(),
+                                    question_selected.get(),
+                                    &question_multi_checked.read(),
+                                );
+                                (target, snapshot)
+                            })
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some((target, snapshot)) = step_tab_jump {
+                    let outcome = pending_user_question
+                        .write()
+                        .take()
+                        .map(|pending| pending.jump_to_step(target, snapshot));
+                    if let Some(StepNavOutcome::Jumped(pending)) = outcome {
+                        apply_step_nav_outcome(
+                            StepNavOutcome::Jumped(pending),
+                            &mut pending_user_question,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                            &mut activity_label,
+                            &mut question_validation_error,
+                        );
+                    }
+                    return;
+                }
+
+                let step_nav_delta = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending)
+                            if pending.step_count() > 1
+                                && !pending.is_confirm()
+                                && !question_input_focus.get().is_custom() =>
+                        {
+                            question_step_nav_delta(modifiers, code).map(|delta| {
+                                let snapshot = snapshot_current_answer(
+                                    pending,
+                                    &question_answer.read(),
+                                    question_selected.get(),
+                                    &question_multi_checked.read(),
+                                );
+                                (delta, snapshot)
+                            })
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some((delta, snapshot)) = step_nav_delta {
+                    let outcome = pending_user_question
+                        .write()
+                        .take()
+                        .and_then(|pending| navigate_step_delta(pending, delta, snapshot));
+                    if let Some(nav) = outcome {
+                        apply_step_nav_outcome(
+                            nav,
+                            &mut pending_user_question,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                            &mut activity_label,
+                            &mut question_validation_error,
+                        );
+                    }
+                    return;
+                }
+
+                let step_back = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending)
+                            if pending.can_go_back()
+                                && modifiers.is_empty()
+                                && code == KeyCode::Backspace
+                                && question_input_focus.get().is_choices() =>
+                        {
+                            let snapshot = snapshot_current_answer(
+                                pending,
+                                &question_answer.read(),
+                                question_selected.get(),
+                                &question_multi_checked.read(),
+                            );
+                            Some(snapshot)
+                        }
+                        _ => None,
+                    }
+                };
+                if let Some(snapshot) = step_back {
+                    let outcome = pending_user_question
+                        .write()
+                        .take()
+                        .and_then(|pending| pending.go_back(snapshot));
+                    if let Some(StepNavOutcome::Jumped(pending)) = outcome {
+                        apply_step_nav_outcome(
+                            StepNavOutcome::Jumped(pending),
+                            &mut pending_user_question,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                            &mut activity_label,
+                            &mut question_validation_error,
+                        );
+                    }
+                    return;
+                }
+
+                let optional_skip = {
+                    let pending_ref = pending_user_question.read();
+                    match pending_ref.as_ref() {
+                        Some(pending)
+                            if !pending.is_required()
+                                && !pending.is_confirm()
+                                && modifiers.is_empty()
+                                && code == KeyCode::Esc =>
+                        {
+                            Some(())
+                        }
+                        _ => None,
+                    }
+                };
+                if optional_skip.is_some() {
+                    let outcome = pending_user_question
+                        .write()
+                        .take()
+                        .map(|pending| pending.respond(String::new()));
+                    if let Some(outcome) = outcome
+                        && let Some(summary) = apply_step_submit_outcome(
+                            outcome,
+                            &mut pending_user_question,
+                            &mut question_selected,
+                            &mut question_confirm_focus,
+                            &mut question_answer,
+                            &mut question_multi_checked,
+                            &mut question_input_focus,
+                            &mut shell_focus,
+                            &mut activity_label,
+                            &mut question_validation_error,
+                        )
+                    {
+                        push_transcript_message(
+                            &mut messages,
+                            &mut messages_revision,
+                            TranscriptMessage::text(summary, TranscriptStyle::Meta),
+                        );
+                    }
+                    return;
+                }
+
                 let approval_choice = {
                     let user_question_active = pending_user_question.read().is_some();
                     if pending_tool_approval.read().is_some() && !user_question_active {
@@ -626,45 +836,47 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     return;
                 }
 
-                let tab_focus_change = {
+                let option_nav = {
                     let pending_ref = pending_user_question.read();
-                    match (pending_ref.as_ref(), question_tab_reverse(modifiers, code)) {
-                        (Some(pending), Some(_)) => cycle_question_input_focus(pending, question_input_focus.get()),
+                    match (pending_ref.as_ref(), question_option_nav_delta(modifiers, code)) {
+                        (Some(pending), Some(delta)) if pending.options().is_some() && !pending.is_confirm() => {
+                            let current =
+                                current_choice_index(pending, question_selected.get(), question_input_focus.get());
+                            advance_question_selection(pending, current, delta)
+                        }
                         _ => None,
                     }
                 };
-                if let Some(focus) = tab_focus_change {
+                if let Some((next_index, focus)) = option_nav {
+                    question_selected.set(next_index);
                     question_input_focus.set(focus);
+                    question_validation_error.set(None);
                     return;
                 }
 
-                let focus_to_custom = {
+                let activate_custom_input = {
                     let pending_ref = pending_user_question.read();
                     match pending_ref.as_ref() {
                         Some(pending)
                             if pending.allow_custom()
                                 && question_input_focus.get().is_choices()
+                                && is_custom_choice_index(pending, question_selected.get())
                                 && modifiers.is_empty()
-                                && matches!(code, KeyCode::Down | KeyCode::Char('j')) =>
+                                && code == KeyCode::Enter =>
                         {
-                            let option_count = pending.options().map_or(0, |options| options.len());
-                            let at_last = question_selected.get() >= option_count.saturating_sub(1);
-                            at_last.then_some(QuestionInputFocus::Custom)
+                            Some(())
                         }
                         _ => None,
                     }
                 };
-                if let Some(focus) = focus_to_custom {
-                    question_input_focus.set(focus);
-                    return;
-                }
-
-                let focus_to_choices = (question_input_focus.get().is_custom()
-                    && modifiers.is_empty()
-                    && matches!(code, KeyCode::Up | KeyCode::Char('k')))
-                .then_some(QuestionInputFocus::Choices);
-                if let Some(focus) = focus_to_choices {
-                    question_input_focus.set(focus);
+                if activate_custom_input.is_some() {
+                    if let Some(pending) = pending_user_question.read().as_ref()
+                        && let Some(options) = pending.options()
+                    {
+                        question_selected.set(options.len());
+                    }
+                    question_input_focus.set(QuestionInputFocus::Custom);
+                    question_validation_error.set(None);
                     return;
                 }
 
@@ -674,18 +886,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         Some(pending)
                             if pending.is_multi_select()
                                 && question_input_focus.get().is_choices()
+                                && !is_custom_choice_index(pending, question_selected.get())
                                 && modifiers.is_empty()
                                 && code == KeyCode::Enter =>
                         {
-                            let options = pending.options().unwrap_or(&[]);
-                            let custom = question_answer.read().clone();
-                            let answer = if !custom.trim().is_empty() {
-                                custom.trim().to_string()
-                            } else {
-                                let indices = multi_choice_selected_indices(&question_multi_checked.read());
-                                format_multi_select_answer(options, &indices)
-                            };
-                            Some(answer)
+                            let text = question_answer.read().clone();
+                            try_resolve_submittable_answer(
+                                pending,
+                                &text,
+                                question_selected.get(),
+                                &question_multi_checked.read(),
+                            )
+                            .ok()
                         }
                         _ => None,
                     }
@@ -695,8 +907,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         .write()
                         .take()
                         .map(|pending| pending.respond(answer));
-                    if let Some(outcome) = outcome {
-                        apply_step_submit_outcome(
+                    if let Some(outcome) = outcome
+                        && let Some(summary) = apply_step_submit_outcome(
                             outcome,
                             &mut pending_user_question,
                             &mut question_selected,
@@ -706,37 +918,46 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             &mut question_input_focus,
                             &mut shell_focus,
                             &mut activity_label,
+                            &mut question_validation_error,
+                        )
+                    {
+                        push_transcript_message(
+                            &mut messages,
+                            &mut messages_revision,
+                            TranscriptMessage::text(summary, TranscriptStyle::Meta),
                         );
                     }
+                    return;
+                }
+                if let Some(pending) = pending_user_question.read().as_ref()
+                    && pending.is_multi_select()
+                    && question_input_focus.get().is_choices()
+                    && !is_custom_choice_index(pending, question_selected.get())
+                    && modifiers.is_empty()
+                    && code == KeyCode::Enter
+                    && let Err(err) = try_resolve_submittable_answer(
+                        pending,
+                        &question_answer.read(),
+                        question_selected.get(),
+                        &question_multi_checked.read(),
+                    )
+                {
+                    question_validation_error.set(Some(err));
                     return;
                 }
 
                 let picked_option = {
                     let pending_ref = pending_user_question.read();
                     match pending_ref.as_ref() {
-                        Some(pending) if pending.is_single_select() && !pending.allow_custom() => {
-                            let options = pending.options().unwrap_or(&[]);
-                            pick_numbered_option_index_from_key(modifiers, code, options.len())
-                                .and_then(|index| options.get(index).map(|option| option.value.clone()))
-                                .or_else(|| {
-                                    (modifiers.is_empty() && code == KeyCode::Enter)
-                                        .then(|| select_value_at(options, question_selected.get()))
-                                        .flatten()
-                                })
-                        }
                         Some(pending)
                             if pending.is_single_select()
-                                && pending.allow_custom()
-                                && question_input_focus.get().is_choices() =>
+                                && question_input_focus.get().is_choices()
+                                && !is_custom_choice_index(pending, question_selected.get())
+                                && modifiers.is_empty()
+                                && code == KeyCode::Enter =>
                         {
                             let options = pending.options().unwrap_or(&[]);
-                            pick_numbered_option_index_from_key(modifiers, code, options.len())
-                                .and_then(|index| options.get(index).map(|option| option.value.clone()))
-                                .or_else(|| {
-                                    (modifiers.is_empty() && code == KeyCode::Enter)
-                                        .then(|| select_value_at(options, question_selected.get()))
-                                        .flatten()
-                                })
+                            select_value_at(options, question_selected.get())
                         }
                         _ => None,
                     }
@@ -746,8 +967,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         .write()
                         .take()
                         .map(|pending| pending.respond_option(value));
-                    if let Some(outcome) = outcome {
-                        apply_step_submit_outcome(
+                    if let Some(outcome) = outcome
+                        && let Some(summary) = apply_step_submit_outcome(
                             outcome,
                             &mut pending_user_question,
                             &mut question_selected,
@@ -757,6 +978,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             &mut question_input_focus,
                             &mut shell_focus,
                             &mut activity_label,
+                            &mut question_validation_error,
+                        )
+                    {
+                        push_transcript_message(
+                            &mut messages,
+                            &mut messages_revision,
+                            TranscriptMessage::text(summary, TranscriptStyle::Meta),
                         );
                     }
                     return;
@@ -886,9 +1114,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             .as_ref()
                             .map(|started| format_elapsed_secs(*started))
                             .unwrap_or(elapsed_secs.get());
+                        session_elapsed_secs
+                            .set(accumulate_session_elapsed(session_elapsed_secs.get(), canceled_elapsed));
                         busy.set(false);
                         busy_started_at.set(None);
+                        activity_started_at.set(None);
                         elapsed_secs.set(0.0);
+                        activity_elapsed_secs.set(0.0);
                         turn_token_tracker.set(None);
                         turn_cancel_requested.set(false);
                         idle_status_notice.set(Some(IdleStatusNotice {
@@ -942,28 +1174,16 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let transcript_focused = !status_dialog_open && shell_focus.get() == ShellFocus::Transcript;
     let question_has_focus = user_question_open;
     let approval_has_focus = pending_tool_approval.read().is_some() && !user_question_open;
-    let user_question_view = pending_user_question
-        .read()
-        .as_ref()
-        .map(UserQuestionView::from_pending);
+    let user_question_view = pending_user_question.read().as_ref().map(|pending| {
+        UserQuestionView::from_pending(
+            pending,
+            question_input_focus.get(),
+            question_selected.get(),
+            &question_multi_checked.read(),
+            question_validation_error.read().clone(),
+        )
+    });
     let status_dialog = build_status_dialog_kind(pending_tool_approval.read().as_ref());
-    let busy_token_info = if busy.get() {
-        let base = turn_token_tracker
-            .read()
-            .as_ref()
-            .map(|tracker| format_busy_token_info(tracker.stream_tokens, tracker.tokens_per_sec(elapsed_secs.get())))
-            .unwrap_or_default();
-        if pending_quit_confirm.get() {
-            Some(format_busy_right_with_quit_confirm(&base))
-        } else if base.is_empty() {
-            None
-        } else {
-            Some(base)
-        }
-    } else {
-        None
-    };
-
     let draft_for_palette = live_draft.read().clone();
     let slash_palette_snapshot = build_snapshot(&draft_for_palette, &slash_commands.read(), screen_height);
     slash_palette_active.set(slash_palette_snapshot.visible);
@@ -1020,8 +1240,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 .write()
                                 .take()
                                 .map(|question| question.respond_confirm(true));
-                            if let Some(outcome) = outcome {
-                                apply_step_submit_outcome(
+                            if let Some(outcome) = outcome
+                                && let Some(summary) = apply_step_submit_outcome(
                                     outcome,
                                     &mut pending_user_question,
                                     &mut question_selected,
@@ -1031,6 +1251,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     &mut question_input_focus,
                                     &mut shell_focus,
                                     &mut activity_label,
+                                    &mut question_validation_error,
+                                )
+                            {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(summary, TranscriptStyle::Meta),
                                 );
                             }
                         },
@@ -1039,8 +1266,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 .write()
                                 .take()
                                 .map(|question| question.respond_confirm(false));
-                            if let Some(outcome) = outcome {
-                                apply_step_submit_outcome(
+                            if let Some(outcome) = outcome
+                                && let Some(summary) = apply_step_submit_outcome(
                                     outcome,
                                     &mut pending_user_question,
                                     &mut question_selected,
@@ -1050,35 +1277,42 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     &mut question_input_focus,
                                     &mut shell_focus,
                                     &mut activity_label,
+                                    &mut question_validation_error,
+                                )
+                            {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(summary, TranscriptStyle::Meta),
                                 );
                             }
                         },
                         on_text_submit: move |_| {
-                            let (answer, allow_empty) = {
+                            let answer = {
                                 let pending_ref = pending_user_question.read();
                                 let Some(pending) = pending_ref.as_ref() else {
                                     return;
                                 };
                                 let text = question_answer.read().clone();
-                                let Some(answer) = resolve_user_text_submit_answer(
+                                match try_resolve_submittable_answer(
                                     pending,
                                     &text,
                                     question_selected.get(),
                                     &question_multi_checked.read(),
-                                ) else {
-                                    return;
-                                };
-                                (answer, pending.needs_text_input())
+                                ) {
+                                    Ok(answer) => answer,
+                                    Err(err) => {
+                                        question_validation_error.set(Some(err));
+                                        return;
+                                    }
+                                }
                             };
-                            if answer.is_empty() && !allow_empty {
-                                return;
-                            }
                             let outcome = pending_user_question
                                 .write()
                                 .take()
                                 .map(|question| question.respond(answer));
-                            if let Some(outcome) = outcome {
-                                apply_step_submit_outcome(
+                            if let Some(outcome) = outcome
+                                && let Some(summary) = apply_step_submit_outcome(
                                     outcome,
                                     &mut pending_user_question,
                                     &mut question_selected,
@@ -1088,23 +1322,48 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     &mut question_input_focus,
                                     &mut shell_focus,
                                     &mut activity_label,
+                                    &mut question_validation_error,
+                                )
+                            {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(summary, TranscriptStyle::Meta),
                                 );
                             }
                         },
                         on_text_cancel: move |_| {
-                            if !pending_user_question
+                            if pending_user_question.read().as_ref().is_some_and(|pending| {
+                                pending.needs_custom_input()
+                                    && !pending.needs_text_input()
+                                    && question_input_focus.get().is_custom()
+                            }) {
+                                question_input_focus.set(QuestionInputFocus::Choices);
+                                question_validation_error.set(None);
+                                return;
+                            }
+                            let required = pending_user_question
                                 .read()
                                 .as_ref()
-                                .is_some_and(|pending| pending.needs_text_input())
-                            {
+                                .is_some_and(|pending| pending.needs_text_input() && pending.is_required());
+                            let optional_text = pending_user_question
+                                .read()
+                                .as_ref()
+                                .is_some_and(|pending| pending.needs_text_input() && !pending.is_required());
+                            if !required && !optional_text {
+                                return;
+                            }
+                            if required {
+                                question_answer.set(String::new());
+                                question_validation_error.set(None);
                                 return;
                             }
                             let outcome = pending_user_question
                                 .write()
                                 .take()
                                 .map(|question| question.respond(String::new()));
-                            if let Some(outcome) = outcome {
-                                apply_step_submit_outcome(
+                            if let Some(outcome) = outcome
+                                && let Some(summary) = apply_step_submit_outcome(
                                     outcome,
                                     &mut pending_user_question,
                                     &mut question_selected,
@@ -1114,6 +1373,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     &mut question_input_focus,
                                     &mut shell_focus,
                                     &mut activity_label,
+                                    &mut question_validation_error,
+                                )
+                            {
+                                push_transcript_message(
+                                    &mut messages,
+                                    &mut messages_revision,
+                                    TranscriptMessage::text(summary, TranscriptStyle::Meta),
                                 );
                             }
                         },
@@ -1127,9 +1393,11 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 activity_label: activity_label.read().clone(),
                 accent: scanner_accent,
                 spinner_tick: spinner_tick.get(),
-                elapsed_secs: elapsed_secs.get(),
+                activity_elapsed_secs: activity_elapsed_secs.get(),
+                turn_elapsed_secs: live_turn_elapsed_secs(busy.get(), &busy_started_at.read()),
+                session_elapsed_secs: session_elapsed_secs.get(),
                 idle_notice: idle_status_notice.read().as_ref().map(|notice| notice.text.clone()),
-                busy_token_info: busy_token_info.clone(),
+                quit_confirm_pending: pending_quit_confirm.get(),
                 dialog: status_dialog,
                 approval_selected: Some(approval_selected),
                 approval_has_focus: approval_has_focus,
@@ -1151,6 +1419,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 force_editor_clear: Some(force_editor_clear),
                 slash_palette_snapshot: slash_palette_snapshot,
                 slash_palette_selected: Some(slash_palette_index),
+                blocked_hint: user_question_open.then(|| "Answer the question above".to_string()),
                 on_escape: move |_| {
                     shell_focus.set(ShellFocus::Transcript);
                 },
@@ -1252,9 +1521,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                         &mut BusyActivation {
                                             busy: &mut busy,
                                             busy_started_at: &mut busy_started_at,
+                                            activity_started_at: &mut activity_started_at,
                                             elapsed_secs: &mut elapsed_secs,
+                                            activity_elapsed_secs: &mut activity_elapsed_secs,
                                             spinner_tick: &mut spinner_tick,
                                             activity_label: &mut activity_label,
+                                            last_activity_label: &mut last_activity_label,
                                         },
                                         false,
                                     );
@@ -1272,9 +1544,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                         &mut BusyActivation {
                                             busy: &mut busy,
                                             busy_started_at: &mut busy_started_at,
+                                            activity_started_at: &mut activity_started_at,
                                             elapsed_secs: &mut elapsed_secs,
+                                            activity_elapsed_secs: &mut activity_elapsed_secs,
                                             spinner_tick: &mut spinner_tick,
                                             activity_label: &mut activity_label,
+                                            last_activity_label: &mut last_activity_label,
                                         },
                                         false,
                                     );

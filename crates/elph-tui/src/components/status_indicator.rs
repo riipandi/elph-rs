@@ -121,10 +121,13 @@ pub fn ProcessStatusIndicator(props: &ProcessStatusIndicatorProps, hooks: Hooks)
 pub struct ProcessStatusRowProps {
     pub status: ProcessStatus,
     pub label: String,
+    /// Elapsed seconds shown dimmed after the label when set (e.g. `· 1.2s`).
+    pub duration_secs: Option<f64>,
     pub queued_color: Option<Color>,
     pub running_color: Option<Color>,
     pub done_color: Option<Color>,
     pub failed_color: Option<Color>,
+    pub duration_color: Option<Color>,
     pub theme: Option<UiTheme>,
     /// When true, running rows use bold label text (default: true).
     pub emphasize_running: bool,
@@ -140,9 +143,41 @@ impl Default for ProcessStatusRowProps {
             done_color: None,
             failed_color: None,
             theme: None,
+            duration_secs: None,
+            duration_color: None,
             emphasize_running: true,
         }
     }
+}
+
+fn format_row_duration_secs(secs: f64) -> String {
+    let secs = secs.max(0.0);
+    if secs < 60.0 {
+        let rounded_tenth = (secs * 10.0).round() / 10.0;
+        let whole = rounded_tenth.floor();
+        if (rounded_tenth - whole).abs() < 0.05 {
+            return format!(" · {whole}s");
+        }
+        return format!(" · {rounded_tenth:.1}s");
+    }
+    let total = secs.round() as u64;
+    let hours = total / 3600;
+    let minutes = (total % 3600) / 60;
+    let seconds = total % 60;
+    let body = if hours > 0 {
+        if seconds > 0 {
+            format!("{hours}h{minutes}m{seconds}s")
+        } else if minutes > 0 {
+            format!("{hours}h{minutes}m")
+        } else {
+            format!("{hours}h")
+        }
+    } else if seconds > 0 {
+        format!("{minutes}m{seconds}s")
+    } else {
+        format!("{minutes}m")
+    };
+    format!(" · {body}")
 }
 
 /// One status line: animated marker + label.
@@ -157,17 +192,22 @@ pub fn ProcessStatusRow(props: &ProcessStatusRowProps, hooks: Hooks) -> impl Int
         props.done_color,
         props.failed_color,
     );
+    let duration_color = props.duration_color.unwrap_or(theme.text_muted);
     let running = props.status == ProcessStatus::Running;
     let weight = if running && props.emphasize_running {
         Weight::Bold
     } else {
         Weight::Normal
     };
+    let duration_suffix = props.duration_secs.map(format_row_duration_secs);
 
     element! {
         View(flex_direction: FlexDirection::Row, gap: theme.gap_md, align_items: AlignItems::Center) {
             ProcessStatusIndicator(status: props.status, color: Some(color), theme: Some(theme))
             Text(content: props.label.clone(), color: color, weight: weight, wrap: TextWrap::NoWrap)
+            #(duration_suffix.map(|suffix| element! {
+                Text(content: suffix, color: duration_color, wrap: TextWrap::NoWrap)
+            }))
         }
     }
 }

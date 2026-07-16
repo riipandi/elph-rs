@@ -80,10 +80,17 @@ fn layout_cursor_preserves_middle_blank_line() {
 }
 
 #[test]
-fn layout_textarea_reserves_scrollbar_column() {
+fn layout_textarea_reserves_scrollbar_column_when_content_overflows() {
     let layout = layout_textarea("one two three four five six seven", 0, 12, 1, Some(2));
     assert!(layout.show_scrollbar);
     assert_eq!(layout.input_width, 11);
+}
+
+#[test]
+fn layout_textarea_hides_scrollbar_until_content_overflows() {
+    let layout = layout_textarea("hello", 0, 40, 1, Some(12));
+    assert!(!layout.show_scrollbar);
+    assert_eq!(layout.input_width, 40);
 }
 
 #[test]

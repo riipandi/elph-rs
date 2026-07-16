@@ -24,6 +24,8 @@ pub struct UiTheme {
     /// Round shell chrome when another zone has focus.
     pub shell_border_dimmed: Color,
     pub surface: Color,
+    /// Fenced code blocks in markdown (neutral dark grey; avoids syntax-highlight hue clash).
+    pub code_block_bg: Color,
     pub selection_bg: Color,
     /// Soft yellow highlight for selected inline dialog choices (ask-user, etc.).
     pub dialog_selection_bg: Color,
@@ -53,6 +55,7 @@ impl Default for UiTheme {
             shell_border: rgb(80, 80, 80),
             shell_border_dimmed: rgb(56, 56, 56),
             surface: Color::Reset,
+            code_block_bg: rgb(32, 32, 32),
             selection_bg: rgb(40, 44, 52),
             dialog_selection_bg: rgb(58, 52, 36),
             success: rgb(152, 195, 121),
@@ -227,6 +230,23 @@ impl UiTheme {
         self.accent_soft
     }
 
+    /// Ask-user dialog fields — matches option selection chrome (warm accent, no blue).
+    pub fn dialog_input_text_color(self, has_focus: bool) -> Color {
+        if has_focus {
+            self.text_primary
+        } else {
+            self.text_secondary
+        }
+    }
+
+    pub fn dialog_input_cursor_color(self) -> Color {
+        self.warning
+    }
+
+    pub fn dialog_input_underline_color(self, has_focus: bool) -> Color {
+        if has_focus { self.warning } else { self.border_subtle }
+    }
+
     pub fn input_border_color(self, has_focus: bool) -> Color {
         if has_focus {
             self.border_focus
@@ -286,9 +306,9 @@ pub fn dialog_option_name_style(theme: UiTheme, selected: bool) -> (Color, Weigh
     (color, Weight::Bold)
 }
 
-/// Inline dialog option detail — always the dimmest readable tone.
-pub fn dialog_option_desc_style(theme: UiTheme) -> Color {
-    theme.text_hint
+/// Inline dialog option detail — dimmest when idle, slightly lifted when the row is selected.
+pub fn dialog_option_desc_style(theme: UiTheme, selected: bool) -> Color {
+    if selected { theme.text_muted } else { theme.text_hint }
 }
 
 /// Tab chrome for horizontal selectors.
@@ -351,9 +371,10 @@ mod tests {
     }
 
     #[test]
-    fn dialog_option_desc_uses_hint_tone() {
+    fn dialog_option_desc_lifts_slightly_when_selected() {
         let theme = UiTheme::default();
-        assert_eq!(dialog_option_desc_style(theme), theme.text_hint);
+        assert_eq!(dialog_option_desc_style(theme, false), theme.text_hint);
+        assert_eq!(dialog_option_desc_style(theme, true), theme.text_muted);
     }
 
     #[test]
@@ -392,6 +413,25 @@ mod tests {
         assert!(lum(primary) >= lum(secondary));
         assert!(lum(secondary) >= lum(muted));
         assert!(lum(muted) >= lum(hint));
+    }
+
+    #[test]
+    fn code_block_bg_differs_from_selection_and_user_cards() {
+        let theme = UiTheme::default();
+        assert_ne!(theme.code_block_bg, theme.selection_bg);
+        let lum = |c: Color| match c {
+            Color::Rgb { r, g, b } => (r as u32 + g as u32 + b as u32) / 3,
+            _ => 128,
+        };
+        assert!(lum(theme.code_block_bg) < lum(theme.selection_bg));
+        match theme.code_block_bg {
+            Color::Rgb { r, g, b } => {
+                assert_eq!(r, g, "code block card uses neutral grey");
+                assert_eq!(g, b, "code block card uses neutral grey");
+            }
+            _ => panic!("expected rgb code block background"),
+        }
+        assert_eq!(theme.code_block_bg, Color::Rgb { r: 32, g: 32, b: 32 });
     }
 
     #[test]

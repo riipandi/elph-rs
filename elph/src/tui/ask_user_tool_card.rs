@@ -76,7 +76,22 @@ fn question_steps_from_value(value: &Value) -> Option<Vec<&Value>> {
     if let Some(items) = value.get("questions").and_then(Value::as_array) {
         return (!items.is_empty()).then(|| items.iter().collect());
     }
-    value.get("question").and_then(Value::as_str).map(|_| vec![value])
+    if let Some(items) = value.get("steps").and_then(Value::as_array) {
+        return (!items.is_empty()).then(|| items.iter().collect());
+    }
+    if let Some(questions) = value.get("questions").filter(|questions| questions.is_object()) {
+        return Some(vec![questions]);
+    }
+    for key in ["question", "prompt", "message", "text"] {
+        if value
+            .get(key)
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty())
+        {
+            return Some(vec![value]);
+        }
+    }
+    None
 }
 
 fn step_label(step: &Value, index: usize, step_count: usize) -> String {
@@ -118,7 +133,15 @@ fn step_hint(step: &Value) -> String {
         return "yes / no".to_string();
     }
 
-    "text".to_string()
+    let mut hint = String::from("text");
+    if step.get("required").and_then(Value::as_bool) == Some(false) {
+        hint.push_str(" · optional");
+    }
+    if step.get("min_length").and_then(Value::as_u64).is_some() || step.get("pattern").and_then(Value::as_str).is_some()
+    {
+        hint.push_str(" · validated");
+    }
+    hint
 }
 
 fn option_label(item: &Value) -> Option<String> {
@@ -134,13 +157,16 @@ fn is_confirm_step(step: &Value) -> bool {
         && step.get("default").and_then(Value::as_bool).is_some()
 }
 
-fn step_mode_flags(step: &Value) -> Vec<&'static str> {
+fn step_mode_flags(step: &Value) -> Vec<String> {
     let mut flags = Vec::new();
     if step.get("allow_multiple").and_then(Value::as_bool) == Some(true) {
-        flags.push("multi");
+        flags.push("multi".to_string());
     }
     if step.get("allow_custom").and_then(Value::as_bool) == Some(true) {
-        flags.push("custom");
+        flags.push("custom".to_string());
+    }
+    if step.get("required").and_then(Value::as_bool) == Some(false) {
+        flags.push("optional".to_string());
     }
     flags
 }
@@ -348,6 +374,6 @@ mod tests {
         let rows = parse_ask_user_tool_rows(raw).unwrap();
         let label_width = label_column_width(&rows, 32);
         let wrapped = wrap_hint(&rows[0].hint, 32, label_width);
-        assert!(wrapped.len() >= 1);
+        assert!(!wrapped.is_empty());
     }
 }

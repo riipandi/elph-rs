@@ -4,7 +4,7 @@ use elph_tui::components::{ProcessActivityTrail, ProcessStatus, ProcessStatusRow
 use iocraft::prelude::*;
 
 use crate::tui::ask_user_tool_card::{AskUserToolCardView, parse_ask_user_tool_rows};
-use crate::tui::theme::{TEXT_FG, THINKING_FG, TOOL_OUTPUT_FG};
+use crate::tui::theme::{TEXT_FG, THINKING_FG, TOOL_ARGS_FG, TOOL_OUTPUT_FG};
 use crate::tui::tool_params::{ToolParamsView, parse_tool_params};
 
 use super::super::types::{TranscriptMessage, TranscriptStyle};
@@ -43,14 +43,96 @@ pub fn skill_prompt_card(screen_width: u16, message: &TranscriptMessage, margin_
     render_tinted_card(&chrome, message)
 }
 
+fn process_phase_header(
+    label: &str,
+    duration_secs: Option<f64>,
+    label_color: Color,
+    status: ProcessStatus,
+) -> AnyElement<'static> {
+    element! {
+        ProcessStatusRow(
+            status: status,
+            label: label.to_string(),
+            duration_secs: duration_secs,
+            running_color: Some(label_color),
+            done_color: Some(label_color),
+            failed_color: Some(label_color),
+            duration_color: Some(TOOL_ARGS_FG),
+            emphasize_running: false,
+        )
+    }
+    .into()
+}
+
 pub fn thinking_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let chrome = TranscriptCardChrome::from_style(screen_width, message.style, margin_bottom);
-    render_flush_card(&chrome, message)
+    if message.duration_secs.is_none() {
+        return render_flush_card(&chrome, message);
+    }
+    element! {
+        View(
+            width: chrome.outer_width,
+            background_color: Color::Reset,
+            border_style: BorderStyle::None,
+            margin_bottom: margin_bottom,
+            padding_top: chrome.padding_top,
+            padding_bottom: chrome.padding_bottom,
+            padding_left: chrome.padding_h,
+            padding_right: chrome.padding_h,
+            flex_direction: FlexDirection::Column,
+            gap: 1,
+        ) {
+            #(process_phase_header("Thinking", message.duration_secs, THINKING_FG, ProcessStatus::Done))
+            Text(color: THINKING_FG, wrap: TextWrap::Wrap, content: message.content.as_str())
+        }
+    }
+    .into()
 }
 
 pub fn chat_response_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let chrome = TranscriptCardChrome::from_style(screen_width, message.style, margin_bottom);
-    render_assistant_card(&chrome, message)
+    if message.duration_secs.is_none() {
+        return render_assistant_card(&chrome, message);
+    }
+    let inner_width = chrome
+        .outer_width
+        .saturating_sub(chrome.padding_h.saturating_mul(2))
+        .max(1);
+    let body = if message.markdown.is_some() {
+        assistant_message_elements(message, TEXT_FG, inner_width)
+    } else {
+        vec![
+            element! {
+                Text(color: TEXT_FG, wrap: TextWrap::Wrap, content: message.content.as_str())
+            }
+            .into(),
+        ]
+    };
+    element! {
+        View(
+            width: chrome.outer_width,
+            background_color: Color::Reset,
+            border_style: BorderStyle::None,
+            margin_bottom: margin_bottom,
+            padding_top: chrome.padding_top,
+            padding_bottom: chrome.padding_bottom,
+            padding_left: chrome.padding_h,
+            padding_right: chrome.padding_h,
+            flex_direction: FlexDirection::Column,
+            gap: 1,
+        ) {
+            #(process_phase_header("Response", message.duration_secs, TEXT_FG, ProcessStatus::Done))
+            View(
+                width: inner_width,
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::FlexStart,
+                gap: 0,
+            ) {
+                #(body)
+            }
+        }
+    }
+    .into()
 }
 
 pub fn error_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
@@ -60,7 +142,32 @@ pub fn error_card(screen_width: u16, message: &TranscriptMessage, margin_bottom:
 
 pub fn meta_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let chrome = TranscriptCardChrome::tinted(screen_width, message.style, margin_bottom);
-    render_tinted_card(&chrome, message)
+    if message.duration_secs.is_none() {
+        return render_tinted_card(&chrome, message);
+    }
+    let duration_suffix = message
+        .duration_secs
+        .map(crate::tui::activity::format_duration_label_suffix)
+        .unwrap_or_default();
+    element! {
+        View(
+            width: chrome.outer_width,
+            background_color: chrome.background,
+            border_style: BorderStyle::None,
+            margin_bottom: margin_bottom,
+            padding_top: chrome.padding_top,
+            padding_bottom: chrome.padding_bottom,
+            padding_left: chrome.padding_h,
+            padding_right: chrome.padding_h,
+            flex_direction: FlexDirection::Row,
+            gap: 0,
+            flex_wrap: FlexWrap::Wrap,
+        ) {
+            Text(color: chrome.foreground, wrap: TextWrap::Wrap, content: message.content.clone())
+            Text(color: TOOL_ARGS_FG, wrap: TextWrap::NoWrap, content: duration_suffix)
+        }
+    }
+    .into()
 }
 
 pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
@@ -95,9 +202,11 @@ pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bot
                 ProcessStatusRow(
                     status: status,
                     label: tool.name.clone(),
+                    duration_secs: message.duration_secs,
                     running_color: Some(chrome.foreground),
                     done_color: Some(chrome.foreground),
                     failed_color: Some(chrome.foreground),
+                    duration_color: Some(TOOL_ARGS_FG),
                     emphasize_running: true,
                 )
                 #(if running && output.is_empty() {
@@ -193,14 +302,38 @@ pub fn thinking_response_pair_card(
             flex_direction: FlexDirection::Column,
             gap: THINKING_RESPONSE_GAP,
         ) {
-            Text(color: THINKING_FG, wrap: TextWrap::Wrap, content: thinking.content.as_str())
-            View(
-                width: inner_width,
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::FlexStart,
-                gap: 0,
-            ) {
-                #(assistant_body)
+            View(width: inner_width, flex_direction: FlexDirection::Column, gap: 1) {
+                #(if thinking.duration_secs.is_some() {
+                    Some(process_phase_header(
+                        "Thinking",
+                        thinking.duration_secs,
+                        THINKING_FG,
+                        ProcessStatus::Done,
+                    ))
+                } else {
+                    None
+                })
+                Text(color: THINKING_FG, wrap: TextWrap::Wrap, content: thinking.content.as_str())
+            }
+            View(width: inner_width, flex_direction: FlexDirection::Column, gap: 1) {
+                #(if assistant.duration_secs.is_some() {
+                    Some(process_phase_header(
+                        "Response",
+                        assistant.duration_secs,
+                        TEXT_FG,
+                        ProcessStatus::Done,
+                    ))
+                } else {
+                    None
+                })
+                View(
+                    width: inner_width,
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::FlexStart,
+                    gap: 0,
+                ) {
+                    #(assistant_body)
+                }
             }
         }
     }

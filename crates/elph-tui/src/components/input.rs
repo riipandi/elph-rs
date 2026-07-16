@@ -16,6 +16,8 @@ pub struct InputProps {
     pub focused_border_color: Option<Color>,
     pub value: Option<State<String>>,
     pub theme: Option<UiTheme>,
+    /// Overrides [`UiTheme::input_inset`] (use `0` for flush dialog rows).
+    pub inset: Option<u16>,
     pub on_change: HandlerMut<'static, String>,
 }
 
@@ -40,7 +42,7 @@ pub fn Input(props: &mut InputProps, mut hooks: Hooks) -> impl Into<AnyElement<'
     let has_focus = props.has_focus;
     let input_handle = hooks.use_ref_default::<TextInputHandle>();
     let theme = resolve_ui_theme(&hooks, props.theme);
-    let inset = theme.input_inset();
+    let inset = props.inset.unwrap_or_else(|| theme.input_inset());
     let mut on_change = props.on_change.take();
 
     wire_input_shortcuts(&mut hooks, has_focus, value, input_handle);

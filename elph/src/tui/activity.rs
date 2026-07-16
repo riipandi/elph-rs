@@ -61,23 +61,61 @@ pub fn activity_label_for_event(event: &AgentUiEvent, show_thinking: bool) -> Op
     }
 }
 
-/// Format the left status segment: `Thinking · 1.2s`.
-pub fn format_activity_line(label: &str, elapsed_secs: f64) -> String {
-    if label.is_empty() {
-        format!("{elapsed_secs:.1}s")
+/// Compact elapsed time: `12.4s` under a minute, then `1m50s`, `1h2m5s`.
+pub fn format_duration_secs(elapsed_secs: f64) -> String {
+    let secs = elapsed_secs.max(0.0);
+    if secs < 60.0 {
+        let rounded_tenth = (secs * 10.0).round() / 10.0;
+        let whole = rounded_tenth.floor();
+        if (rounded_tenth - whole).abs() < 0.05 {
+            return format!("{}s", whole as u64);
+        }
+        return format!("{rounded_tenth:.1}s");
+    }
+
+    let total = secs.round() as u64;
+    let hours = total / 3600;
+    let minutes = (total % 3600) / 60;
+    let seconds = total % 60;
+
+    if hours > 0 {
+        if seconds > 0 {
+            format!("{hours}h{minutes}m{seconds}s")
+        } else if minutes > 0 {
+            format!("{hours}h{minutes}m")
+        } else {
+            format!("{hours}h")
+        }
+    } else if seconds > 0 {
+        format!("{minutes}m{seconds}s")
     } else {
-        format!("{label} · {elapsed_secs:.1}s")
+        format!("{minutes}m")
+    }
+}
+
+/// Dimmed suffix for completed process rows in the transcript (` · 1.2s`).
+pub fn format_duration_label_suffix(elapsed_secs: f64) -> String {
+    format!(" · {}", format_duration_secs(elapsed_secs))
+}
+
+/// Busy left segment: activity label and current phase timer only.
+pub fn format_activity_busy_line(label: &str, phase_elapsed_secs: f64) -> String {
+    let phase = format_duration_secs(phase_elapsed_secs);
+    if label.is_empty() {
+        phase
+    } else {
+        format!("{label} · {phase}")
     }
 }
 
 /// Idle status notice shown briefly after a turn completes.
 pub fn format_turn_complete_notice(elapsed_secs: f64) -> String {
-    format!("Turn complete · {elapsed_secs:.1}s")
+    format!("Turn complete · {}", format_duration_secs(elapsed_secs))
 }
 
 /// Idle status notice shown briefly after the user cancels an active turn.
 pub fn format_turn_canceled_notice(elapsed_secs: f64) -> String {
-    format!("Turn canceled · {elapsed_secs:.1}s")
+    format!("Turn canceled · {}", format_duration_secs(elapsed_secs))
 }
 
 /// Transcript notice when quit is requested while a turn is still running.
@@ -94,12 +132,45 @@ pub fn format_quit_canceled_notice() -> String {
     "Quit canceled".to_string()
 }
 
-/// Append quit-confirm keys to the busy status-row right segment when needed.
+/// Completed turns plus the in-flight turn (wall-clock total for this session).
+pub fn total_session_elapsed_secs(session_elapsed_secs: f64, turn_elapsed_secs: f64) -> f64 {
+    session_elapsed_secs + turn_elapsed_secs.max(0.0)
+}
+
+/// Right status segment while busy: cumulative session time + optional quit confirm.
+pub fn format_session_busy_right_line(
+    session_elapsed_secs: f64,
+    turn_elapsed_secs: f64,
+    quit_confirm_pending: bool,
+) -> String {
+    let total = format!(
+        "{} total",
+        format_duration_secs(total_session_elapsed_secs(session_elapsed_secs, turn_elapsed_secs,))
+    );
+    if quit_confirm_pending {
+        format!("{total} · {QUIT_CONFIRM_BUSY_HINT} · Ctrl+C cancel")
+    } else {
+        format!("{total} · Ctrl+C cancel")
+    }
+}
+
+/// Idle right segment: action hint only.
+pub fn format_session_idle_right_line(idle_action_hint: &str) -> String {
+    idle_action_hint.to_string()
+}
+
+/// Add a completed turn duration to the session accumulator.
+pub fn accumulate_session_elapsed(session_elapsed_secs: f64, turn_elapsed_secs: f64) -> f64 {
+    total_session_elapsed_secs(session_elapsed_secs, turn_elapsed_secs)
+}
+
+/// Append quit-confirm keys to an arbitrary busy status-row right segment.
+#[cfg(test)]
 pub fn format_busy_right_with_quit_confirm(base: &str) -> String {
     if base.trim().is_empty() {
         QUIT_CONFIRM_BUSY_HINT.to_string()
     } else {
-        format!("{base} | {QUIT_CONFIRM_BUSY_HINT}")
+        format!("{base} · {QUIT_CONFIRM_BUSY_HINT}")
     }
 }
 
@@ -109,6 +180,7 @@ pub fn estimate_delta_tokens(delta: &str) -> u64 {
 }
 
 /// Compact stream delta for the status row (header already shows full context usage).
+#[cfg(test)]
 pub fn format_stream_token_delta(stream_tokens: u64) -> String {
     if stream_tokens == 0 {
         return String::new();
@@ -121,6 +193,7 @@ pub fn format_stream_token_delta(stream_tokens: u64) -> String {
 }
 
 /// Live turn throughput on the status row — stream delta + TPS only, not full context stats.
+#[cfg(test)]
 pub fn format_busy_token_info(stream_tokens: u64, tokens_per_sec: f64) -> String {
     let tps = format!("{tokens_per_sec:.0} t/s");
     let delta = format_stream_token_delta(stream_tokens);
@@ -162,6 +235,7 @@ impl TurnTokenTracker {
         self.baseline_tokens.saturating_add(self.stream_tokens)
     }
 
+    #[cfg(test)]
     pub fn tokens_per_sec(&self, elapsed_secs: f64) -> f64 {
         if elapsed_secs <= f64::EPSILON {
             return 0.0;
@@ -218,13 +292,40 @@ mod tests {
     }
 
     #[test]
-    fn format_activity_line_includes_elapsed() {
-        assert_eq!(format_activity_line("Thinking", 1.2), "Thinking · 1.2s");
+    fn format_duration_secs_uses_seconds_under_one_minute() {
+        assert_eq!(format_duration_secs(1.24), "1.2s");
+        assert_eq!(format_duration_secs(12.0), "12s");
+        assert_eq!(format_duration_secs(45.0), "45s");
+        assert_eq!(format_duration_secs(59.9), "59.9s");
+    }
+
+    #[test]
+    fn format_duration_secs_uses_minutes_from_sixty_seconds() {
+        assert_eq!(format_duration_secs(60.0), "1m");
+        assert_eq!(format_duration_secs(90.0), "1m30s");
+        assert_eq!(format_duration_secs(110.0), "1m50s");
+    }
+
+    #[test]
+    fn format_duration_secs_uses_hours_for_long_sessions() {
+        assert_eq!(format_duration_secs(3600.0), "1h");
+        assert_eq!(format_duration_secs(3661.0), "1h1m1s");
+    }
+
+    #[test]
+    fn format_duration_label_suffix_matches_duration_format() {
+        assert_eq!(format_duration_label_suffix(1.2), " · 1.2s");
+        assert_eq!(format_duration_label_suffix(110.0), " · 1m50s");
+    }
+
+    #[test]
+    fn format_activity_busy_line_includes_elapsed() {
+        assert_eq!(format_activity_busy_line("Thinking", 1.2), "Thinking · 1.2s");
     }
 
     #[test]
     fn format_turn_complete_notice_includes_elapsed() {
-        assert_eq!(format_turn_complete_notice(3.45), "Turn complete · 3.5s");
+        assert_eq!(format_turn_complete_notice(110.0), "Turn complete · 1m50s");
     }
 
     #[test]
@@ -245,11 +346,41 @@ mod tests {
     }
 
     #[test]
-    fn format_busy_right_with_quit_confirm_appends_hint() {
+    fn format_activity_busy_line_shows_label_and_phase_only() {
+        assert_eq!(format_activity_busy_line("Running grep", 0.8), "Running grep · 0.8s");
+        assert_eq!(format_activity_busy_line("Thinking", 1.2), "Thinking · 1.2s");
+        assert_eq!(format_activity_busy_line("", 2.5), "2.5s");
+    }
+
+    #[test]
+    fn format_session_busy_right_line_shows_total_and_cancel() {
+        assert_eq!(format_session_busy_right_line(40.0, 18.1, false), "58.1s total · Ctrl+C cancel");
+        assert_eq!(format_session_busy_right_line(0.0, 110.0, false), "1m50s total · Ctrl+C cancel");
         assert_eq!(
-            format_busy_right_with_quit_confirm("+240 · 12 t/s"),
-            "+240 · 12 t/s | y quit · n stay"
+            format_session_busy_right_line(10.0, 3.0, true),
+            "13s total · y quit · n stay · Ctrl+C cancel"
         );
+    }
+
+    #[test]
+    fn total_session_elapsed_includes_in_flight_turn() {
+        assert!((total_session_elapsed_secs(12.0, 3.5) - 15.5).abs() < f64::EPSILON);
+        assert!((total_session_elapsed_secs(0.0, 4.2) - 4.2).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn format_session_idle_right_line_omits_total() {
+        assert_eq!(format_session_idle_right_line("Enter to send"), "Enter to send");
+    }
+
+    #[test]
+    fn accumulate_session_elapsed_adds_turn_duration() {
+        assert!((accumulate_session_elapsed(10.0, 3.5) - 13.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn format_busy_right_with_quit_confirm_appends_hint() {
+        assert_eq!(format_busy_right_with_quit_confirm("1.2s"), "1.2s · y quit · n stay");
         assert_eq!(format_busy_right_with_quit_confirm(""), QUIT_CONFIRM_BUSY_HINT);
     }
 

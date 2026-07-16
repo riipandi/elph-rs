@@ -2,11 +2,30 @@
 
 use super::model::{MarkdownLine, MarkdownLineKind};
 
+/// Rows between adjacent markdown block segments (paragraph, code, list, …).
+pub const BLOCK_GAP_ROWS: u16 = 1;
+
+/// Horizontal inset inside a code block background (left + right).
 pub const CODE_HORIZONTAL_PADDING: u16 = 2;
-pub const CODE_VERTICAL_PADDING: u16 = 2;
+
+/// Vertical inset inside a code block background (top + bottom). Inter-block spacing
+/// comes from [`BLOCK_GAP_ROWS`] via [`segment_gap_after`], not extra outer padding.
+pub const CODE_BLOCK_INSET_V: u16 = 0;
+
+/// Total vertical rows reserved inside a code block container (top + bottom inset).
+pub const CODE_VERTICAL_PADDING: u16 = CODE_BLOCK_INSET_V.saturating_mul(2);
 
 pub fn code_content_width(outer_width: u16) -> u16 {
     outer_width.saturating_sub(CODE_HORIZONTAL_PADDING).max(1)
+}
+
+/// Multi-line fenced blocks use the tinted card; single-line blocks render inline.
+pub fn code_block_uses_card_background(body: &str) -> bool {
+    let trimmed = body.trim_end_matches(['\n', '\r']);
+    if trimmed.is_empty() {
+        return false;
+    }
+    trimmed.lines().count() > 1
 }
 
 /// End index (exclusive) for the block segment starting at `start`.
@@ -34,6 +53,9 @@ pub fn segment_end(lines: &[MarkdownLine], start: usize) -> usize {
         }
         return index;
     }
+    if line.kind == MarkdownLineKind::Table {
+        return start + 1;
+    }
     start + 1
 }
 
@@ -45,9 +67,6 @@ pub fn segment_gap_after(lines: &[MarkdownLine], start: usize, end: usize) -> u1
     let line = &lines[start];
     if line.is_blank() {
         return 0;
-    }
-    if line.code_background || line.kind == MarkdownLineKind::Code {
-        return 1;
     }
     block_gap_after(lines, end.saturating_sub(1))
 }
@@ -68,22 +87,65 @@ pub fn block_gap_after(lines: &[MarkdownLine], index: usize) -> u16 {
             if next.kind == MarkdownLineKind::ListItem {
                 0
             } else {
-                1
+                BLOCK_GAP_ROWS
             }
         }
         MarkdownLineKind::Code => {
             if next.code_background || next.kind == MarkdownLineKind::Code {
                 0
             } else {
-                1
+                BLOCK_GAP_ROWS
             }
         }
+        MarkdownLineKind::Table => BLOCK_GAP_ROWS,
         _ => {
             if next.kind == MarkdownLineKind::Continuation {
                 0
             } else {
-                1
+                BLOCK_GAP_ROWS
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::markdown::parse_markdown_document;
+
+    #[test]
+    fn segment_gap_after_last_code_block_is_zero() {
+        let doc = parse_markdown_document("```\ncode\n```");
+        let end = segment_end(&doc.lines, 0);
+        assert_eq!(segment_gap_after(&doc.lines, 0, end), 0);
+    }
+
+    #[test]
+    fn segment_gap_after_code_before_paragraph_is_one() {
+        let doc = parse_markdown_document("```\ncode\n```\n\nAfter");
+        let code_end = segment_end(&doc.lines, 0);
+        assert_eq!(segment_gap_after(&doc.lines, 0, code_end), BLOCK_GAP_ROWS);
+    }
+
+    #[test]
+    fn code_block_uses_card_background_only_for_multiple_lines() {
+        assert!(!code_block_uses_card_background("let x = 1;\n"));
+        assert!(!code_block_uses_card_background(""));
+        assert!(code_block_uses_card_background("a\nb\n"));
+    }
+
+    #[test]
+    fn adjacent_code_blocks_are_separate_segments_with_one_row_between() {
+        let doc = parse_markdown_document("```\na\n```\n```\nb\n```");
+        let first_end = segment_end(&doc.lines, 0);
+        assert_eq!(first_end, 1, "first code block should not merge with the next");
+        assert!(
+            doc.lines.get(first_end).is_some_and(|line| line.is_blank()),
+            "parser should insert a single blank row between adjacent fences"
+        );
+        assert_eq!(segment_gap_after(&doc.lines, 0, first_end), 0);
+        let second_start = first_end + 1;
+        let second_end = segment_end(&doc.lines, second_start);
+        assert_eq!(second_end, doc.lines.len());
     }
 }

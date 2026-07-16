@@ -13,7 +13,14 @@ pub enum MarkdownLineKind {
     Code,
     Blockquote,
     Rule,
+    Table,
     Blank,
+}
+
+/// Parsed GFM table rows (formatted at render/layout time).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MarkdownTable {
+    pub rows: Vec<Vec<String>>,
 }
 
 /// One styled text run inside a line.
@@ -41,8 +48,10 @@ impl StyledSpan {
 pub struct MarkdownLine {
     pub kind: MarkdownLineKind,
     pub spans: Vec<StyledSpan>,
-    /// Code blocks use a subtle tinted background in the transcript.
+    /// Multi-line fenced code blocks use a subtle tinted background card.
     pub code_background: bool,
+    /// Matrix for [`MarkdownLineKind::Table`] lines.
+    pub table: Option<MarkdownTable>,
 }
 
 impl MarkdownLine {
@@ -51,11 +60,18 @@ impl MarkdownLine {
             kind: MarkdownLineKind::Blank,
             spans: Vec::new(),
             code_background: false,
+            table: None,
         }
     }
 
     pub fn is_blank(&self) -> bool {
-        self.kind == MarkdownLineKind::Blank || self.spans.iter().all(|span| span.text.trim().is_empty())
+        if self.kind == MarkdownLineKind::Blank {
+            return true;
+        }
+        if matches!(self.kind, MarkdownLineKind::Table) && self.table.is_some() {
+            return false;
+        }
+        self.spans.iter().all(|span| span.text.trim().is_empty())
     }
 }
 

@@ -31,7 +31,7 @@ impl MarkdownTheme {
             emphasis: theme.text_secondary,
             inline_code: theme.success,
             link: theme.accent,
-            code_bg: theme.selection_bg,
+            code_bg: theme.code_block_bg,
             code_inset: theme.container_inset(),
             blockquote: theme.text_muted,
             list_marker: theme.accent_soft,
@@ -42,5 +42,18 @@ impl MarkdownTheme {
 impl Default for MarkdownTheme {
     fn default() -> Self {
         Self::from_ui_theme(UiTheme::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn code_bg_uses_dedicated_block_surface() {
+        let ui = UiTheme::default();
+        let md = MarkdownTheme::from_ui_theme(ui);
+        assert_eq!(md.code_bg, ui.code_block_bg);
+        assert_ne!(md.code_bg, ui.selection_bg);
     }
 }

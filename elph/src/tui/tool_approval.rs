@@ -29,16 +29,17 @@ impl PendingToolApproval {
     }
 }
 
+/// Footer hint for the tool-permission dialog (keyboard shortcuts live here, not on each row).
+pub fn tool_approval_footer_hint() -> String {
+    "↑↓ move · Enter confirm · y once · a session · n/Esc deny".to_string()
+}
+
 /// Select-list rows for the tool-permission dialog.
 pub fn tool_approval_select_options() -> Vec<SelectOption> {
-    [
-        ("Allow once", "y/1 · this call only"),
-        ("Allow session", "a/2 · rest of session"),
-        ("Deny", "n/3 · skip tool call"),
-    ]
-    .into_iter()
-    .map(|(name, detail)| SelectOption::new(name, detail))
-    .collect()
+    [("Allow once", ""), ("Allow session", ""), ("Deny", "")]
+        .into_iter()
+        .map(|(name, detail)| SelectOption::new(name, detail))
+        .collect()
 }
 
 /// Map y/a/n and digit keys to tool-approval list indices (0=allow once, 1=session, 2=deny).
@@ -97,11 +98,20 @@ mod tests {
     }
 
     #[test]
-    fn select_options_use_compact_hints() {
+    fn select_options_are_label_only() {
         let options = tool_approval_select_options();
         assert_eq!(options.len(), TOOL_APPROVAL_OPTION_COUNT);
-        assert!(options[0].description.contains("y/1"));
-        assert!(options[1].description.contains("a/2"));
-        assert!(options[2].description.contains("n/3"));
+        assert_eq!(options[0].name, "Allow once");
+        assert_eq!(options[1].name, "Allow session");
+        assert_eq!(options[2].name, "Deny");
+        assert!(options.iter().all(|opt| opt.description.is_empty()));
+    }
+
+    #[test]
+    fn footer_hint_lists_shortcuts_once() {
+        let hint = tool_approval_footer_hint();
+        assert!(hint.contains("y once"));
+        assert!(hint.contains("a session"));
+        assert!(hint.contains("n/Esc deny"));
     }
 }

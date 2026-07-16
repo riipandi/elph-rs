@@ -331,7 +331,7 @@ pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<An
                 list_row_name_style(theme, selected_row)
             };
             let desc_color = if compact {
-                dialog_option_desc_style(theme)
+                dialog_option_desc_style(theme, selected_row)
             } else {
                 list_row_desc_style(theme, selected_row)
             };

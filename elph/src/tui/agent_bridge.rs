@@ -3,6 +3,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::agent::format_skill_conflict_notice;
 use crate::agent::goal_slash::handle_goal_slash;
@@ -11,6 +12,7 @@ use crate::extensions::ExtensionHost;
 use crate::platform::Paths;
 
 use super::activity::normalize_agent_status;
+use super::chrome::format_elapsed_secs;
 use super::transcript::markdown::AssistantMarkdownBuffer;
 use super::transcript::{TranscriptMessage, TranscriptStyle};
 
@@ -146,6 +148,10 @@ impl PromptQueue {
 /// Applies streaming agent events to transcript messages.
 pub struct TranscriptEventApplier {
     live_tool_indexes: HashMap<String, usize>,
+    tool_started_at: HashMap<String, Instant>,
+    thinking_started_at: Option<Instant>,
+    assistant_started_at: Option<Instant>,
+    meta_started_at: Option<Instant>,
     show_thinking: bool,
 }
 
@@ -153,8 +159,55 @@ impl TranscriptEventApplier {
     pub fn new(show_thinking: bool) -> Self {
         Self {
             live_tool_indexes: HashMap::new(),
+            tool_started_at: HashMap::new(),
+            thinking_started_at: None,
+            assistant_started_at: None,
+            meta_started_at: None,
             show_thinking,
         }
+    }
+
+    fn finalize_thinking(&mut self, messages: &mut [TranscriptMessage]) {
+        let Some(started) = self.thinking_started_at.take() else {
+            return;
+        };
+        if let Some(index) = last_message_index(messages, TranscriptStyle::Thinking) {
+            messages[index].duration_secs = Some(format_elapsed_secs(started));
+        }
+    }
+
+    fn finalize_assistant(&mut self, messages: &mut [TranscriptMessage]) {
+        let Some(started) = self.assistant_started_at.take() else {
+            return;
+        };
+        if let Some(index) = last_message_index(messages, TranscriptStyle::Assistant) {
+            messages[index].duration_secs = Some(format_elapsed_secs(started));
+        }
+    }
+
+    fn finalize_meta(&mut self, messages: &mut [TranscriptMessage]) {
+        let Some(started) = self.meta_started_at.take() else {
+            return;
+        };
+        if let Some(index) = last_message_index(messages, TranscriptStyle::Meta) {
+            messages[index].duration_secs = Some(format_elapsed_secs(started));
+        }
+    }
+
+    fn begin_thinking(&mut self, messages: &mut [TranscriptMessage]) {
+        self.finalize_meta(messages);
+        self.thinking_started_at = Some(Instant::now());
+    }
+
+    fn begin_assistant(&mut self, messages: &mut [TranscriptMessage]) {
+        self.finalize_thinking(messages);
+        self.finalize_meta(messages);
+        self.assistant_started_at = Some(Instant::now());
+    }
+
+    fn begin_meta(&mut self, messages: &mut [TranscriptMessage]) {
+        self.finalize_meta(messages);
+        self.meta_started_at = Some(Instant::now());
     }
 
     /// Returns `true` when `messages` was mutated.
@@ -165,7 +218,7 @@ impl TranscriptEventApplier {
             AgentUiEvent::ToolStart { id, name, args_summary } => self.start_tool(messages, id, name, args_summary),
             AgentUiEvent::ToolUpdate { id, output } => self.update_tool(messages, &id, &output),
             AgentUiEvent::ToolEnd { id, is_error, output } => self.end_tool(messages, &id, is_error, &output),
-            AgentUiEvent::RunCompleted { .. } => self.finalize(messages),
+            AgentUiEvent::RunCompleted { .. } => self.finalize_turn(messages),
             AgentUiEvent::SubagentStatus {
                 agent_id,
                 agent_path,
@@ -202,6 +255,7 @@ impl TranscriptEventApplier {
             last.content = line.to_string();
             return true;
         }
+        self.begin_meta(messages);
         messages.push(TranscriptMessage::text(line, TranscriptStyle::Meta));
         true
     }
@@ -221,6 +275,7 @@ impl TranscriptEventApplier {
         {
             trim_flush_trailing_ws(last);
         }
+        self.begin_assistant(messages);
         let mut message = TranscriptMessage::text(delta, TranscriptStyle::Assistant);
         message.markdown = Some(AssistantMarkdownBuffer::new());
         messages.push(message);
@@ -237,6 +292,7 @@ impl TranscriptEventApplier {
             last.content.push_str(delta);
             return true;
         }
+        self.begin_thinking(messages);
         messages.push(TranscriptMessage::text(delta, TranscriptStyle::Thinking));
         true
     }
@@ -248,8 +304,12 @@ impl TranscriptEventApplier {
         name: String,
         args_summary: String,
     ) -> bool {
+        self.finalize_thinking(messages);
+        self.finalize_assistant(messages);
+        self.finalize_meta(messages);
         let index = messages.len();
-        self.live_tool_indexes.insert(id, index);
+        self.live_tool_indexes.insert(id.clone(), index);
+        self.tool_started_at.insert(id, Instant::now());
         messages.push(TranscriptMessage::tool_call(name, args_summary, TranscriptStyle::ToolRunning));
         true
     }
@@ -286,13 +346,19 @@ impl TranscriptEventApplier {
             } else {
                 TranscriptStyle::ToolSuccess
             };
+            if let Some(started) = self.tool_started_at.remove(id) {
+                message.duration_secs = Some(format_elapsed_secs(started));
+            }
             return true;
         }
         false
     }
 
-    fn finalize(&mut self, messages: &mut [TranscriptMessage]) -> bool {
+    fn finalize_turn(&mut self, messages: &mut [TranscriptMessage]) -> bool {
+        self.finalize_assistant(messages);
+        self.finalize_meta(messages);
         self.live_tool_indexes.clear();
+        self.tool_started_at.clear();
         let Some(last) = messages.last_mut() else {
             return false;
         };
@@ -308,6 +374,10 @@ impl TranscriptEventApplier {
         }
         true
     }
+}
+
+fn last_message_index(messages: &[TranscriptMessage], style: TranscriptStyle) -> Option<usize> {
+    messages.iter().rposition(|message| message.style == style)
 }
 
 fn trim_flush_trailing_ws(message: &mut TranscriptMessage) {
@@ -430,6 +500,51 @@ mod tests {
         let mut applier = TranscriptEventApplier::new(false);
         assert!(!applier.apply(&mut messages, AgentUiEvent::Status("Thinking…".into())));
         assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn tool_end_records_duration_secs() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(false);
+        applier.apply(
+            &mut messages,
+            AgentUiEvent::ToolStart {
+                id: "t-dur".into(),
+                name: "grep".into(),
+                args_summary: "pattern".into(),
+            },
+        );
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        applier.apply(
+            &mut messages,
+            AgentUiEvent::ToolEnd {
+                id: "t-dur".into(),
+                is_error: false,
+                output: String::new(),
+            },
+        );
+        assert!(messages[0].duration_secs.is_some_and(|secs| secs > 0.0));
+    }
+
+    #[test]
+    fn thinking_records_duration_when_response_starts() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(true);
+        applier.apply(&mut messages, AgentUiEvent::ThinkingDelta("plan".into()));
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        applier.apply(&mut messages, AgentUiEvent::TextDelta("Hi".into()));
+        assert!(messages[0].duration_secs.is_some_and(|secs| secs > 0.0));
+        assert!(messages[1].duration_secs.is_none());
+    }
+
+    #[test]
+    fn assistant_records_duration_on_run_completed() {
+        let mut messages = Vec::new();
+        let mut applier = TranscriptEventApplier::new(false);
+        applier.apply(&mut messages, AgentUiEvent::TextDelta("Done".into()));
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        applier.apply(&mut messages, AgentUiEvent::RunCompleted { elapsed_secs: 1.0 });
+        assert!(messages[0].duration_secs.is_some_and(|secs| secs > 0.0));
     }
 
     #[test]

@@ -68,6 +68,14 @@ pub struct UserQuestionStep {
     pub allow_custom: bool,
     pub custom_label: String,
     pub default: Option<String>,
+    /// When false, the user may skip this step with Esc (empty answer).
+    pub required: bool,
+    /// Minimum length for free-text answers (ignored for select / confirm steps).
+    pub min_length: Option<usize>,
+    /// Optional regex pattern for free-text answers.
+    pub pattern: Option<String>,
+    /// Short label shown in the multi-step header tab row.
+    pub tab_label: Option<String>,
 }
 
 /// Ask-user session presented by the `ask_user_question` tool.
@@ -77,8 +85,10 @@ pub struct UserQuestionRequest {
     pub response_tx: tokio::sync::oneshot::Sender<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UserQuestionOption {
     pub value: String,
     pub label: String,
+    /// Optional dimmed detail shown below the label in the question dialog.
+    pub hint: Option<String>,
 }

@@ -10,11 +10,12 @@ mod parse;
 mod parser_config;
 mod render;
 mod syntax;
+mod table;
 mod theme;
 
 pub use layout::{markdown_document_row_count, markdown_source_row_count};
 pub use linkify::spans_with_links;
-pub use model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, StyledSpan};
+pub use model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, MarkdownTable, StyledSpan};
 pub use parse::{parse_markdown_document, parse_markdown_document_with_theme};
 pub use parser_config::has_open_container_at as markdown_has_open_container_at;
 pub use render::{plain_text_document, render_linkified_plain_text, render_markdown_block, render_markdown_children};
@@ -57,7 +58,7 @@ mod tests {
 
     #[test]
     fn parses_inline_styles_and_code_fence() {
-        let doc = parse_markdown_document("**Hi** and `x`\n\n```rust\nfn main() {}\n```");
+        let doc = parse_markdown_document("**Hi** and `x`\n\n```rust\nfn main() {}\nlet x = 1;\n```");
         assert!(doc.lines.len() >= 2);
         assert!(doc.lines.iter().any(|line| {
             line.spans
@@ -65,6 +66,13 @@ mod tests {
                 .any(|span| span.weight == iocraft::prelude::Weight::Bold && span.text.contains("Hi"))
         }));
         assert!(doc.lines.iter().any(|line| line.code_background));
+        let single = parse_markdown_document("```rust\nfn main() {}\n```");
+        let code = single
+            .lines
+            .iter()
+            .find(|line| line.kind == MarkdownLineKind::Code)
+            .expect("single-line fence");
+        assert!(!code.code_background);
     }
 
     #[test]

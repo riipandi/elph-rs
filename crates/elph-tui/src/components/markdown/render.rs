@@ -2,9 +2,10 @@
 
 use iocraft::prelude::*;
 
-use super::blocks::{code_content_width, segment_end, segment_gap_after};
+use super::blocks::{CODE_BLOCK_INSET_V, code_content_width, segment_end, segment_gap_after};
 use super::linkify::spans_with_links;
 use super::model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, StyledSpan};
+use super::table::format_markdown_table;
 use super::theme::MarkdownTheme;
 
 fn span_to_mixed(span: &StyledSpan) -> MixedTextContent {
@@ -38,6 +39,29 @@ fn render_code_block(
     theme: &MarkdownTheme,
     margin_bottom: u16,
 ) -> AnyElement<'static> {
+    let use_card = lines.iter().any(|line| line.code_background);
+    if !use_card {
+        if lines.len() == 1 {
+            return render_mixed_line(&lines[0], width, TextWrap::Wrap, margin_bottom);
+        }
+        let row_elements: Vec<AnyElement<'static>> = lines
+            .iter()
+            .map(|line| render_mixed_line(line, width, TextWrap::Wrap, 0))
+            .collect();
+        return element! {
+            View(
+                width: width,
+                margin_bottom: margin_bottom,
+                flex_direction: FlexDirection::Column,
+                gap: 0,
+                flex_shrink: 0f32,
+            ) {
+                #(row_elements)
+            }
+        }
+        .into();
+    }
+
     let inner_width = code_content_width(width);
     let row_elements: Vec<AnyElement<'static>> = lines
         .iter()
@@ -58,12 +82,48 @@ fn render_code_block(
             width: width,
             margin_bottom: margin_bottom,
             background_color: theme.code_bg,
-            padding: theme.code_inset,
+            padding_top: CODE_BLOCK_INSET_V,
+            padding_bottom: CODE_BLOCK_INSET_V,
+            padding_left: theme.code_inset,
+            padding_right: theme.code_inset,
             flex_direction: FlexDirection::Column,
             gap: 0,
             flex_shrink: 0f32,
         ) {
             #(row_elements)
+        }
+    }
+    .into()
+}
+
+fn render_table_block(
+    line: &MarkdownLine,
+    width: u16,
+    theme: &MarkdownTheme,
+    margin_bottom: u16,
+) -> AnyElement<'static> {
+    let table = line.table.as_ref().expect("table markdown line must carry table data");
+    let rows = format_markdown_table(table, width);
+    let items: Vec<AnyElement<'static>> = rows
+        .iter()
+        .map(|row| {
+            element! {
+                View(width: width, flex_shrink: 0f32) {
+                    Text(content: row.as_str(), color: theme.body, wrap: TextWrap::NoWrap)
+                }
+            }
+            .into()
+        })
+        .collect();
+    element! {
+        View(
+            width: width,
+            margin_bottom: margin_bottom,
+            flex_direction: FlexDirection::Column,
+            gap: 0,
+            flex_shrink: 0f32,
+        ) {
+            #(items)
         }
     }
     .into()
@@ -125,6 +185,12 @@ pub fn render_markdown_children_with_theme(
 
         if line.kind == MarkdownLineKind::ListItem {
             children.push(render_list_block(&lines[index..end], width, gap));
+            index = end;
+            continue;
+        }
+
+        if line.kind == MarkdownLineKind::Table {
+            children.push(render_table_block(line, width, theme, gap));
             index = end;
             continue;
         }
@@ -201,6 +267,7 @@ pub fn plain_text_document(text: &str, foreground: Color) -> MarkdownDocument {
                 kind,
                 spans: spans_with_links(line, foreground, Weight::Normal, false, theme.link),
                 code_background: false,
+                table: None,
             });
         }
     }
@@ -209,6 +276,7 @@ pub fn plain_text_document(text: &str, foreground: Color) -> MarkdownDocument {
             kind: MarkdownLineKind::Paragraph,
             spans: spans_with_links(text, foreground, Weight::Normal, false, theme.link),
             code_background: false,
+            table: None,
         });
     }
     MarkdownDocument { lines }.normalize()
@@ -251,9 +319,9 @@ mod tests {
     #[test]
     fn code_block_wraps_long_lines() {
         let long = "x".repeat(80);
-        let doc = parse_markdown_document(&format!("```\n{long}\n```"));
+        let doc = parse_markdown_document(&format!("```\n{long}\nsecond\n```"));
         let rows = markdown_document_row_count(&doc, 40);
-        assert!(rows >= 4, "long code should wrap to multiple rows, got {rows}");
+        assert!(rows >= 3, "multi-line code should wrap to multiple rows, got {rows}");
     }
 
     #[test]
@@ -274,6 +342,16 @@ mod tests {
     #[test]
     fn streaming_tail_parses_unclosed_fence_as_code() {
         let doc = streaming_tail_document("```rust\nlet x = 1;");
-        assert!(doc.lines.iter().any(|line| line.code_background));
+        assert!(doc.lines.iter().any(|line| line.kind == MarkdownLineKind::Code));
+        assert!(doc.lines.iter().all(|line| !line.code_background));
+    }
+
+    #[test]
+    fn single_line_code_block_renders_without_card_background() {
+        let doc = parse_markdown_document("```\nhello\n```");
+        let block = render_markdown_block(&doc, 40);
+        let rendered = element! { View(width: 40) { #(vec![block]) } }.to_string();
+        assert!(rendered.contains("hello"));
+        assert!(!doc.lines[0].code_background);
     }
 }

@@ -92,4 +92,18 @@ mod tests {
         let events: Vec<_> = offset_events("~~strike~~").map(|(e, _)| e).collect();
         assert!(events.iter().any(|e| matches!(e, Event::Start(Tag::Strikethrough))));
     }
+
+    #[test]
+    fn gfm_table_emits_table_tags() {
+        let source = "| Name | Status |\n| --- | --- |\n| Ada | ✅ |";
+        let events: Vec<_> = offset_events(source).map(|(e, _)| e).collect();
+        assert!(
+            events.iter().any(|e| matches!(e, Event::Start(Tag::Table(_)))),
+            "events: {events:?}"
+        );
+        assert!(
+            events.iter().any(|e| matches!(e, Event::Text(_))),
+            "table should include text cells"
+        );
+    }
 }

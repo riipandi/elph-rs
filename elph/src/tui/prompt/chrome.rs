@@ -29,6 +29,7 @@ pub struct PromptChromeProps {
     pub slash_palette_selected: Option<State<usize>>,
     pub on_submit: HandlerMut<'static, String>,
     pub on_escape: HandlerMut<'static, ()>,
+    pub blocked_hint: Option<String>,
 }
 
 #[component]
@@ -71,6 +72,7 @@ pub fn PromptChrome(props: &mut PromptChromeProps) -> impl Into<AnyElement<'stat
                     slash_palette_active: props.slash_palette_active,
                     force_palette_sync: props.force_palette_sync,
                     force_clear: props.force_editor_clear,
+                    blocked_hint: props.blocked_hint.clone(),
                     on_submit: props.on_submit.take(),
                     on_escape: if props.slash_palette_snapshot.visible {
                         HandlerMut::default()

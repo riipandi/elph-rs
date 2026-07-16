@@ -66,6 +66,34 @@ pub struct TextareaLayout {
     pub show_scrollbar: bool,
 }
 
+fn layout_from_wrapped(
+    wrapped: &WrappedTextLayout,
+    text: &str,
+    cursor: usize,
+    outer_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> TextareaLayout {
+    let content_rows = wrapped.row_count();
+    let visible_rows = match max_height {
+        Some(_) => content_rows,
+        None => visible_row_count_from_layout(wrapped, text, cursor),
+    };
+    let viewport_height = compute_viewport_height(visible_rows, min_height, max_height);
+    let show_scrollbar = max_height.is_some() && content_rows > viewport_height;
+    let input_width = if show_scrollbar {
+        outer_width.saturating_sub(1).max(1)
+    } else {
+        outer_width.max(1)
+    };
+    TextareaLayout {
+        input_width,
+        content_rows,
+        viewport_height,
+        show_scrollbar,
+    }
+}
+
 /// Viewport metrics from an existing wrap pass (cursor only affects growth-without-cap mode).
 pub fn layout_metrics_from_wrapped(
     wrapped: &WrappedTextLayout,
@@ -75,21 +103,7 @@ pub fn layout_metrics_from_wrapped(
     min_height: u16,
     max_height: Option<u16>,
 ) -> TextareaLayout {
-    let scrollbar_reserved = max_height.is_some();
-    let input_width = outer_width.saturating_sub(if scrollbar_reserved { 1 } else { 0 });
-    let content_rows = wrapped.row_count();
-    let visible_rows = match max_height {
-        Some(_) => content_rows,
-        None => visible_row_count_from_layout(wrapped, text, cursor),
-    };
-    let viewport_height = compute_viewport_height(visible_rows, min_height, max_height);
-    let show_scrollbar = scrollbar_reserved;
-    TextareaLayout {
-        input_width,
-        content_rows,
-        viewport_height,
-        show_scrollbar,
-    }
+    layout_from_wrapped(wrapped, text, cursor, outer_width, min_height, max_height)
 }
 
 /// Layout metrics plus a single shared wrap pass for cursor/scroll rendering.
@@ -100,11 +114,15 @@ pub fn layout_textarea_measured(
     min_height: u16,
     max_height: Option<u16>,
 ) -> (TextareaLayout, WrappedTextLayout) {
-    let scrollbar_reserved = max_height.is_some();
-    let input_width = outer_width.saturating_sub(if scrollbar_reserved { 1 } else { 0 });
-    let wrapped = WrappedTextLayout::new_for_overlay_editor(text, input_width);
-    let layout = layout_metrics_from_wrapped(&wrapped, text, cursor, outer_width, min_height, max_height);
-    (layout, wrapped)
+    let wrapped_full = WrappedTextLayout::new_for_overlay_editor(text, outer_width.max(1));
+    let layout_probe = layout_from_wrapped(&wrapped_full, text, cursor, outer_width, min_height, max_height);
+    if layout_probe.show_scrollbar {
+        let wrapped = WrappedTextLayout::new_for_overlay_editor(text, layout_probe.input_width);
+        let layout = layout_from_wrapped(&wrapped, text, cursor, outer_width, min_height, max_height);
+        (layout, wrapped)
+    } else {
+        (layout_probe, wrapped_full)
+    }
 }
 
 pub fn layout_textarea(

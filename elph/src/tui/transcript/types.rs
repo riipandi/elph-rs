@@ -29,6 +29,8 @@ pub struct TranscriptMessage {
     pub style: TranscriptStyle,
     pub tool: Option<ToolCardDetail>,
     pub markdown: Option<AssistantMarkdownBuffer>,
+    /// Wall time spent in this process segment (thinking, tool, response, subagent status, …).
+    pub duration_secs: Option<f64>,
 }
 
 impl TranscriptMessage {
@@ -38,6 +40,7 @@ impl TranscriptMessage {
             style,
             tool: None,
             markdown: None,
+            duration_secs: None,
         }
     }
 
@@ -51,13 +54,16 @@ impl TranscriptMessage {
                 output: String::new(),
             }),
             markdown: None,
+            duration_secs: None,
         }
     }
 
     /// Flattened text for scroll row layout (matches rendered line breaks).
     pub fn layout_text(&self) -> String {
         if let Some(tool) = &self.tool {
-            tool.layout_text(self.style)
+            tool.layout_text(self.style, self.duration_secs)
+        } else if let Some(secs) = self.duration_secs {
+            format!("{}{}", self.content, crate::tui::activity::format_duration_label_suffix(secs))
         } else {
             self.content.clone()
         }
@@ -65,8 +71,12 @@ impl TranscriptMessage {
 }
 
 impl ToolCardDetail {
-    pub fn layout_text(&self, style: TranscriptStyle) -> String {
-        let mut lines = vec![format!("{} {}", tool_status_marker(style), self.name)];
+    pub fn layout_text(&self, style: TranscriptStyle, duration_secs: Option<f64>) -> String {
+        let mut header = format!("{} {}", tool_status_marker(style), self.name);
+        if let Some(secs) = duration_secs {
+            header.push_str(&crate::tui::activity::format_duration_label_suffix(secs));
+        }
+        let mut lines = vec![header];
         let args = if self.name == "ask_user_question" {
             format_ask_user_tool_layout_text(&self.args_summary)
         } else {
@@ -312,13 +322,12 @@ mod tests {
 
     #[test]
     fn tool_card_layout_includes_header_args_and_output() {
-        let tool = ToolCardDetail {
-            name: "read_file".to_string(),
-            args_summary: r#"{"path":"main.rs"}"#.to_string(),
-            output: "fn main() {}".to_string(),
-        };
-        let layout = tool.layout_text(TranscriptStyle::ToolSuccess);
-        assert!(layout.starts_with("● read_file"));
+        let mut message =
+            TranscriptMessage::tool_call("read_file", r#"{"path":"main.rs"}"#, TranscriptStyle::ToolSuccess);
+        message.tool.as_mut().expect("tool detail").output = "fn main() {}".to_string();
+        message.duration_secs = Some(1.2);
+        let layout = message.layout_text();
+        assert!(layout.starts_with("● read_file · 1.2s"));
         assert!(layout.contains("main.rs"));
         assert!(layout.contains("fn main()"));
     }

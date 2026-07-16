@@ -27,6 +27,8 @@ pub struct EditorProps {
     pub force_clear: Option<Ref<bool>>,
     pub on_submit: HandlerMut<'static, String>,
     pub on_escape: HandlerMut<'static, ()>,
+    /// Shown centered when the editor is blocked by an inline dialog.
+    pub blocked_hint: Option<String>,
 }
 
 #[component]
@@ -89,6 +91,31 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
                     content: format!(" {} ", props.agent_mode.footer_label()),
                 )
             }
+            #(props
+                .blocked_hint
+                .as_ref()
+                .filter(|text| !text.is_empty())
+                .map(|hint| -> AnyElement<'static> {
+                    element! {
+                        View(
+                            position: Position::Absolute,
+                            left: 0,
+                            top: 0,
+                            width: inner_width,
+                            height: 1,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            background_color: Color::Reset,
+                        ) {
+                            Text(
+                                content: hint.clone(),
+                                color: EDITOR_TEXT_DIMMED,
+                                wrap: TextWrap::NoWrap,
+                            )
+                        }
+                    }
+                    .into()
+                }))
         }
     }
 }

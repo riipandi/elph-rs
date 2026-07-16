@@ -39,6 +39,7 @@ two-face.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 url.workspace = true
+tabled = "0.21.0"
 
 [dev-dependencies]
 futures.workspace = true

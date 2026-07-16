@@ -21,6 +21,7 @@ mod tool_params;
 mod transcript;
 mod user_question;
 mod user_question_bar;
+mod user_question_option_list;
 
 use std::sync::{Arc, Mutex};
 

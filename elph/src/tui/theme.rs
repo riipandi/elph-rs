@@ -17,8 +17,8 @@ pub const SCROLLBAR_THUMB: Color = Color::Rgb { r: 88, g: 88, b: 88 };
 /// Pi `text` — primary body foreground (`#d4d4d4`).
 pub const TEXT_FG: Color = Color::Rgb { r: 212, g: 212, b: 212 };
 
-/// Pi `userMessageBg` (`#343541`) — all user-submitted transcript bubbles (chat, slash, skill).
-pub const BUBBLE_BG: Color = Color::Rgb { r: 52, g: 53, b: 65 };
+/// Pi `userMessageBg` lineage — darker warm gray for user-submitted transcript bubbles.
+pub const BUBBLE_BG: Color = Color::Rgb { r: 34, g: 33, b: 42 };
 
 /// Alias for [`BUBBLE_BG`]; every user-originated prompt card uses this fill.
 pub const USER_INPUT_BG: Color = BUBBLE_BG;
@@ -65,4 +65,19 @@ pub const TRANSCRIPT_BORDER_FOCUSED: Color = Color::Rgb { r: 120, g: 120, b: 120
 
 pub fn rgb_color((r, g, b): (u8, u8, u8)) -> Color {
     Color::Rgb { r, g, b }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_input_bg_is_darker_than_legacy_bubble() {
+        let lum = |c: Color| match c {
+            Color::Rgb { r, g, b } => (r as u32 + g as u32 + b as u32) / 3,
+            _ => 128,
+        };
+        let legacy = Color::Rgb { r: 52, g: 53, b: 65 };
+        assert!(lum(USER_INPUT_BG) < lum(legacy));
+    }
 }

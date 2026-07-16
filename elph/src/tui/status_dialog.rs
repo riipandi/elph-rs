@@ -1,12 +1,164 @@
 //! Tool-approval dialog below the status row (ask-user prompts use [`super::user_question_bar`] above).
 
-use elph_tui::components::{SelectList, UiTheme, dialog_max_content_height, dialog_select_body_plan};
+use elph_tui::components::{SELECT_LIST_AUTO_HEIGHT, SelectList, UiTheme, select_list_total_rows};
 use iocraft::prelude::*;
 
 use crate::tui::chrome::StatusRow;
-use crate::tui::inline_dialog::{InlineDialogShell, inline_body_width};
-use crate::tui::tool_approval::{PendingToolApproval, tool_approval_select_options};
-use crate::tui::tool_params::{ToolParamsView, format_tool_params_display, parse_tool_params};
+use crate::tui::inline_dialog::{InlineDialogShell, OPTIONS_LIST_TOP_GAP, inline_body_width};
+use crate::tui::tool_approval::{PendingToolApproval, tool_approval_footer_hint, tool_approval_select_options};
+use crate::tui::tool_params::{format_tool_approval_summary, tool_approval_summary_row_count_for_summary};
+
+/// Max rows shown for the approval summary before the list.
+const TOOL_PARAMS_MAX_VIEWPORT: u16 = 2;
+
+/// Minimum rows reserved for parameters when space is tight.
+const TOOL_PARAMS_MIN_VIEWPORT: u16 = 2;
+
+/// Layout budget for the tool-approval inline dialog body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ToolApprovalLayoutPlan {
+    args_viewport: Option<u16>,
+    list_height: u16,
+}
+
+/// Max inner body rows for the inline approval dialog (avoids double-counting shell chrome).
+fn tool_approval_max_body_rows(screen_height: u16) -> u16 {
+    let prompt_floor = (screen_height / 4).clamp(4, 12).saturating_add(1);
+    let reserved = 1u16
+        .saturating_add(4)
+        .saturating_add(prompt_floor)
+        .saturating_add(3)
+        .saturating_add(1);
+    screen_height.saturating_sub(reserved).max(4)
+}
+
+fn tool_approval_layout_plan(
+    _screen_width: u16,
+    screen_height: u16,
+    summary: &str,
+    body_width: u16,
+) -> ToolApprovalLayoutPlan {
+    let theme = UiTheme::default();
+    let max_body = tool_approval_max_body_rows(screen_height);
+    let options = tool_approval_select_options();
+    let list_rows = select_list_total_rows(&options, false, body_width, theme, true) as u16;
+    let has_args = !summary.is_empty();
+    let args_rows = if has_args {
+        tool_approval_summary_row_count_for_summary(summary, body_width)
+    } else {
+        0
+    };
+    let args_block = if has_args { args_rows } else { 0 };
+    let natural_body = args_block
+        .saturating_add(OPTIONS_LIST_TOP_GAP)
+        .saturating_add(list_rows);
+
+    if natural_body <= max_body {
+        return ToolApprovalLayoutPlan {
+            args_viewport: None,
+            list_height: SELECT_LIST_AUTO_HEIGHT,
+        };
+    }
+
+    let mut list_height = list_rows.min(max_body).max(4);
+    let mut args_cap = max_body
+        .saturating_sub(list_height)
+        .saturating_sub(OPTIONS_LIST_TOP_GAP);
+
+    let args_viewport = if !has_args || args_rows <= args_cap {
+        None
+    } else {
+        let min_args = TOOL_PARAMS_MIN_VIEWPORT.min(args_rows).min(TOOL_PARAMS_MAX_VIEWPORT);
+        if list_height
+            .saturating_add(OPTIONS_LIST_TOP_GAP)
+            .saturating_add(min_args)
+            > max_body
+        {
+            list_height = max_body
+                .saturating_sub(OPTIONS_LIST_TOP_GAP)
+                .saturating_sub(min_args)
+                .max(4)
+                .min(list_rows);
+            args_cap = max_body
+                .saturating_sub(list_height)
+                .saturating_sub(OPTIONS_LIST_TOP_GAP);
+        }
+        Some(args_cap.clamp(1, TOOL_PARAMS_MAX_VIEWPORT))
+    };
+
+    ToolApprovalLayoutPlan {
+        args_viewport,
+        list_height,
+    }
+}
+
+fn render_tool_approval_dialog(
+    props: &mut StatusZoneProps,
+    tool_name: &str,
+    args_summary: &str,
+) -> AnyElement<'static> {
+    let theme = UiTheme::default();
+    let body_width = inline_body_width(props.screen_width);
+    let summary = format_tool_approval_summary(tool_name, args_summary);
+    let plan = tool_approval_layout_plan(props.screen_width, props.screen_height, &summary, body_width);
+    let options = tool_approval_select_options();
+    let has_args = !summary.is_empty();
+
+    element! {
+        InlineDialogShell(
+            screen_width: props.screen_width,
+            title: format!("Allow tool: {tool_name}"),
+            has_focus: props.approval_has_focus,
+            footer_hint: Some(tool_approval_footer_hint()),
+        ) {
+            View(
+                width: body_width,
+                flex_direction: FlexDirection::Column,
+                gap: 0,
+                flex_shrink: 0f32,
+            ) {
+                #(if has_args {
+                    let summary_viewport =
+                        plan.args_viewport
+                            .unwrap_or(tool_approval_summary_row_count_for_summary(&summary, body_width));
+                    Some(element! {
+                        View(
+                            width: body_width,
+                            height: summary_viewport,
+                            overflow: Overflow::Hidden,
+                            flex_shrink: 0f32,
+                        ) {
+                            Text(
+                                content: summary,
+                                color: theme.text_secondary,
+                                wrap: TextWrap::Wrap,
+                            )
+                        }
+                    })
+                } else {
+                    None
+                })
+                View(
+                    width: body_width,
+                    padding_top: OPTIONS_LIST_TOP_GAP,
+                    flex_shrink: 0f32,
+                ) {
+                    SelectList(
+                        width: body_width,
+                        height: plan.list_height,
+                        options: options,
+                        selected_index: props.approval_selected,
+                        has_focus: props.approval_has_focus,
+                        show_description: false,
+                        compact: true,
+                        theme: Some(theme),
+                    )
+                }
+            }
+        }
+    }
+    .into()
+}
 
 /// Tool-approval dialog shown below the status row.
 #[derive(Debug, Clone)]
@@ -23,9 +175,11 @@ pub struct StatusZoneProps {
     pub activity_label: String,
     pub accent: Color,
     pub spinner_tick: u32,
-    pub elapsed_secs: f64,
+    pub activity_elapsed_secs: f64,
+    pub turn_elapsed_secs: f64,
+    pub session_elapsed_secs: f64,
     pub idle_notice: Option<String>,
-    pub busy_token_info: Option<String>,
+    pub quit_confirm_pending: bool,
     pub dialog: Option<StatusDialogKind>,
     pub approval_selected: Option<State<usize>>,
     pub approval_has_focus: bool,
@@ -40,81 +194,16 @@ impl Default for StatusZoneProps {
             activity_label: String::new(),
             accent: Color::White,
             spinner_tick: 0,
-            elapsed_secs: 0.0,
+            activity_elapsed_secs: 0.0,
+            turn_elapsed_secs: 0.0,
+            session_elapsed_secs: 0.0,
             idle_notice: None,
-            busy_token_info: None,
+            quit_confirm_pending: false,
             dialog: None,
             approval_selected: None,
             approval_has_focus: false,
         }
     }
-}
-
-fn tool_approval_list_height(screen_width: u16, screen_height: u16, args_text: &str, body_width: u16) -> u16 {
-    let theme = UiTheme::default();
-    let chrome = elph_tui::components::DialogChrome::from_theme(theme, screen_width);
-    let max_body = dialog_max_content_height(screen_height, &chrome, 14);
-    let options = tool_approval_select_options();
-    let (_, list_h) = dialog_select_body_plan(&options, true, body_width, theme, args_text, 0, Some(max_body), true);
-    list_h
-}
-
-fn render_tool_approval_dialog(
-    props: &mut StatusZoneProps,
-    tool_name: &str,
-    args_summary: &str,
-) -> AnyElement<'static> {
-    let theme = UiTheme::default();
-    let body_width = inline_body_width(props.screen_width);
-    let list_height = tool_approval_list_height(
-        props.screen_width,
-        props.screen_height,
-        &format_tool_params_display(args_summary),
-        body_width,
-    );
-    let options = tool_approval_select_options();
-    let has_args = !parse_tool_params(args_summary).is_empty();
-
-    element! {
-        InlineDialogShell(
-            screen_width: props.screen_width,
-            title: format!("Allow tool: {tool_name}"),
-            has_focus: props.approval_has_focus,
-        ) {
-            View(
-                width: body_width,
-                flex_direction: FlexDirection::Column,
-                gap: 0,
-                flex_shrink: 0f32,
-            ) {
-                #(if has_args {
-                    Some(element! {
-                        View(width: body_width, padding_bottom: 1, flex_shrink: 0f32) {
-                            ToolParamsView(
-                                width: body_width,
-                                raw: args_summary.to_string(),
-                                key_color: theme.text_muted,
-                                value_color: theme.text_secondary,
-                            )
-                        }
-                    })
-                } else {
-                    None
-                })
-                SelectList(
-                    width: body_width,
-                    height: list_height,
-                    options: options,
-                    selected_index: props.approval_selected,
-                    has_focus: props.approval_has_focus,
-                    show_description: true,
-                    compact: true,
-                    theme: Some(theme),
-                )
-            }
-        }
-    }
-    .into()
 }
 
 #[component]
@@ -142,9 +231,11 @@ pub fn StatusZone(props: &mut StatusZoneProps, hooks: Hooks) -> impl Into<AnyEle
                 activity_label: props.activity_label.clone(),
                 accent: props.accent,
                 spinner_tick: props.spinner_tick,
-                elapsed_secs: props.elapsed_secs,
+                activity_elapsed_secs: props.activity_elapsed_secs,
+                turn_elapsed_secs: props.turn_elapsed_secs,
+                session_elapsed_secs: props.session_elapsed_secs,
                 idle_notice: props.idle_notice.clone(),
-                busy_token_info: props.busy_token_info.clone(),
+                quit_confirm_pending: props.quit_confirm_pending,
             )
             #(dialog_element)
         }
@@ -158,4 +249,47 @@ pub fn build_status_dialog_kind(tool: Option<&PendingToolApproval>) -> Option<St
         tool_name: pending.tool_name.clone(),
         args_summary: pending.args_summary.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn long_args_json() -> String {
+        let command = "cargo test ".to_string() + &"x".repeat(400);
+        format!(r#"{{"command":"{command}","path":"src/main.rs","note":"{}"}}"#, "y".repeat(120))
+    }
+
+    #[test]
+    fn layout_plan_keeps_summary_compact_on_short_screen() {
+        let body_width = inline_body_width(80);
+        let raw = long_args_json();
+        let summary = format_tool_approval_summary("bash", &raw);
+        let summary_rows = tool_approval_summary_row_count_for_summary(&summary, body_width);
+        let plan = tool_approval_layout_plan(80, 24, &summary, body_width);
+        assert!(summary_rows <= TOOL_PARAMS_MAX_VIEWPORT);
+        if let Some(viewport) = plan.args_viewport {
+            assert!(viewport <= TOOL_PARAMS_MAX_VIEWPORT);
+        }
+    }
+
+    #[test]
+    fn layout_plan_grows_naturally_when_space_allows() {
+        let body_width = inline_body_width(100);
+        let summary = format_tool_approval_summary("read_file", r#"{"path":"src/lib.rs"}"#);
+        let plan = tool_approval_layout_plan(100, 60, &summary, body_width);
+        assert!(plan.args_viewport.is_none());
+        assert_eq!(plan.list_height, SELECT_LIST_AUTO_HEIGHT);
+    }
+
+    #[test]
+    fn layout_plan_keeps_approval_list_rows_reserved() {
+        let body_width = inline_body_width(80);
+        let theme = UiTheme::default();
+        let options = tool_approval_select_options();
+        let list_rows = select_list_total_rows(&options, false, body_width, theme, true) as u16;
+        let summary = format_tool_approval_summary("bash", &long_args_json());
+        let plan = tool_approval_layout_plan(80, 24, &summary, body_width);
+        assert!(plan.list_height == SELECT_LIST_AUTO_HEIGHT || plan.list_height >= list_rows.min(3));
+    }
 }

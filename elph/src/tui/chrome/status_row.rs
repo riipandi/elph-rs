@@ -5,8 +5,6 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use elph_tui::rgb;
 use iocraft::prelude::*;
 
-use crate::tui::activity::{braille_spinner_glyph, format_activity_line};
-
 const IDLE_ACTION_HINT: &str = "Enter to send · Ctrl+D exit";
 
 const TIPS: &[&str] = &[
@@ -19,14 +17,9 @@ const TIPS: &[&str] = &[
     "Click footer labels to change mode",
 ];
 
-const BUSY_CANCEL_HINT: &str = "Ctrl+C cancel";
-
-fn format_busy_right_line(token_info: Option<&str>) -> String {
-    match token_info {
-        Some(info) if !info.is_empty() => format!("{info} | {BUSY_CANCEL_HINT}"),
-        _ => BUSY_CANCEL_HINT.to_string(),
-    }
-}
+use crate::tui::activity::{
+    braille_spinner_glyph, format_activity_busy_line, format_session_busy_right_line, format_session_idle_right_line,
+};
 
 /// Props for [`StatusRow`].
 #[derive(Props)]
@@ -37,12 +30,16 @@ pub struct StatusRowProps {
     pub accent: Color,
     /// Drives braille spinner animation from the shell tick (no local timer).
     pub spinner_tick: u32,
-    /// Elapsed seconds for the active turn, updated by the shell tick.
-    pub elapsed_secs: f64,
+    /// Elapsed seconds for the current activity phase (left segment).
+    pub activity_elapsed_secs: f64,
+    /// Elapsed seconds for the in-flight turn (added to session total on the right).
+    pub turn_elapsed_secs: f64,
+    /// Accumulated elapsed seconds across completed turns (right segment adds in-flight turn).
+    pub session_elapsed_secs: f64,
     /// Replaces the idle tip briefly after a turn completes (e.g. `Turn complete · 1.2s`).
     pub idle_notice: Option<String>,
-    /// Turn stream delta + throughput while busy (e.g. `+240 · 12 t/s`).
-    pub busy_token_info: Option<String>,
+    /// When true, append quit-confirm keys to the busy right segment.
+    pub quit_confirm_pending: bool,
 }
 
 impl Default for StatusRowProps {
@@ -53,9 +50,11 @@ impl Default for StatusRowProps {
             activity_label: String::new(),
             accent: default_spinner_accent(),
             spinner_tick: 0,
-            elapsed_secs: 0.0,
+            activity_elapsed_secs: 0.0,
+            turn_elapsed_secs: 0.0,
+            session_elapsed_secs: 0.0,
             idle_notice: None,
-            busy_token_info: None,
+            quit_confirm_pending: false,
         }
     }
 }
@@ -97,8 +96,10 @@ pub fn StatusRow(props: &StatusRowProps, mut hooks: Hooks) -> impl Into<AnyEleme
         .idle_notice
         .clone()
         .unwrap_or_else(|| TIPS[tip_index.get() % TIPS.len()].to_string());
-    let activity_line = format_activity_line(&props.activity_label, props.elapsed_secs);
-    let busy_right_line = format_busy_right_line(props.busy_token_info.as_deref());
+    let activity_line = format_activity_busy_line(&props.activity_label, props.activity_elapsed_secs);
+    let busy_right_line =
+        format_session_busy_right_line(props.session_elapsed_secs, props.turn_elapsed_secs, props.quit_confirm_pending);
+    let idle_right_line = format_session_idle_right_line(IDLE_ACTION_HINT);
     let _spinner_frame = props.spinner_tick;
     let spinner_glyph = if props.busy {
         braille_spinner_glyph(props.spinner_tick)
@@ -166,7 +167,7 @@ pub fn StatusRow(props: &StatusRowProps, mut hooks: Hooks) -> impl Into<AnyEleme
                 } else {
                     element! {
                         View(align_items: AlignItems::Center, justify_content: JustifyContent::End) {
-                            Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: IDLE_ACTION_HINT)
+                            Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: idle_right_line)
                         }
                     }
                 })
@@ -201,12 +202,6 @@ mod tests {
         let next = random_tip_index(2, TIPS.len());
         assert_ne!(next, 2);
         assert!(next < TIPS.len());
-    }
-
-    #[test]
-    fn format_busy_right_line_includes_token_info_and_cancel_hint() {
-        assert_eq!(format_busy_right_line(Some("+240 · 12 t/s")), "+240 · 12 t/s | Ctrl+C cancel");
-        assert_eq!(format_busy_right_line(None), "Ctrl+C cancel");
     }
 
     #[test]

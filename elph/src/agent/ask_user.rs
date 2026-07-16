@@ -48,7 +48,11 @@ pub fn create_ask_user_tool(ui_tx: mpsc::UnboundedSender<AgentUiEvent>) -> Agent
                                         "type": "object",
                                         "properties": {
                                             "value": { "type": "string" },
-                                            "label": { "type": "string" }
+                                            "label": { "type": "string" },
+                                            "hint": {
+                                                "type": "string",
+                                                "description": "Optional dimmed detail below the label"
+                                            }
                                         },
                                         "required": ["value", "label"]
                                     },
@@ -68,6 +72,22 @@ pub fn create_ask_user_tool(ui_tx: mpsc::UnboundedSender<AgentUiEvent>) -> Agent
                                 },
                                 "default": {
                                     "description": "Optional default (boolean for confirm-without-options, string, or JSON array for multi-select)"
+                                },
+                                "required": {
+                                    "type": "boolean",
+                                    "description": "When false, Esc skips this step with an empty answer (default: true)"
+                                },
+                                "min_length": {
+                                    "type": "integer",
+                                    "description": "Minimum character count for free-text answers"
+                                },
+                                "pattern": {
+                                    "type": "string",
+                                    "description": "Regex pattern free-text answers must match"
+                                },
+                                "tab_label": {
+                                    "type": "string",
+                                    "description": "Short label for the header tab in multi-step flows"
                                 }
                             },
                             "required": ["question"]
@@ -79,7 +99,11 @@ pub fn create_ask_user_tool(ui_tx: mpsc::UnboundedSender<AgentUiEvent>) -> Agent
                             "type": "object",
                             "properties": {
                                 "value": { "type": "string" },
-                                "label": { "type": "string" }
+                                "label": { "type": "string" },
+                                "hint": {
+                                    "type": "string",
+                                    "description": "Optional dimmed detail below the label"
+                                }
                             },
                             "required": ["value", "label"]
                         },
@@ -99,8 +123,28 @@ pub fn create_ask_user_tool(ui_tx: mpsc::UnboundedSender<AgentUiEvent>) -> Agent
                     },
                     "default": {
                         "description": "Optional default value (boolean for confirm, string for text/select)"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "description": "Legacy single-step required flag (default: true)"
+                    },
+                    "min_length": {
+                        "type": "integer",
+                        "description": "Legacy single-step minimum text length"
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "Legacy single-step regex pattern"
+                    },
+                    "tab_label": {
+                        "type": "string",
+                        "description": "Legacy single-step header tab label"
                     }
-                }
+                },
+                "anyOf": [
+                    { "required": ["question"] },
+                    { "required": ["questions"] }
+                ]
             }),
         },
         "ask_user_question",
@@ -133,10 +177,15 @@ async fn execute_ask_user(
 }
 
 fn parse_question_steps(args: &Value) -> anyhow::Result<Vec<UserQuestionStep>> {
-    if let Some(items) = args.get("questions").and_then(Value::as_array) {
-        if items.is_empty() {
-            anyhow::bail!("`questions` must contain at least one item");
+    for key in ["questions", "steps", "items"] {
+        if let Some(items) = args.get(key).and_then(Value::as_array)
+            && items.is_empty()
+        {
+            anyhow::bail!("`{key}` must contain at least one item");
         }
+    }
+
+    if let Some(items) = questions_array_from_args(args) {
         return items
             .iter()
             .enumerate()
@@ -144,13 +193,61 @@ fn parse_question_steps(args: &Value) -> anyhow::Result<Vec<UserQuestionStep>> {
             .collect();
     }
 
-    let question = args
-        .get("question")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!("Missing required argument: question or questions"))?
-        .to_string();
+    let question = single_question_text_from_args(args).ok_or_else(|| missing_question_error(args))?;
 
     Ok(vec![legacy_single_step(args, question)])
+}
+
+fn questions_array_from_args(args: &Value) -> Option<Vec<Value>> {
+    let raw = args
+        .get("questions")
+        .or_else(|| args.get("steps"))
+        .or_else(|| args.get("items"))?;
+    questions_array_from_value(raw)
+}
+
+fn questions_array_from_value(raw: &Value) -> Option<Vec<Value>> {
+    if let Some(items) = raw.as_array() {
+        return (!items.is_empty()).then(|| items.clone());
+    }
+    if raw.is_object() {
+        return Some(vec![raw.clone()]);
+    }
+    if let Some(text) = raw.as_str() {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+            return questions_array_from_value(&parsed);
+        }
+    }
+    None
+}
+
+fn single_question_text_from_args(args: &Value) -> Option<String> {
+    for key in ["question", "prompt", "message", "text"] {
+        if let Some(text) = args.get(key).and_then(Value::as_str) {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn missing_question_error(args: &Value) -> anyhow::Error {
+    let keys = args
+        .as_object()
+        .map(|fields| fields.keys().cloned().collect::<Vec<_>>().join(", "))
+        .unwrap_or_default();
+    let detail = if keys.is_empty() {
+        "no arguments were provided".to_string()
+    } else {
+        format!("received keys: {keys}")
+    };
+    anyhow::anyhow!("Missing required argument: `question` (string) or `questions` (array). {detail}")
 }
 
 fn legacy_single_step(args: &Value, question: String) -> UserQuestionStep {
@@ -166,6 +263,10 @@ fn legacy_single_step(args: &Value, question: String) -> UserQuestionStep {
             .unwrap_or("Other…")
             .to_string(),
         default: parse_default(args.get("default")),
+        required: args.get("required").and_then(Value::as_bool).unwrap_or(true),
+        min_length: args.get("min_length").and_then(Value::as_u64).map(|n| n as usize),
+        pattern: args.get("pattern").and_then(Value::as_str).map(str::to_string),
+        tab_label: args.get("tab_label").and_then(Value::as_str).map(str::to_string),
     }
 }
 
@@ -195,6 +296,10 @@ fn parse_question_step(value: &Value, index: usize) -> anyhow::Result<UserQuesti
             .unwrap_or("Other…")
             .to_string(),
         default: parse_default(value.get("default")),
+        required: value.get("required").and_then(Value::as_bool).unwrap_or(true),
+        min_length: value.get("min_length").and_then(Value::as_u64).map(|n| n as usize),
+        pattern: value.get("pattern").and_then(Value::as_str).map(str::to_string),
+        tab_label: value.get("tab_label").and_then(Value::as_str).map(str::to_string),
     })
 }
 
@@ -205,7 +310,18 @@ fn parse_options(value: Option<&Value>) -> Option<Vec<UserQuestionOption>> {
         .filter_map(|item| {
             let val = item.get("value")?.as_str()?.to_string();
             let label = item.get("label").and_then(Value::as_str).unwrap_or(&val).to_string();
-            Some(UserQuestionOption { value: val, label })
+            let hint = item
+                .get("hint")
+                .or_else(|| item.get("description"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|text| !text.is_empty())
+                .map(str::to_string);
+            Some(UserQuestionOption {
+                value: val,
+                label,
+                hint,
+            })
         })
         .collect::<Vec<_>>();
     (!options.is_empty()).then_some(options)
@@ -265,5 +381,41 @@ mod tests {
         });
         let steps = parse_question_steps(&args).unwrap();
         assert!(steps[0].allow_multiple);
+    }
+
+    #[test]
+    fn prompt_alias_parses_as_single_question() {
+        let args = json!({ "prompt": "Pick a color" });
+        let steps = parse_question_steps(&args).unwrap();
+        assert_eq!(steps[0].question, "Pick a color");
+    }
+
+    #[test]
+    fn steps_alias_parses_multi_step() {
+        let args = json!({
+            "steps": [
+                { "question": "First?" },
+                { "question": "Second?" }
+            ]
+        });
+        let steps = parse_question_steps(&args).unwrap();
+        assert_eq!(steps.len(), 2);
+    }
+
+    #[test]
+    fn single_object_questions_array_parses() {
+        let args = json!({
+            "questions": { "question": "Only one?" }
+        });
+        let steps = parse_question_steps(&args).unwrap();
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].question, "Only one?");
+    }
+
+    #[test]
+    fn missing_question_error_lists_received_keys() {
+        let err = parse_question_steps(&json!({ "options": [] })).unwrap_err();
+        assert!(err.to_string().contains("question"));
+        assert!(err.to_string().contains("options"));
     }
 }

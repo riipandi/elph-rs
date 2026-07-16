@@ -4,7 +4,7 @@ use pulldown_cmark::{Event, Tag, TagEnd};
 
 use super::highlight::highlight_code_block;
 use super::linkify::spans_with_links;
-use super::model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, StyledSpan};
+use super::model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, MarkdownTable, StyledSpan};
 use super::parser_config::offset_events;
 use super::theme::MarkdownTheme;
 
@@ -39,6 +39,11 @@ struct ParserState<'a> {
     pending_item_marker: bool,
     code_block_lang: Option<String>,
     code_block_body: String,
+    in_table: bool,
+    in_table_cell: bool,
+    table_rows: Vec<Vec<String>>,
+    table_row: Vec<String>,
+    table_cell: String,
     current_line_kind: MarkdownLineKind,
     block_has_content: bool,
 }
@@ -58,9 +63,49 @@ impl<'a> ParserState<'a> {
             pending_item_marker: false,
             code_block_lang: None,
             code_block_body: String::new(),
+            in_table: false,
+            in_table_cell: false,
+            table_rows: Vec::new(),
+            table_row: Vec::new(),
+            table_cell: String::new(),
             current_line_kind: MarkdownLineKind::Paragraph,
             block_has_content: false,
         }
+    }
+
+    fn heading_prefix(level: u8) -> String {
+        format!("{} ", "#".repeat(level as usize))
+    }
+
+    fn push_heading_prefix(&mut self, level: u8) {
+        self.push_span(StyledSpan {
+            text: Self::heading_prefix(level),
+            color: self.theme.heading,
+            weight: self.theme.heading_weight,
+            italic: false,
+        });
+    }
+
+    fn push_table_line(&mut self) {
+        if self.table_rows.is_empty() {
+            return;
+        }
+        self.lines.push(MarkdownLine {
+            kind: MarkdownLineKind::Table,
+            spans: Vec::new(),
+            code_background: false,
+            table: Some(MarkdownTable {
+                rows: std::mem::take(&mut self.table_rows),
+            }),
+        });
+        self.block_has_content = true;
+    }
+
+    fn append_table_cell_text(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.table_cell.push_str(text);
     }
 
     fn current_style(&self) -> SpanStyle {
@@ -98,6 +143,7 @@ impl<'a> ParserState<'a> {
             kind,
             spans: std::mem::take(&mut self.current_spans),
             code_background: false,
+            table: None,
         });
         self.block_has_content = true;
     }
@@ -193,6 +239,7 @@ impl<'a> ParserState<'a> {
             kind: MarkdownLineKind::Rule,
             spans: vec![StyledSpan::plain("─".repeat(24), self.theme.blockquote)],
             code_background: false,
+            table: None,
         });
     }
 
@@ -219,8 +266,10 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
             Event::Start(Tag::Heading { level, .. }) => {
                 state.flush_spans();
                 state.reset_block();
-                state.current_line_kind = MarkdownLineKind::Heading(level as u8);
-                state.heading_level = Some(level as u8);
+                let level = level as u8;
+                state.current_line_kind = MarkdownLineKind::Heading(level);
+                state.heading_level = Some(level);
+                state.push_heading_prefix(level);
                 state.push_style(SpanStyle {
                     color: Some(theme.heading),
                     weight: theme.heading_weight,
@@ -247,6 +296,13 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
                 state.in_code_block = false;
                 let lang = state.code_block_lang.take();
                 let body = std::mem::take(&mut state.code_block_body);
+                let follows_code_block = state
+                    .lines
+                    .last()
+                    .is_some_and(|line| line.code_background || line.kind == MarkdownLineKind::Code);
+                if follows_code_block {
+                    state.lines.push(MarkdownLine::blank());
+                }
                 state.lines.extend(highlight_code_block(lang.as_deref(), &body, theme));
                 state.reset_block();
             }
@@ -370,19 +426,35 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
                 state.push_text(&label, true);
             }
             Event::End(TagEnd::Image) => {}
-            Event::Start(Tag::Table(_)) | Event::Start(Tag::TableHead) | Event::Start(Tag::TableRow) => {
+            Event::Start(Tag::Table(_)) => {
                 state.flush_spans();
                 state.reset_block();
+                state.in_table = true;
+                state.table_rows.clear();
+                state.table_row.clear();
+                state.table_cell.clear();
             }
-            Event::End(TagEnd::Table) | Event::End(TagEnd::TableHead) | Event::End(TagEnd::TableRow) => {}
-            Event::Start(Tag::TableCell) => {
-                if state.block_has_content || !state.current_spans.is_empty() {
-                    state.push_text(" | ", false);
+            Event::End(TagEnd::Table) => {
+                state.push_table_line();
+                state.in_table = false;
+                state.in_table_cell = false;
+                state.reset_block();
+            }
+            Event::Start(Tag::TableHead) | Event::Start(Tag::TableRow) => {
+                state.table_row.clear();
+            }
+            Event::End(TagEnd::TableHead) | Event::End(TagEnd::TableRow) => {
+                if !state.table_row.is_empty() {
+                    state.table_rows.push(std::mem::take(&mut state.table_row));
                 }
             }
+            Event::Start(Tag::TableCell) => {
+                state.table_cell.clear();
+                state.in_table_cell = true;
+            }
             Event::End(TagEnd::TableCell) => {
-                state.flush_spans();
-                state.reset_block();
+                state.table_row.push(std::mem::take(&mut state.table_cell));
+                state.in_table_cell = false;
             }
             Event::Start(Tag::HtmlBlock) | Event::Start(Tag::MetadataBlock(_)) => {
                 state.flush_spans();
@@ -410,7 +482,9 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
                 state.reset_block();
             }
             Event::Code(text) => {
-                if state.in_code_block {
+                if state.in_table_cell {
+                    state.append_table_cell_text(&text);
+                } else if state.in_code_block {
                     state.code_block_body.push_str(&text);
                 } else {
                     state.push_style(SpanStyle {
@@ -423,13 +497,21 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
                 }
             }
             Event::Text(text) => {
-                if state.in_code_block {
+                if state.in_table_cell {
+                    state.append_table_cell_text(&text);
+                } else if state.in_code_block {
                     state.code_block_body.push_str(&text);
                 } else {
                     state.push_text(&text, true);
                 }
             }
-            Event::SoftBreak => state.push_text(" ", true),
+            Event::SoftBreak => {
+                if state.in_table_cell {
+                    state.append_table_cell_text(" ");
+                } else {
+                    state.push_text(" ", true);
+                }
+            }
             Event::HardBreak => state.flush_hard_break(),
             Event::Rule => state.push_rule(),
             Event::InlineHtml(html) => {
@@ -459,6 +541,7 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
             kind: MarkdownLineKind::Paragraph,
             spans: vec![StyledSpan::plain("", theme.body)],
             code_background: false,
+            table: None,
         });
     }
     doc
@@ -547,5 +630,51 @@ mod tests {
         let doc = parse_markdown_document("a\n\n\nb");
         let blank_count = doc.lines.iter().filter(|line| line.is_blank()).count();
         assert!(blank_count <= 1, "blanks: {:?}", line_texts(&doc));
+    }
+
+    #[test]
+    fn heading_keeps_markdown_prefix_with_highlight_color() {
+        let doc = parse_markdown_document("# Title one\n## Title two");
+        let first: String = doc.lines[0].spans.iter().map(|s| s.text.as_str()).collect();
+        let second: String = doc.lines[1].spans.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(first, "# Title one");
+        assert_eq!(second, "## Title two");
+        assert!(
+            doc.lines[0]
+                .spans
+                .iter()
+                .all(|s| s.color == MarkdownTheme::default().heading)
+        );
+    }
+
+    #[test]
+    fn list_with_leading_emoji_preserves_marker_and_text() {
+        let doc = parse_markdown_document("- ✅ Done\n- 🚀 Launch");
+        assert_eq!(doc.lines.len(), 2);
+        let done: String = doc.lines[0].spans.iter().map(|s| s.text.as_str()).collect();
+        let launch: String = doc.lines[1].spans.iter().map(|s| s.text.as_str()).collect();
+        assert!(done.starts_with("• "), "done line: {done}");
+        assert!(done.contains("✅ Done"), "done line: {done}");
+        assert!(launch.starts_with("• "), "launch line: {launch}");
+        assert!(launch.contains("🚀 Launch"), "launch line: {launch}");
+    }
+
+    #[test]
+    fn gfm_table_parses_into_table_block() {
+        let doc = parse_markdown_document("| Name | Status |\n| --- | --- |\n| Ada | ✅ |");
+        assert!(
+            doc.lines.iter().any(|line| line.kind == MarkdownLineKind::Table),
+            "lines: {:?}",
+            line_texts(&doc)
+        );
+        let table = doc
+            .lines
+            .iter()
+            .find(|line| line.kind == MarkdownLineKind::Table)
+            .expect("table line");
+        let matrix = table.table.as_ref().expect("table matrix");
+        assert_eq!(matrix.rows.len(), 2);
+        assert_eq!(matrix.rows[0], vec!["Name", "Status"]);
+        assert_eq!(matrix.rows[1], vec!["Ada", "✅"]);
     }
 }
