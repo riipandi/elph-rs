@@ -11,11 +11,19 @@
 #[path = "support/toon_common.rs"]
 mod common;
 
-use common::{
-    DEFAULT_ROWS, NO_TOOLS_SYSTEM, NO_TOOLS_TASK, RunMeta, build_agent, build_stream_fn, embed_toon_prompt,
-    parse_delimiter, print_encoding_preview, print_model_banner, require_opencode_key, resolve_model, run_agent_prompt,
-    sample_catalog, toon_prompt_encoding_with_delimiter,
-};
+use common::RunMeta;
+use common::build_agent;
+use common::build_stream_fn;
+use common::embed_toon_prompt;
+use common::parse_delimiter;
+use common::print_encoding_preview;
+use common::print_model_banner;
+use common::require_opencode_key;
+use common::resolve_model;
+use common::run_agent_prompt;
+use common::sample_catalog;
+use common::toon_prompt_encoding_with_delimiter;
+use common::{DEFAULT_ROWS, NO_TOOLS_SYSTEM, NO_TOOLS_TASK};
 use elph_agent::{PromptEncodingDelimiter, PromptEncodingMode};
 
 struct Args {

@@ -6,11 +6,10 @@
 //! cargo run -p elph-agent --example agent_compaction
 //! ```
 
-use elph_agent::{
-    AgentMessage,
-    compaction::{CompactionSettings, estimate_context_tokens, should_compact},
-    llm_message_to_agent,
-};
+use elph_agent::AgentMessage;
+use elph_agent::compaction::CompactionSettings;
+use elph_agent::compaction::{estimate_context_tokens, should_compact};
+use elph_agent::llm_message_to_agent;
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()

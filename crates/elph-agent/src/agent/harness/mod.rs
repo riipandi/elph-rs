@@ -16,30 +16,94 @@ pub mod types;
 pub mod utils;
 
 pub use helpers::NavigateTreeOptions;
-pub use hooks::{AgentHarnessEvent, HookRegistry, SUBSCRIBER_EVENT_TYPE};
+pub use hooks::SUBSCRIBER_EVENT_TYPE;
+pub use hooks::{AgentHarnessEvent, HookRegistry};
 pub use system_prompt::format_skills_for_system_prompt;
-pub use types::{
-    AbortEvent, AbortResult, AfterProviderResponseEvent, AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOptions,
-    AgentHarnessOwnEvent, AgentHarnessPhase, AgentHarnessPromptOptions, AgentHarnessResources,
-    AgentHarnessStreamOptions, AgentHarnessStreamOptionsPatch, BeforeAgentStartEvent, BeforeAgentStartResult,
-    BeforeProviderPayloadEvent, BeforeProviderPayloadResult, BeforeProviderRequestEvent, BeforeProviderRequestResult,
-    BranchSummaryError, BranchSummaryErrorCode, BranchSummaryResult, BranchSummarySummary, CompactResult,
-    CompactionError, CompactionErrorCode, CompactionPreparation, CompactionSettings, ContextEvent, ContextResult,
-    CreateDirOptions, CreateTempFileOptions, DEFAULT_COMPACTION_SETTINGS, ExecutionEnv, ExecutionError,
-    ExecutionErrorCode, FileError, FileErrorCode, FileInfo, FileKind, FileOperations, FileSystem, HarnessHookResult,
-    HarnessResult, ModelUpdateEvent, ModelUpdateSource, NavigateTreeResult, PendingSessionWrite, PromptTemplate,
-    QueueUpdateEvent, ReadTextLinesOptions, RemoveOptions, ResourcesUpdateEvent, Result, SavePointEvent,
-    SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeTreeEvent, SessionBeforeTreeResult,
-    SessionCompactEvent, SessionTreeEvent, SettledEvent, Shell, ShellExecOptions, ShellExecResult, Skill, SystemPrompt,
-    SystemPromptContext, SystemPromptFn, ThinkingLevelUpdateEvent, ToolCallEvent, ToolCallHookResult, ToolResultEvent,
-    ToolResultPatch, ToolsUpdateEvent, TreePreparation, err, get_or_throw, get_or_undefined,
-    is_known_harness_hook_type, ok, to_error,
-};
-pub use utils::{
-    DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, GREP_MAX_LINE_LENGTH, ShellCaptureOptions, TruncatedBy, TruncationOptions,
-    execute_shell_with_capture, finalize_shell_capture, format_size, sanitize_binary_output, truncate_head,
-    truncate_line, truncate_tail,
-};
+pub use types::AbortEvent;
+pub use types::AbortResult;
+pub use types::AfterProviderResponseEvent;
+pub use types::AgentHarnessError;
+pub use types::AgentHarnessErrorCode;
+pub use types::AgentHarnessOptions;
+pub use types::AgentHarnessOwnEvent;
+pub use types::AgentHarnessPhase;
+pub use types::AgentHarnessPromptOptions;
+pub use types::AgentHarnessResources;
+pub use types::AgentHarnessStreamOptions;
+pub use types::AgentHarnessStreamOptionsPatch;
+pub use types::BeforeAgentStartEvent;
+pub use types::BeforeAgentStartResult;
+pub use types::BeforeProviderPayloadEvent;
+pub use types::BeforeProviderPayloadResult;
+pub use types::BeforeProviderRequestEvent;
+pub use types::BeforeProviderRequestResult;
+pub use types::BranchSummaryError;
+pub use types::BranchSummaryErrorCode;
+pub use types::BranchSummaryResult;
+pub use types::BranchSummarySummary;
+pub use types::CompactResult;
+pub use types::CompactionError;
+pub use types::CompactionErrorCode;
+pub use types::CompactionPreparation;
+pub use types::CompactionSettings;
+pub use types::ContextEvent;
+pub use types::ContextResult;
+pub use types::CreateDirOptions;
+pub use types::CreateTempFileOptions;
+pub use types::DEFAULT_COMPACTION_SETTINGS;
+pub use types::ExecutionEnv;
+pub use types::ExecutionError;
+pub use types::ExecutionErrorCode;
+pub use types::FileError;
+pub use types::FileErrorCode;
+pub use types::FileInfo;
+pub use types::FileKind;
+pub use types::FileOperations;
+pub use types::FileSystem;
+pub use types::HarnessHookResult;
+pub use types::HarnessResult;
+pub use types::ModelUpdateEvent;
+pub use types::ModelUpdateSource;
+pub use types::NavigateTreeResult;
+pub use types::PendingSessionWrite;
+pub use types::PromptTemplate;
+pub use types::QueueUpdateEvent;
+pub use types::ReadTextLinesOptions;
+pub use types::RemoveOptions;
+pub use types::ResourcesUpdateEvent;
+pub use types::Result;
+pub use types::SavePointEvent;
+pub use types::SessionBeforeCompactEvent;
+pub use types::SessionBeforeCompactResult;
+pub use types::SessionBeforeTreeEvent;
+pub use types::SessionBeforeTreeResult;
+pub use types::SessionCompactEvent;
+pub use types::SessionTreeEvent;
+pub use types::SettledEvent;
+pub use types::Shell;
+pub use types::ShellExecOptions;
+pub use types::ShellExecResult;
+pub use types::Skill;
+pub use types::SystemPrompt;
+pub use types::SystemPromptContext;
+pub use types::SystemPromptFn;
+pub use types::ThinkingLevelUpdateEvent;
+pub use types::ToolCallEvent;
+pub use types::ToolCallHookResult;
+pub use types::ToolResultEvent;
+pub use types::ToolResultPatch;
+pub use types::ToolsUpdateEvent;
+pub use types::TreePreparation;
+pub use types::{err, get_or_throw, get_or_undefined, is_known_harness_hook_type, ok, to_error};
+pub use utils::execute_shell_with_capture;
+pub use utils::finalize_shell_capture;
+pub use utils::format_size;
+pub use utils::sanitize_binary_output;
+pub use utils::truncate_head;
+pub use utils::truncate_line;
+pub use utils::truncate_tail;
+pub use utils::{DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, GREP_MAX_LINE_LENGTH};
+pub use utils::{ShellCaptureOptions, TruncatedBy, TruncationOptions};
 
 use helpers::{validate_tool_names, validate_unique_names};
 
@@ -47,7 +111,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use elph_ai::{Model, Models};
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::hooks::HookRegistry as HookRegistryT;
@@ -56,8 +121,10 @@ use crate::goals::GoalRuntime;
 use crate::messages::default_convert_to_llm_fn;
 use crate::runtime::local_env::LocalExecutionEnv;
 
-use crate::agent::subagent::{AgentControl, AgentRegistry, SubagentLimits, SubagentSpawnConfig, generate_agent_name};
-use crate::collaboration::{CollaborationMode, filter_active_tools};
+use crate::agent::subagent::generate_agent_name;
+use crate::agent::subagent::{AgentControl, AgentRegistry, SubagentLimits, SubagentSpawnConfig};
+use crate::collaboration::CollaborationMode;
+use crate::collaboration::filter_active_tools;
 use crate::runtime::try_block_on;
 use crate::session::tree::Session;
 use crate::session::types::{HasSessionId, SessionStorage, SessionTreeEntry};

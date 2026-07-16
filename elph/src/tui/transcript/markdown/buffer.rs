@@ -2,7 +2,8 @@
 
 use std::hash::{Hash, Hasher};
 
-use elph_tui::{MarkdownDocument, markdown_document_row_count};
+use elph_tui::MarkdownDocument;
+use elph_tui::markdown_document_row_count;
 
 use super::layout::markdown_part_row_count;
 use super::partition::find_stable_boundary;

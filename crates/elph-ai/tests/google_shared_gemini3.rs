@@ -1,8 +1,6 @@
 use elph_ai::api::google_shared::convert_messages;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, Context, Message, Model, ModelCost, StopReason, ToolCall, Usage,
-    UserContent,
-};
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, Context, Message, Model, ModelCost, StopReason};
+use elph_ai::types::{ToolCall, Usage, UserContent};
 use serde_json::json;
 
 fn gemini_model(api: &str, provider: &str, id: &str) -> Model {

@@ -2,11 +2,13 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use crate::auth::OAuthLoader;
+use crate::auth::lazy_oauth;
 use crate::auth::types::{AuthEvent, AuthLoginCallbacks, AuthPrompt, ModelAuth, OAuthAuth, OAuthCredential};
-use crate::auth::{OAuthLoader, lazy_oauth};
 use crate::models::catalog::GITHUB_COPILOT_MODELS;
 
-use super::device_code::{DeviceCodePollOptions, DeviceCodePollResult, poll_oauth_device_code_flow};
+use super::device_code::poll_oauth_device_code_flow;
+use super::device_code::{DeviceCodePollOptions, DeviceCodePollResult};
 
 const CLIENT_ID: &str = "Iv1.b507a08c87ecfe98";
 const COPILOT_API_VERSION: &str = "2026-06-01";

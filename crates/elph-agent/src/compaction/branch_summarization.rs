@@ -6,19 +6,25 @@ use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::types::FileOperations;
 use crate::agent::harness::types::{BranchSummaryError, BranchSummaryErrorCode, BranchSummaryResult};
-use crate::compaction::utils::{
-    compute_file_lists, create_file_ops, extract_file_ops_from_message, format_file_operations, serialize_conversation,
-};
-use crate::compaction::{SUMMARIZATION_SYSTEM_PROMPT, estimate_tokens};
-use crate::messages::{
-    CustomMessageBlock, CustomMessageContent, create_branch_summary_message, create_compaction_summary_message,
-    create_custom_message, default_convert_to_llm,
-};
+use crate::compaction::SUMMARIZATION_SYSTEM_PROMPT;
+use crate::compaction::estimate_tokens;
+use crate::compaction::utils::compute_file_lists;
+use crate::compaction::utils::create_file_ops;
+use crate::compaction::utils::extract_file_ops_from_message;
+use crate::compaction::utils::format_file_operations;
+use crate::compaction::utils::serialize_conversation;
+use crate::messages::create_branch_summary_message;
+use crate::messages::create_compaction_summary_message;
+use crate::messages::create_custom_message;
+use crate::messages::default_convert_to_llm;
+use crate::messages::{CustomMessageBlock, CustomMessageContent};
 use crate::session::tree::Session;
-use crate::session::types::{
-    CustomMessageEntryBlock, CustomMessageEntryContent, SessionError, SessionErrorCode, SessionStorage,
-    SessionTreeEntry,
-};
+use crate::session::types::CustomMessageEntryBlock;
+use crate::session::types::CustomMessageEntryContent;
+use crate::session::types::SessionError;
+use crate::session::types::SessionErrorCode;
+use crate::session::types::SessionStorage;
+use crate::session::types::SessionTreeEntry;
 use crate::types::AgentMessage;
 
 /// File-operation details stored on generated branch summary entries.

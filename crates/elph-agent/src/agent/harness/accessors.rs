@@ -5,9 +5,8 @@ use std::sync::Arc;
 use elph_ai::Model;
 
 use crate::agent::harness::hooks::AgentHarnessEvent;
-use crate::agent::harness::types::{
-    AgentHarnessPhase, AgentHarnessResources, AgentHarnessStreamOptions, clone_stream_options,
-};
+use crate::agent::harness::types::clone_stream_options;
+use crate::agent::harness::types::{AgentHarnessPhase, AgentHarnessResources, AgentHarnessStreamOptions};
 use crate::agent::subagent::AgentControl;
 use crate::collaboration::CollaborationMode;
 use crate::session::types::{HasSessionId, SessionStorage, SessionTreeEntry};

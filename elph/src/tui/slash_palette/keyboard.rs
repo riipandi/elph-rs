@@ -2,7 +2,8 @@
 
 use iocraft::prelude::{KeyCode, KeyModifiers};
 
-use super::model::{SlashPaletteSnapshot, complete_command, palette_visible, selected_command_name};
+use super::model::SlashPaletteSnapshot;
+use super::model::{complete_command, palette_visible, selected_command_name};
 use crate::types::SlashCommand;
 
 /// Palette-specific key outcome for the shell to apply.

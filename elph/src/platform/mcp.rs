@@ -12,9 +12,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use elph_agent::{
-    McpConfig, McpServerConfig, parse_and_validate_mcp_config, parse_and_validate_server_config_json, write_json_file,
-};
+use elph_agent::{McpConfig, McpServerConfig};
+use elph_agent::{parse_and_validate_mcp_config, parse_and_validate_server_config_json, write_json_file};
 use elph_core::utils::path::AppPaths;
 
 use super::paths::Paths;

@@ -1,5 +1,6 @@
+use elph_ai::StopReason;
 use elph_ai::types::{Context, Message, UserContent};
-use elph_ai::{StopReason, builtin_models, get_builtin_model};
+use elph_ai::{builtin_models, get_builtin_model};
 
 #[tokio::test]
 async fn stream_without_api_key_returns_error_message() {

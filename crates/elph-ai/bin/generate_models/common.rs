@@ -1,7 +1,8 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use regex::Regex;
 use serde_json::Value;
 

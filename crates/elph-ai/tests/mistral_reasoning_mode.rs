@@ -1,10 +1,8 @@
-use elph_ai::api::mistral_conversations::{
-    MistralOptions, build_mistral_conversations_payload, mistral_options_from_simple,
-};
+use elph_ai::api::mistral_conversations::MistralOptions;
+use elph_ai::api::mistral_conversations::{build_mistral_conversations_payload, mistral_options_from_simple};
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    CacheRetention, Context, Message, SimpleStreamOptions, StreamOptions, ThinkingLevel, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{CacheRetention, Context, Message, SimpleStreamOptions, StreamOptions, ThinkingLevel};
 
 fn sample_context() -> Context {
     Context {

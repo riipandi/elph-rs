@@ -1,7 +1,8 @@
 //! `chat_history.jsonl` line format.
 
 use elph_ai::{AssistantContentBlock, ContentBlock, Message, ToolCall, UserContent};
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 use crate::types::AgentMessage;
 

@@ -2,7 +2,8 @@
 
 use iocraft::prelude::*;
 
-use super::actions::{TextEditAction, apply_action};
+use super::actions::TextEditAction;
+use super::actions::apply_action;
 
 /// Result of handling one wire-editing key press.
 #[derive(Debug, PartialEq, Eq)]

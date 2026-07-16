@@ -5,7 +5,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Result;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 use crate::goals::store::GoalStore;
 use crate::goals::types::{Goal, GoalStatus};

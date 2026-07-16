@@ -3,8 +3,8 @@ use crate::floppy::create_memory_store;
 use crate::floppy::scoring::{compute_credit, update_weight};
 use crate::floppy::types::{
     FloppyConfig, MemoryCategory, MemoryReportInput, MemoryReportType, ReportCorrectionInput, ReportUserInput,
-    SelfReportEntry, TaskEndInput, TaskStatus, TimelineEventKind, UserInputSource,
 };
+use crate::floppy::types::{SelfReportEntry, TaskEndInput, TaskStatus, TimelineEventKind, UserInputSource};
 use std::sync::Arc;
 
 fn mock_embed() -> EmbedFn {

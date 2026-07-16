@@ -3,7 +3,8 @@
 use crate::wrapped_transcript_row_count;
 use textwrap::wrap;
 
-use super::blocks::{CODE_VERTICAL_PADDING, code_content_width, segment_end, segment_gap_after};
+use super::blocks::CODE_VERTICAL_PADDING;
+use super::blocks::{code_content_width, segment_end, segment_gap_after};
 use super::model::{MarkdownDocument, MarkdownLine, MarkdownLineKind};
 
 fn line_plain_text(line: &MarkdownLine) -> String {

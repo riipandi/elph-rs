@@ -1,7 +1,8 @@
 //! Decode TOON fenced blocks from model-visible text.
 
 use serde_json::Value;
-use toon_format::{ToonError, decode_strict};
+use toon_format::ToonError;
+use toon_format::decode_strict;
 
 use super::fence::parse_toon_fence;
 

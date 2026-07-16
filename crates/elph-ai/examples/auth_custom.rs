@@ -11,10 +11,8 @@
 
 use std::sync::Arc;
 
-use elph_ai::{
-    AuthContext, BoxFuture, Context, CreateModelsOptions, InMemoryCredentialStore, Message, UserContent,
-    env_api_key_auth,
-};
+use elph_ai::env_api_key_auth;
+use elph_ai::{AuthContext, BoxFuture, Context, CreateModelsOptions, InMemoryCredentialStore, Message, UserContent};
 
 // ── Custom auth context: try CUSTOM_<KEY> first, then fallback ──
 struct PrefixedEnv;

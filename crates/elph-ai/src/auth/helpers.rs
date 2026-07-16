@@ -2,9 +2,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use super::types::{
-    ApiKeyAuth, ApiKeyCredential, AuthLoginCallbacks, AuthModel, AuthResolveInput, AuthResult, ModelAuth, OAuthAuth,
-};
+use super::types::{ApiKeyAuth, ApiKeyCredential, AuthLoginCallbacks, AuthModel, AuthResolveInput, AuthResult};
+use super::types::{ModelAuth, OAuthAuth};
 
 pub fn env_api_key_auth(name: impl Into<String>, env_vars: Vec<&'static str>) -> ApiKeyAuth {
     let name = name.into();

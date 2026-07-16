@@ -4,9 +4,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use elph_ai::types::{
-    AssistantContentBlock, Context, Message, SimpleStreamOptions, StopReason, ThinkingLevel, Tool, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, Context, Message, SimpleStreamOptions, StopReason, ThinkingLevel, Tool};
 use elph_ai::{builtin_models, get_builtin_model};
 use serde_json::json;
 

@@ -1,7 +1,8 @@
 //! Session ID generation tests.
 
+use elph_agent::AgentMessage;
 use elph_agent::session::id::{create_kalid, generate_session_id, is_valid_kalid};
-use elph_agent::{AgentMessage, convert_to_llm, default_convert_to_llm};
+use elph_agent::{convert_to_llm, default_convert_to_llm};
 use elph_ai::{Message, UserContent};
 
 #[test]

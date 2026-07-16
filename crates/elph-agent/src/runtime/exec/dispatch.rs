@@ -12,7 +12,8 @@ use crate::types::{AgentContext, AgentEvent, AgentLoopConfig};
 use super::execute::{execute_prepared_tool_call, finalize_executed_tool_call, finalize_executed_tool_call_with_hook};
 use super::messages::{create_tool_result_message, emit_tool_execution_end, emit_tool_result_message};
 use super::prepare::prepare_tool_call;
-use super::{ExecutedToolBatch, FinalizedToolCall, Preparation, should_terminate_tool_batch};
+use super::should_terminate_tool_batch;
+use super::{ExecutedToolBatch, FinalizedToolCall, Preparation};
 
 pub(super) async fn execute_tool_calls_sequential(
     current_context: &AgentContext,

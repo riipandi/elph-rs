@@ -2,11 +2,13 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::common::{CATALOG_CHAT_SCRIPT, CATALOG_MODELS_SUFFIX, run_catalog_npm_script, ts_catalog_to_json};
+use super::common::{CATALOG_CHAT_SCRIPT, CATALOG_MODELS_SUFFIX};
+use super::common::{run_catalog_npm_script, ts_catalog_to_json};
 
 #[derive(Serialize)]
 pub struct CatalogIndexEntry {

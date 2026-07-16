@@ -5,7 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use elph_ai::Tool;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use walkdir::WalkDir;
 

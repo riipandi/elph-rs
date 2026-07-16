@@ -14,11 +14,9 @@
 
 use std::io::Write;
 
-use elph_ai::{
-    AssistantContentBlock, AssistantMessageEvent, Context, FauxModelDefinition, FauxResponseStep, Message, Models,
-    RegisterFauxProviderOptions, StopReason, UserContent, calculate_cost, create_models, faux_assistant_message,
-    faux_provider, faux_text, faux_thinking,
-};
+use elph_ai::{AssistantContentBlock, AssistantMessageEvent, Context, FauxModelDefinition, FauxResponseStep, Message};
+use elph_ai::{Models, RegisterFauxProviderOptions, StopReason, UserContent};
+use elph_ai::{calculate_cost, create_models, faux_assistant_message, faux_provider, faux_text, faux_thinking};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

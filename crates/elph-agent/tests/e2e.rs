@@ -4,19 +4,25 @@ mod common;
 use std::sync::Arc;
 
 use common::{faux_stream_fn, new_faux, new_faux_with_options, user_agent_message};
-use elph_agent::{
-    Agent, AgentEvent, AgentMessage, AgentOptions, AgentThinkingLevel, AgentTool, PartialAgentState, ToolExecutionMode,
-    llm_message_to_agent, simple_tool,
-};
-use elph_agent::{
-    AgentHarness, AgentHarnessOptions, AgentHarnessResources, InMemorySessionStorage, LocalExecutionEnv, Session,
-    SystemPrompt,
-};
+use elph_agent::Agent;
+use elph_agent::AgentEvent;
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentMessage;
+use elph_agent::AgentOptions;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::AgentTool;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::PartialAgentState;
+use elph_agent::Session;
+use elph_agent::SystemPrompt;
+use elph_agent::ToolExecutionMode;
+use elph_agent::{llm_message_to_agent, simple_tool};
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
-use elph_ai::{
-    AssistantContentBlock, ContentBlock, FauxResponseStep, Message, StopReason, Tool, UserContent, builtin_models,
-    faux_assistant_message, faux_text, faux_thinking, faux_tool_call,
-};
+use elph_ai::{AssistantContentBlock, ContentBlock, FauxResponseStep, Message, StopReason, Tool, UserContent};
+use elph_ai::{builtin_models, faux_assistant_message, faux_text, faux_thinking, faux_tool_call};
 use serde_json::json;
 use tempfile::TempDir;
 use tokio::sync::Mutex;

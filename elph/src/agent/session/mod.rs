@@ -8,14 +8,17 @@ use elph_agent::{AgentHarness, AgentHarnessErrorCode};
 use elph_agent::{GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 
 use super::events::AgentUiEvent;
 use super::model_registry::ModelSelection;
-use super::resource_loader::{LoadResourcesResult, load_resources};
+use super::resource_loader::LoadResourcesResult;
+use super::resource_loader::load_resources;
 
 use super::session_manager::SessionManager;
-use super::tool_policy::{AgentModePolicy, to_agent_thinking};
+use super::tool_policy::AgentModePolicy;
+use super::tool_policy::to_agent_thinking;
 use super::tools_catalog::reconcile_harness_tools;
 use crate::platform::Paths;
 use elph_agent::parse_command_args;
@@ -166,7 +169,7 @@ impl CodingAgentSession {
         match &result {
             Ok(()) => self.finish_ui_turn(started).await,
             Err(err) if err.code == AgentHarnessErrorCode::Busy => {
-                self.finish_ui_turn_rejected(started, format!("Error: {err}")).await;
+                self.finish_ui_turn_rejected_busy(format!("Error: {err}")).await;
             }
             Err(err) => {
                 self.finish_ui_turn(started).await;
@@ -213,8 +216,7 @@ impl CodingAgentSession {
         match &result {
             Ok(()) => self.finish_ui_turn(started).await,
             Err(err) if err.code == AgentHarnessErrorCode::Busy => {
-                self.finish_ui_turn_rejected(started, format!("Skill error: {err}"))
-                    .await;
+                self.finish_ui_turn_rejected_busy(format!("Skill error: {err}")).await;
             }
             Err(err) => {
                 self.finish_ui_turn(started).await;
@@ -232,7 +234,7 @@ impl CodingAgentSession {
         match &result {
             Ok(()) => self.finish_ui_turn(started).await,
             Err(err) if err.code == AgentHarnessErrorCode::Busy => {
-                self.finish_ui_turn_rejected(started, format!("Template error: {err}"))
+                self.finish_ui_turn_rejected_busy(format!("Template error: {err}"))
                     .await;
             }
             Err(err) => {
@@ -293,10 +295,10 @@ impl CodingAgentSession {
         self.emit_run_completed(started).await;
     }
 
-    /// Harness rejected a turn before it started (e.g. busy) — unblock the TUI without waiting.
-    async fn finish_ui_turn_rejected(&self, started: Instant, status: String) {
+    /// Harness was busy when a follow-up turn was requested — surface status only so an
+    /// in-flight turn keeps owning the shell busy indicator.
+    async fn finish_ui_turn_rejected_busy(&self, status: String) {
         let _ = self.ui_tx.send(AgentUiEvent::Status(status));
-        self.emit_run_completed(started).await;
     }
 
     async fn emit_run_completed(&self, started: Instant) {

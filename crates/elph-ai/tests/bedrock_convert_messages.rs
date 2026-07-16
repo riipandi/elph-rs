@@ -1,11 +1,11 @@
 mod common;
 
 use common::sample_user_context;
-use elph_ai::api::bedrock_converse_stream::{BedrockOptions, build_bedrock_converse_body};
+use elph_ai::api::bedrock_converse_stream::BedrockOptions;
+use elph_ai::api::bedrock_converse_stream::build_bedrock_converse_body;
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, TextContent, Usage, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, TextContent, Usage};
 use elph_ai::utils::sanitize_unicode::sanitize_utf16_code_units;
 
 fn bedrock_model() -> elph_ai::types::Model {

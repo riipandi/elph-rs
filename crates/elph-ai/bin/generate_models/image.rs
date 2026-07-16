@@ -2,13 +2,12 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use serde_json::Value;
 
-use super::common::{
-    CATALOG_IMAGE_GENERATED, CATALOG_IMAGE_SCRIPT, catalog_const_name, find_matching_brace, run_catalog_npm_script,
-    ts_object_to_json,
-};
+use super::common::{CATALOG_IMAGE_GENERATED, CATALOG_IMAGE_SCRIPT};
+use super::common::{catalog_const_name, find_matching_brace, run_catalog_npm_script, ts_object_to_json};
 
 pub struct ImageOptions {
     pub catalog_dir: PathBuf,

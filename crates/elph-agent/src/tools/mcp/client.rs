@@ -5,13 +5,18 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use http::{HeaderName, HeaderValue};
 use rmcp::ServiceExt;
-use rmcp::model::{
-    CallToolRequestParams, CallToolResult, GetPromptRequestParams, Prompt, ReadResourceRequestParams, Resource,
-    ResourceContents, Tool,
-};
+use rmcp::model::CallToolRequestParams;
+use rmcp::model::CallToolResult;
+use rmcp::model::GetPromptRequestParams;
+use rmcp::model::Prompt;
+use rmcp::model::ReadResourceRequestParams;
+use rmcp::model::Resource;
+use rmcp::model::ResourceContents;
+use rmcp::model::Tool;
 use rmcp::service::RunningService;
 use rmcp::transport::auth::AuthClient;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
@@ -22,7 +27,8 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 
 use super::auth::authorization_manager_from_store;
-use super::auth_resolve::{ResolvedMcpAuth, resolve_remote_auth};
+use super::auth_resolve::ResolvedMcpAuth;
+use super::auth_resolve::resolve_remote_auth;
 use super::config::{McpHttpConfig, McpServerConfig, McpStdioConfig};
 use super::events::{McpClientService, McpServerEvent};
 use super::sse::SseClientTransport;

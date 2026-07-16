@@ -6,14 +6,21 @@ use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use elph_agent::Agent;
+use elph_agent::AgentEvent;
+use elph_agent::AgentOptions;
+use elph_agent::AgentToolResult;
+use elph_agent::PartialAgentState;
+use elph_agent::PromptEncodingConfig;
+use elph_agent::PromptEncodingDelimiter;
+use elph_agent::PromptEncodingMode;
+use elph_agent::ToolResultContent;
 pub use elph_agent::encode_value;
-use elph_agent::{
-    Agent, AgentEvent, AgentOptions, AgentToolResult, PartialAgentState, PromptEncodingConfig, PromptEncodingDelimiter,
-    PromptEncodingMode, ToolResultContent,
-};
-use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
+use elph_ai::{Message, StopReason};
+use elph_ai::{builtin_models, get_builtin_model};
 use elph_tui::progress_spinner;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 pub const PROVIDER: &str = "opencode";
 pub const MODEL_ID: &str = "big-pickle";

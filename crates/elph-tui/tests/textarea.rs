@@ -1,7 +1,8 @@
 use elph_tui::components::textarea::*;
 use elph_tui::paste::newline_count;
 use elph_tui::text_editing::{insert_newline_at_cursor, line_start_offset, wire_insert_newline};
-use elph_tui::text_input_layout::{WrappedTextLayout, update_scroll_offset};
+use elph_tui::text_input_layout::WrappedTextLayout;
+use elph_tui::text_input_layout::update_scroll_offset;
 
 #[test]
 fn insert_newline_at_cursor_appends() {

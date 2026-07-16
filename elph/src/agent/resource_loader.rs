@@ -1,10 +1,12 @@
 //! Load skills, prompts, and project context into harness resources.
 
-use elph_agent::{AgentHarnessResources, LocalExecutionEnv, load_prompt_templates};
+use elph_agent::load_prompt_templates;
+use elph_agent::{AgentHarnessResources, LocalExecutionEnv};
 use elph_core::utils::path::AppPaths;
 use std::path::Path;
 
-use super::skills_load::{WorkspaceSkills, load_workspace_skills};
+use super::skills_load::WorkspaceSkills;
+use super::skills_load::load_workspace_skills;
 use crate::platform::Paths;
 
 pub struct LoadResourcesResult {
@@ -27,8 +29,10 @@ pub fn prompt_template_search_paths(paths: &Paths, cwd: &Path) -> Vec<String> {
 
 pub async fn load_resources(paths: &Paths, cwd: &Path, env: &LocalExecutionEnv) -> LoadResourcesResult {
     let WorkspaceSkills { skills, conflicts } = load_workspace_skills(env, paths).await;
-    let mut resources = AgentHarnessResources::default();
-    resources.skills = skills;
+    let mut resources = AgentHarnessResources {
+        skills,
+        ..Default::default()
+    };
 
     let search_paths = prompt_template_search_paths(paths, cwd);
     let path_refs: Vec<&str> = search_paths.iter().map(String::as_str).collect();

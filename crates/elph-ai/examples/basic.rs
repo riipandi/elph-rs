@@ -11,11 +11,14 @@
 //! cargo run -p elph-ai --example basic -- --stream --show-thinking
 //! ```
 
-use std::io::{Write, stderr};
+use std::io::Write;
+use std::io::stderr;
 
+use elph_ai::Context;
 use elph_ai::{AssistantContentBlock, AssistantMessageEvent, Message, StopReason, UserContent};
-use elph_ai::{Context, builtin_models, get_builtin_model};
-use elph_tui::{CliSpinner, progress_spinner};
+use elph_ai::{builtin_models, get_builtin_model};
+use elph_tui::CliSpinner;
+use elph_tui::progress_spinner;
 
 // Override via env: ELPH_PROVIDER=opencode ELPH_MODEL=big-pickle
 const PROVIDER: &str = "opencode";

@@ -1,8 +1,10 @@
 //! Background parse jobs for assistant markdown (non-blocking UI).
 
-use elph_tui::{MarkdownDocument, parse_markdown_document};
+use elph_tui::MarkdownDocument;
+use elph_tui::parse_markdown_document;
 
-use super::buffer::{AssistantMarkdownBuffer, stable_source_hash};
+use super::buffer::AssistantMarkdownBuffer;
+use super::buffer::stable_source_hash;
 use crate::tui::transcript::types::{TranscriptMessage, TranscriptStyle};
 
 /// One CPU-bound parse scheduled off the UI thread.

@@ -3,13 +3,12 @@
 use elph_ai::StopReason;
 use tokio_util::sync::CancellationToken;
 
-use crate::types::{
-    AgentContext, AgentEvent, AgentLoopConfig, AgentMessage, assistant_message_to_agent, extract_tool_calls,
-    tool_result_to_agent,
-};
+use crate::types::{AgentContext, AgentEvent, AgentLoopConfig, AgentMessage};
+use crate::types::{assistant_message_to_agent, extract_tool_calls, tool_result_to_agent};
 
 use super::AgentEventCallback;
-use super::exec::{ExecutedToolBatch, execute_tool_calls, fail_tool_calls_from_truncated_message};
+use super::exec::ExecutedToolBatch;
+use super::exec::{execute_tool_calls, fail_tool_calls_from_truncated_message};
 use super::stream::stream_assistant_response;
 
 pub(super) async fn run_loop(

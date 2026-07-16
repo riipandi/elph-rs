@@ -66,7 +66,8 @@ impl EmbedOptions {
 /// Resolve a user-facing model name to a Hugging Face embedding model.
 #[cfg(feature = "embed")]
 pub fn resolve_embedding_model(name: &str, quantized: bool) -> Result<ResolvedEmbeddingModel, String> {
-    use embed_anything::embeddings::local::text_embedding::{ONNXModel, get_model_info, get_model_info_by_hf_id};
+    use embed_anything::embeddings::local::text_embedding::ONNXModel;
+    use embed_anything::embeddings::local::text_embedding::{get_model_info, get_model_info_by_hf_id};
 
     let trimmed = name.trim();
     if trimmed.is_empty() {

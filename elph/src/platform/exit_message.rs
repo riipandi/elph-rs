@@ -1,4 +1,5 @@
-use std::io::{IsTerminal, stdout};
+use std::io::IsTerminal;
+use std::io::stdout;
 
 use elph_agent::session::types::SessionTreeEntry;
 use elph_agent::types::AgentMessage;

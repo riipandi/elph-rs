@@ -7,14 +7,17 @@ use std::sync::Arc;
 use parking_lot::Mutex as ParkingMutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use elph_agent::{
-    AgentContext, AgentEvent, AgentMessage, AgentTool, AgentToolResult, BeforeToolCallResult, CustomAgentMessage,
-    ToolExecutionMode, llm_message_to_agent, run_agent_loop, run_agent_loop_continue, simple_tool,
-};
-use elph_ai::{
-    FauxResponseStep, Message, StopReason, Tool, UserContent, faux_assistant_message, faux_provider, faux_text,
-    faux_tool_call,
-};
+use elph_agent::AgentContext;
+use elph_agent::AgentEvent;
+use elph_agent::AgentMessage;
+use elph_agent::AgentTool;
+use elph_agent::AgentToolResult;
+use elph_agent::BeforeToolCallResult;
+use elph_agent::CustomAgentMessage;
+use elph_agent::ToolExecutionMode;
+use elph_agent::{llm_message_to_agent, run_agent_loop, run_agent_loop_continue, simple_tool};
+use elph_ai::{FauxResponseStep, Message, StopReason, Tool, UserContent};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 use tokio::sync::{Mutex, Notify};
 

@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::types::{CreateDirOptions, FileError, FileErrorCode, FileSystem, Result as HarnessResult};

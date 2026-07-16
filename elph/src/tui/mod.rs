@@ -26,10 +26,8 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use elph_agent::LocalExecutionEnv;
 
 use crate::agent::agent_mode_from_setting;
-use crate::agent::{
-    AgentUiEvent, CodingAgentSession, CreateSessionOptions, create_coding_session_with_events, load_resources,
-    slash_commands_for_palette,
-};
+use crate::agent::{AgentUiEvent, CodingAgentSession, CreateSessionOptions};
+use crate::agent::{create_coding_session_with_events, load_resources, slash_commands_for_palette};
 use crate::extensions::ExtensionHost;
 use crate::platform::{Paths, Settings};
 use crate::types::ThinkingLevel;

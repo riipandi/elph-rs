@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use memchr::memchr;

@@ -1,6 +1,7 @@
 //! TOON markdown fence formatting and parsing.
 
-use super::config::{DEFAULT_PREAMBLE, PromptEncodingDelimiter};
+use super::config::DEFAULT_PREAMBLE;
+use super::config::PromptEncodingDelimiter;
 
 pub(crate) const TOON_FENCE_OPEN: &str = "```toon";
 

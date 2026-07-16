@@ -4,7 +4,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use elph_ai::{ImageContent, Message, SimpleStreamOptions, UserContent};
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::runtime::{run_agent_loop, run_agent_loop_continue};

@@ -1,10 +1,10 @@
 //! Factory for coding-agent sessions.
 
 use anyhow::Result;
+use elph_agent::create_goal_tools;
 use elph_agent::{
     AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, BuiltinToolsBuilder, GoalRuntime,
     GoalStore, LocalExecutionEnv, McpLoadOptions, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt,
-    create_goal_tools,
 };
 use elph_core::utils::path::AppPaths;
 use std::path::Path;

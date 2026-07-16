@@ -9,8 +9,10 @@
 
 use std::sync::Arc;
 
-use elph_agent::{Agent, AgentEvent, AgentOptions, AgentToolResult, PartialAgentState, ToolExecutionMode, simple_tool};
-use elph_ai::{FauxResponseStep, Tool, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
+use elph_agent::simple_tool;
+use elph_agent::{Agent, AgentEvent, AgentOptions, AgentToolResult, PartialAgentState, ToolExecutionMode};
+use elph_ai::{FauxResponseStep, Tool};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 
 #[tokio::main]

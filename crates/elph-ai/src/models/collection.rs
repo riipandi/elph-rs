@@ -3,10 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::auth::{
-    AuthContext, AuthModel, AuthResult, CredentialStore, InMemoryCredentialStore, ProviderAuth, ProviderAuthHolder,
-    resolve::{AuthResolutionOverrides, ModelsError, ModelsErrorCode, resolve_provider_auth},
-};
+use crate::auth::ProviderAuthHolder;
+use crate::auth::resolve::resolve_provider_auth;
+use crate::auth::resolve::{AuthResolutionOverrides, ModelsError, ModelsErrorCode};
+use crate::auth::{AuthContext, AuthModel, AuthResult, CredentialStore, InMemoryCredentialStore, ProviderAuth};
 use crate::types::{AssistantMessage, Context, Model, ProviderHeaders, SimpleStreamOptions, StreamOptions};
 use crate::utils::event_stream::AssistantMessageEventStream;
 

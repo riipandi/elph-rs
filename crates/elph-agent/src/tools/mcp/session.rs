@@ -7,16 +7,23 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use rmcp::model::{CallToolResult, GetPromptResult, Prompt, Resource, ResourceContents, Tool};
 use serde_json::Value;
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::time::timeout;
 
-use super::client::{
-    McpClient, McpConnectContext, call_tool_on_client, connect_with_context, get_prompt_on_client,
-    list_prompts_on_client, list_resources_on_client, list_tools_on_client, read_resource_on_client, shutdown_client,
-};
+use super::client::call_tool_on_client;
+use super::client::connect_with_context;
+use super::client::get_prompt_on_client;
+use super::client::list_prompts_on_client;
+use super::client::list_resources_on_client;
+use super::client::list_tools_on_client;
+use super::client::read_resource_on_client;
+use super::client::shutdown_client;
+use super::client::{McpClient, McpConnectContext};
 use super::config::McpServerConfig;
 use super::events::{McpEventBus, McpServerEvent};
 

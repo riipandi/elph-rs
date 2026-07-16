@@ -175,20 +175,21 @@ description: What this skill does
 license: MIT
 compatibility: Requires git
 allowed-tools: read grep bash
+argument-hint: <file-path>
 ---
-
-# Instructions
-
-Your skill content here...
 ```
 
-Skills are discovered from `.agents/skills/` directories in the project or home directory. They are loaded into the system prompt as metadata; the agent reads the full body when relevant.
+Frontmatter fields include `name`, `description`, `license`, `compatibility`, `allowed-tools`, `disable-model-invocation`, `metadata`, and `argument-hint`. The `argument-hint` field describes expected arguments (e.g. `"<file-path>"`) and supports `<placeholder>` syntax for required args. Skills with required arguments show a validation notice when invoked without args. Validation rules: name must match parent directory, be lowercase+digits+hyphens, ≤64 chars; description ≤1024 chars.
+
+Skills are discovered from `.agents/skills/` directories in the project, home, and `~/.elph/skills/` directories. They are loaded into the system prompt as metadata; the agent reads the full body when relevant.
 
 Key files:
 
 - `/crates/elph-agent/src/skills/load/mod.rs` — Skill discovery and parsing
 - `/crates/elph-agent/src/skills/load/parse.rs` — Frontmatter parsing and validation
 - `/crates/elph-agent/src/skills/format.rs` — Skill formatting for system prompt
+- `/crates/elph-agent/src/skills/args.rs` — Argument hint parsing, validation, and notice formatting
+- `/elph/src/agent/skills_load.rs` — Workspace-level skill loader with conflict detection and `/skill:<name>` slash parsing
 
 ## Built-in Tools
 
@@ -234,6 +235,17 @@ Key source files (each tool in its own module):
 | **Plan**    | Agent must propose a plan before using mutating tools |
 
 `CollaborationMode` enum drives tool filtering and system prompt modifications.
+
+### Tools catalog reconciliation
+
+**File**: `/elph/src/agent/tools_catalog.rs`
+
+The `tools_catalog` module provides runtime tool permission management:
+
+- `refresh_tools_catalog(harness, active_names)` — Rebuilds the `list_available_tools` meta-tool to reflect only the currently active tool set
+- `reconcile_harness_tools(harness, mode, mcp_registry)` — Orchestrates full tool-permission setup per mode: calls `AgentModePolicy::active_tool_names_for_mode()` to determine which tools should be active, enters plan mode if required, and refreshes the catalog
+
+This enables the agent to dynamically adapt its tool set based on collaboration mode and MCP server availability.
 
 ## Key source files
 

@@ -4,9 +4,8 @@ use std::future::Future;
 use std::sync::Arc;
 
 use crate::agent::harness::hooks::AgentHarnessEvent;
-use crate::agent::harness::types::{
-    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, HarnessHookResult, is_known_harness_hook_type,
-};
+use crate::agent::harness::types::is_known_harness_hook_type;
+use crate::agent::harness::types::{AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, HarnessHookResult};
 use crate::agent::harness::{AgentHarness, HarnessOpResult};
 use crate::session::types::{HasSessionId, SessionStorage};
 

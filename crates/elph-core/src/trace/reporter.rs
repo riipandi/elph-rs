@@ -1,5 +1,7 @@
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::fs::{self};
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+use std::io::{self};
 use std::path::PathBuf;
 
 use fastrace::collector::{EventRecord, Reporter, SpanRecord};

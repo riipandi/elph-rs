@@ -7,7 +7,8 @@
 //! cargo run -p elph-agent --example agent_subagent
 //! ```
 
-use elph_agent::agent::subagent::{SubagentInfo, SubagentLimits, SubagentStatus, generate_agent_name};
+use elph_agent::agent::subagent::generate_agent_name;
+use elph_agent::agent::subagent::{SubagentInfo, SubagentLimits, SubagentStatus};
 
 fn main() {
     // ── 1. generate_agent_name: readable names for subagents ──

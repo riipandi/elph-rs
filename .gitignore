@@ -77,3 +77,4 @@ docsite/public/
 extensions/**/target
 extensions/**/Cargo.lock
 /demo-*
+/demo/*

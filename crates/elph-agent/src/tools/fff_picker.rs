@@ -6,14 +6,16 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use fff_search::file_picker::{FFFMode, FilePicker, FilePickerOptions, FuzzySearchOptions};
 use fff_search::grep::{GrepMode, GrepResult, GrepSearchOptions};
 use fff_search::types::PaginationArgs;
 use fff_search::{AiGrepConfig, FFFQuery};
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::utils::truncate::{GREP_MAX_LINE_LENGTH, truncate_line};
+use crate::agent::harness::utils::truncate::GREP_MAX_LINE_LENGTH;
+use crate::agent::harness::utils::truncate::truncate_line;
 
 pub fn build_picker(base_path: &str) -> Result<FilePicker> {
     let mut picker = FilePicker::new(FilePickerOptions {

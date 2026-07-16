@@ -3,7 +3,8 @@
 use elph_ai::Message;
 
 use super::super::AgentEventCallback;
-use crate::types::{AgentEvent, ToolResultContent, tool_result_to_agent};
+use crate::types::tool_result_to_agent;
+use crate::types::{AgentEvent, ToolResultContent};
 
 use super::FinalizedToolCall;
 

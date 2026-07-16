@@ -6,7 +6,8 @@ use crate::types::{Context, Model, ProviderStreams, SimpleStreamOptions, StreamO
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::provider_env::get_provider_env_value;
 
-use super::google_generative_ai::{GoogleGenerativeAIApi, GoogleOptions, GoogleThinkingConfig, get_google_budget};
+use super::google_generative_ai::get_google_budget;
+use super::google_generative_ai::{GoogleGenerativeAIApi, GoogleOptions, GoogleThinkingConfig};
 
 const GCP_VERTEX_CREDENTIALS_MARKER: &str = "gcp-vertex-credentials";
 

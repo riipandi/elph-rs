@@ -3,10 +3,8 @@
 
 mod common;
 
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, SimpleStreamOptions, StopReason, StreamOptions,
-    Tool, ToolCall, Usage, UserContent,
-};
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, SimpleStreamOptions};
+use elph_ai::types::{StopReason, StreamOptions, Tool, ToolCall, Usage, UserContent};
 use elph_ai::{builtin_models, get_builtin_model};
 use serde_json::json;
 

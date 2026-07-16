@@ -4,10 +4,16 @@ use std::sync::{Arc, Mutex};
 
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::types::{
-    CreateTempFileOptions, ExecutionEnv, ExecutionError, ExecutionErrorCode, Result, ShellExecOptions, err, ok,
-};
-use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_tail};
+use crate::agent::harness::types::CreateTempFileOptions;
+use crate::agent::harness::types::ExecutionEnv;
+use crate::agent::harness::types::ExecutionError;
+use crate::agent::harness::types::ExecutionErrorCode;
+use crate::agent::harness::types::Result;
+use crate::agent::harness::types::ShellExecOptions;
+use crate::agent::harness::types::{err, ok};
+use crate::agent::harness::utils::truncate::DEFAULT_MAX_BYTES;
+use crate::agent::harness::utils::truncate::TruncationOptions;
+use crate::agent::harness::utils::truncate::truncate_tail;
 
 /// Result of capturing shell command output.
 #[derive(Debug, Clone, PartialEq, Eq)]

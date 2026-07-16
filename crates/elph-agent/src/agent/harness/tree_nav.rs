@@ -3,15 +3,19 @@
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::types::{
-    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, AgentHarnessPhase, NavigateTreeResult,
-    SessionBeforeTreeEvent,
-};
-use crate::compaction::{GenerateBranchSummaryOptions, collect_entries_for_branch_summary, generate_branch_summary};
+use crate::agent::harness::types::AgentHarnessError;
+use crate::agent::harness::types::AgentHarnessErrorCode;
+use crate::agent::harness::types::AgentHarnessOwnEvent;
+use crate::agent::harness::types::AgentHarnessPhase;
+use crate::agent::harness::types::NavigateTreeResult;
+use crate::agent::harness::types::SessionBeforeTreeEvent;
+use crate::compaction::GenerateBranchSummaryOptions;
+use crate::compaction::{collect_entries_for_branch_summary, generate_branch_summary};
 use crate::session::tree::BranchSummaryOptions;
 use crate::session::types::{HasSessionId, SessionStorage};
 
-use super::helpers::{NavigateTreeOptions, branch_summary_error, editor_state_for_target, session_error};
+use super::helpers::NavigateTreeOptions;
+use super::helpers::{branch_summary_error, editor_state_for_target, session_error};
 use super::{AgentHarness, HarnessOpResult};
 
 impl<S> AgentHarness<S>

@@ -2,7 +2,8 @@ use std::env;
 
 use clap::Args;
 
-use crate::agent::{RunModeOptions, run_non_interactive};
+use crate::agent::RunModeOptions;
+use crate::agent::run_non_interactive;
 use crate::cli::help;
 use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode, Paths, Settings};
 

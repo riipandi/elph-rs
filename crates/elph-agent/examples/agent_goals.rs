@@ -9,7 +9,8 @@
 
 use std::sync::Arc;
 
-use elph_agent::goals::{GoalRuntime, GoalStatus, GoalStore, create_goal_tools};
+use elph_agent::goals::create_goal_tools;
+use elph_agent::goals::{GoalRuntime, GoalStatus, GoalStore};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

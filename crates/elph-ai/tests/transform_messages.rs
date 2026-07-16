@@ -2,9 +2,8 @@ use elph_ai::api::openai_compat::get_compat;
 use elph_ai::api::openai_completions::convert_messages;
 use elph_ai::api::transform_messages::transform_messages;
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, ToolCall, Usage, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, ToolCall, Usage};
 use serde_json::json;
 
 fn assistant_with_tool_call(id: &str) -> AssistantMessage {

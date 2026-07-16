@@ -1,6 +1,5 @@
-use elph_ai::api::bedrock_shared::{
-    BedrockThinkingOptions, get_standard_bedrock_endpoint_region, resolve_bedrock_runtime_config,
-};
+use elph_ai::api::bedrock_shared::BedrockThinkingOptions;
+use elph_ai::api::bedrock_shared::{get_standard_bedrock_endpoint_region, resolve_bedrock_runtime_config};
 use elph_ai::get_builtin_model;
 
 fn thinking_options<'a>(

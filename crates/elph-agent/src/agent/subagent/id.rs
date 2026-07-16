@@ -1,6 +1,7 @@
 //! Human-readable agent identifiers.
 
-use memorable_ids::{GenerateOptions, generate};
+use memorable_ids::GenerateOptions;
+use memorable_ids::generate;
 
 pub(crate) const MAX_NAME_ATTEMPTS: usize = 8;
 

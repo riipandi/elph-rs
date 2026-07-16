@@ -4,7 +4,8 @@
 //! cargo run -p elph-tui --example weather
 //! ```
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::anyhow;
+use anyhow::{Context, Result};
 use iocraft::prelude::*;
 use serde::Deserialize;
 

@@ -1,8 +1,6 @@
 use elph_agent::{AgentToolResult, ToolResultContent};
-use elph_agent::{
-    PromptEncodingConfig, PromptEncodingDelimiter, PromptEncodingMode, apply_to_tool_result, decode_toon_fence,
-    encode_value,
-};
+use elph_agent::{PromptEncodingConfig, PromptEncodingDelimiter, PromptEncodingMode};
+use elph_agent::{apply_to_tool_result, decode_toon_fence, encode_value};
 use elph_ai::TextContent;
 use serde_json::json;
 

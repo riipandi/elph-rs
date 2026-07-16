@@ -11,11 +11,18 @@
 #[path = "support/toon_common.rs"]
 mod common;
 
-use common::{
-    DEFAULT_ROWS, NO_TOOLS_SYSTEM, NO_TOOLS_TASK, RunMeta, baseline_prompt_encoding, build_agent, build_stream_fn,
-    embed_json_prompt, print_json_preview, print_model_banner, require_opencode_key, resolve_model, run_agent_prompt,
-    sample_catalog,
-};
+use common::RunMeta;
+use common::baseline_prompt_encoding;
+use common::build_agent;
+use common::build_stream_fn;
+use common::embed_json_prompt;
+use common::print_json_preview;
+use common::print_model_banner;
+use common::require_opencode_key;
+use common::resolve_model;
+use common::run_agent_prompt;
+use common::sample_catalog;
+use common::{DEFAULT_ROWS, NO_TOOLS_SYSTEM, NO_TOOLS_TASK};
 
 struct Args {
     task: String,

@@ -5,9 +5,8 @@ use std::sync::Arc;
 
 use elph_agent::{ExtensionRegistry, PromptTemplate, Skill};
 
-use crate::agent::{
-    OverlayCommand, SlashDispatch, dispatch_slash_command, format_help_message, slash_unimplemented_message,
-};
+use crate::agent::{OverlayCommand, SlashDispatch};
+use crate::agent::{dispatch_slash_command, format_help_message, slash_unimplemented_message};
 use crate::extensions::ExtensionHost;
 use crate::platform::Paths;
 

@@ -1,11 +1,10 @@
 mod common;
 
 use common::anthropic_model;
-use elph_ai::api::anthropic_messages::{AnthropicOptions, build_anthropic_messages_params};
-use elph_ai::types::{
-    AnthropicMessagesCompat, AssistantContentBlock, AssistantMessage, Context, Message, Model, ModelCost, StopReason,
-    ThinkingContent, Usage, UserContent,
-};
+use elph_ai::api::anthropic_messages::AnthropicOptions;
+use elph_ai::api::anthropic_messages::build_anthropic_messages_params;
+use elph_ai::types::{AnthropicMessagesCompat, AssistantContentBlock, AssistantMessage, Context, Message, Model};
+use elph_ai::types::{ModelCost, StopReason, ThinkingContent, Usage, UserContent};
 
 fn xiaomi_ams_model(compat: Option<AnthropicMessagesCompat>) -> Model {
     Model {

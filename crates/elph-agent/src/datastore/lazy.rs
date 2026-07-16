@@ -3,7 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::Result;
 use tokio::sync::Mutex;
 
-use super::{DatabaseSpec, ensure_databases};
+use super::DatabaseSpec;
+use super::ensure_databases;
 
 static READY: AtomicBool = AtomicBool::new(false);
 static LOCK: Mutex<()> = Mutex::const_new(());

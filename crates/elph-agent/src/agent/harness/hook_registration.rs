@@ -7,10 +7,13 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::hooks::{AgentHarnessEvent, HookRegistry};
-use crate::agent::harness::types::{
-    AfterProviderResponseEvent, BeforeAgentStartEvent, ContextEvent, SessionBeforeCompactEvent, SessionBeforeTreeEvent,
-    ToolCallEvent, ToolResultEvent,
-};
+use crate::agent::harness::types::AfterProviderResponseEvent;
+use crate::agent::harness::types::BeforeAgentStartEvent;
+use crate::agent::harness::types::ContextEvent;
+use crate::agent::harness::types::SessionBeforeCompactEvent;
+use crate::agent::harness::types::SessionBeforeTreeEvent;
+use crate::agent::harness::types::ToolCallEvent;
+use crate::agent::harness::types::ToolResultEvent;
 
 use super::{AgentHarness, HarnessOpResult};
 

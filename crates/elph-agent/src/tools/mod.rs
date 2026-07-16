@@ -73,10 +73,9 @@ pub use move_path::create_move_path_tool;
 #[cfg(feature = "tools-read-file")]
 pub use read_file::create_read_file_tool;
 #[cfg(feature = "tools-web")]
-pub use web::{
-    Engine as WebSearchEngine, SearchResult as WebSearchResult, create_web_fetch_tool, create_web_search_tool,
-    create_web_tools,
-};
+pub use web::{Engine as WebSearchEngine, SearchResult as WebSearchResult};
+#[cfg(feature = "tools-web")]
+pub use web::{create_web_fetch_tool, create_web_search_tool, create_web_tools};
 #[cfg(feature = "tools-write-file")]
 pub use write_file::create_write_file_tool;
 

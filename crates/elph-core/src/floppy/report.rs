@@ -1,10 +1,8 @@
 use anyhow::Result;
 
 use super::store::MemoryStore;
-use super::types::{
-    ContradictResult, EndTaskWithDecayResult, MemoryCategory, MemoryReportInput, MemoryReportType,
-    ReportCorrectionInput, ReportUserInput, TaskEndInput,
-};
+use super::types::{ContradictResult, EndTaskWithDecayResult, MemoryCategory, MemoryReportInput, MemoryReportType};
+use super::types::{ReportCorrectionInput, ReportUserInput, TaskEndInput};
 
 impl MemoryStore {
     /// Unified memory report (correction, user input, or insight).

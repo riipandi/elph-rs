@@ -3,12 +3,20 @@ mod common;
 
 use std::sync::Arc;
 
-use elph_agent::{
-    AgentControl, AgentGraphStore, AgentHarnessResources, AgentHarnessStreamOptions, LocalExecutionEnv,
-    SubagentBootstrap, SubagentLimits, SubagentSpawnConfig, SubagentStatus, create_search_tools,
-};
-use elph_agent::{Migration, ensure_database};
-use elph_ai::{FauxResponseStep, StopReason, faux_assistant_message, faux_text};
+use elph_agent::AgentControl;
+use elph_agent::AgentGraphStore;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentHarnessStreamOptions;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::Migration;
+use elph_agent::SubagentBootstrap;
+use elph_agent::SubagentLimits;
+use elph_agent::SubagentSpawnConfig;
+use elph_agent::SubagentStatus;
+use elph_agent::create_search_tools;
+use elph_agent::ensure_database;
+use elph_ai::{FauxResponseStep, StopReason};
+use elph_ai::{faux_assistant_message, faux_text};
 
 const GRAPH_MIGRATION: &[Migration] = &[Migration {
     version: 7,

@@ -1,7 +1,9 @@
 use anyhow::Result;
 use turso::params;
 
-use super::{EMBED_PENDING_BATCH, MemoryStore, new_id, now_secs};
+use super::EMBED_PENDING_BATCH;
+use super::MemoryStore;
+use super::{new_id, now_secs};
 use crate::floppy::types::MemoryCategory;
 use crate::floppy::util::{category_str, drain_rows, vec_buf};
 

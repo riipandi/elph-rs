@@ -19,7 +19,9 @@ mod row_layout;
 mod state;
 
 pub use component::SlashCommandPalette;
-pub use keyboard::{SlashPaletteKeyAction, resolve_snapshot_key_action};
+pub use keyboard::SlashPaletteKeyAction;
+pub use keyboard::resolve_snapshot_key_action;
 pub use layout::palette_anchor_bottom;
-pub use model::{SlashPaletteSnapshot, build_snapshot};
+pub use model::SlashPaletteSnapshot;
+pub use model::build_snapshot;
 pub use state::sync_selection;

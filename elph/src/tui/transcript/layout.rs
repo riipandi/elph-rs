@@ -1,6 +1,7 @@
 //! Scroll-row layout for transcript messages.
 
-use elph_tui::{TranscriptRowLayout, transcript_bubble_inner_width, wrapped_transcript_row_count};
+use elph_tui::TranscriptRowLayout;
+use elph_tui::{transcript_bubble_inner_width, wrapped_transcript_row_count};
 
 use super::markdown::assistant_row_count;
 use super::types::{TranscriptMessage, TranscriptStyle};

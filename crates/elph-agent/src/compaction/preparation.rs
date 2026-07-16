@@ -7,10 +7,8 @@ use crate::compaction::utils::{create_file_ops, extract_file_ops_from_message};
 
 pub use crate::agent::harness::types::{CompactionPreparation, CompactionSettings};
 
-use crate::messages::{
-    CustomMessageBlock, CustomMessageContent, create_branch_summary_message, create_compaction_summary_message,
-    create_custom_message,
-};
+use crate::messages::{CustomMessageBlock, CustomMessageContent};
+use crate::messages::{create_branch_summary_message, create_compaction_summary_message, create_custom_message};
 use crate::session::build_session_context;
 use crate::session::types::{CustomMessageEntryBlock, CustomMessageEntryContent, SessionTreeEntry};
 use crate::types::AgentMessage;

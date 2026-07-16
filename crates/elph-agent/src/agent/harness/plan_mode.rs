@@ -4,10 +4,8 @@ use elph_ai::Message;
 
 use crate::agent::harness::hooks::AgentHarnessEvent;
 use crate::agent::harness::types::{AgentHarnessError, AgentHarnessErrorCode, AgentHarnessPhase};
-use crate::collaboration::{
-    CollaborationMode, PlanConfirmationChoice, assistant_message_text, extract_proposed_plan, filter_active_tools,
-    implement_prompt,
-};
+use crate::collaboration::{CollaborationMode, PlanConfirmationChoice};
+use crate::collaboration::{assistant_message_text, extract_proposed_plan, filter_active_tools, implement_prompt};
 use crate::session::id::create_kalid;
 use crate::session::tree::BranchSummaryOptions;
 use crate::session::types::{HasSessionId, SessionStorage};

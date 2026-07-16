@@ -1,8 +1,7 @@
 use elph_ai::api::faux::RegisterFauxProviderOptions;
-use elph_ai::{
-    AssistantContentBlock, AssistantMessageEvent, Context, FauxResponseStep, Message, SimpleStreamOptions, StopReason,
-    UserContent, faux_assistant_message, faux_provider, faux_text,
-};
+use elph_ai::{AssistantContentBlock, AssistantMessageEvent, Context, FauxResponseStep, Message, SimpleStreamOptions};
+use elph_ai::{StopReason, UserContent};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text};
 use tokio_util::sync::CancellationToken;
 
 fn sample_context() -> Context {

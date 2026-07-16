@@ -3,7 +3,8 @@
 use iocraft::prelude::*;
 
 use super::super::state::TextareaState;
-use crate::text_editing::{WireEditResult, apply_wire_edit_key};
+use crate::text_editing::WireEditResult;
+use crate::text_editing::apply_wire_edit_key;
 
 fn apply_wire_to_state(state: &mut TextareaState, result: WireEditResult, pending_esc: &mut bool) {
     *pending_esc = result.pending_esc;

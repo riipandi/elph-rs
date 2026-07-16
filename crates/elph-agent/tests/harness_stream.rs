@@ -6,15 +6,23 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessEvent;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessOwnEvent;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentHarnessStreamOptions;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::Session;
+use elph_agent::SystemPrompt;
 use elph_agent::agent::harness::types::AgentHarnessStreamOptionsPatch;
 use elph_agent::runtime::try_block_on;
 use elph_agent::session::types::HasSessionId;
-use elph_agent::{
-    AgentHarness, AgentHarnessEvent, AgentHarnessOptions, AgentHarnessOwnEvent, AgentHarnessResources,
-    AgentHarnessStreamOptions, AgentThinkingLevel, InMemorySessionStorage, LocalExecutionEnv, Session, SystemPrompt,
-    simple_tool,
-};
-use elph_ai::{FauxResponseStep, StopReason, Tool, faux_assistant_message, faux_text, faux_tool_call};
+use elph_agent::simple_tool;
+use elph_ai::{FauxResponseStep, StopReason, Tool};
+use elph_ai::{faux_assistant_message, faux_text, faux_tool_call};
 use serde_json::json;
 use tempfile::TempDir;
 

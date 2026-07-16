@@ -4,13 +4,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use common::fake_auth_context;
-use elph_ai::auth::{ApiKeyAuth, AuthResolveInput, AuthResult, ModelAuth, ProviderAuth, env_api_key_auth};
-use elph_ai::images::{
-    CreateImagesProviderOptions, builtin_images_models, create_images_models, create_images_provider,
-};
-use elph_ai::types::{
-    AssistantImages, ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ModelCost, ProviderImages, StopReason,
-};
+use elph_ai::auth::env_api_key_auth;
+use elph_ai::auth::{ApiKeyAuth, AuthResolveInput, AuthResult, ModelAuth, ProviderAuth};
+use elph_ai::images::CreateImagesProviderOptions;
+use elph_ai::images::{builtin_images_models, create_images_models, create_images_provider};
+use elph_ai::types::{AssistantImages, ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ModelCost};
+use elph_ai::types::{ProviderImages, StopReason};
 fn sample_context() -> ImagesContext {
     ImagesContext {
         input: vec![ContentBlock::Text {

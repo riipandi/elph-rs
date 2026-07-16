@@ -2,12 +2,12 @@ mod common;
 
 use common::{completions_proxy_model, sample_user_context};
 use elph_ai::api::openai_compat::has_tool_history;
-use elph_ai::api::openai_completions::{OpenAICompletionsOptions, build_openai_completions_params};
+use elph_ai::api::openai_completions::OpenAICompletionsOptions;
+use elph_ai::api::openai_completions::build_openai_completions_params;
 use elph_ai::api::simple_options::clamp_max_tokens_to_context;
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, Context, Message, StopReason, ToolCall, Usage, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, Context, Message, StopReason, ToolCall, Usage};
 use serde_json::json;
 
 #[test]

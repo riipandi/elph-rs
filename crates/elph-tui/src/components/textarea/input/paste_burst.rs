@@ -6,11 +6,13 @@ use iocraft::prelude::*;
 
 use super::super::state::TextareaState;
 use super::TextareaInputResult;
+use crate::paste::PasteBurstState;
 use crate::paste::{
-    PasteBurstState, extend_paste_submit_guard, paste_burst_append_key, paste_burst_begin_with_rewind,
-    paste_burst_finish, paste_burst_reset,
+    extend_paste_submit_guard, paste_burst_append_key, paste_burst_begin_with_rewind, paste_burst_finish,
+    paste_burst_reset,
 };
-use crate::text_editing::{PASTE_SUBMIT_GUARD_WINDOW, paste_echo_guard_duration};
+use crate::text_editing::PASTE_SUBMIT_GUARD_WINDOW;
+use crate::text_editing::paste_echo_guard_duration;
 
 /// Commit an idle raw burst (gap since last key) before normal key dispatch.
 pub(crate) fn merge_idle_burst(burst: &mut PasteBurstState, state: &mut TextareaState) -> bool {

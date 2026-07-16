@@ -7,21 +7,40 @@ use parking_lot::Mutex;
 use common::new_faux_with_options;
 use elph_agent::CompactionErrorCode;
 use elph_agent::build_session_context;
-use elph_agent::compaction::{
-    CompactionPreparation, CompactionSettings, DEFAULT_COMPACTION_SETTINGS, calculate_context_tokens, compact,
-    compute_file_lists, create_file_ops, estimate_context_tokens, estimate_tokens, extract_file_ops_from_message,
-    find_cut_point, find_turn_start_index, format_file_operations, generate_summary, get_last_assistant_usage,
-    prepare_compaction, serialize_conversation, should_compact,
-};
+use elph_agent::compaction::DEFAULT_COMPACTION_SETTINGS;
+use elph_agent::compaction::calculate_context_tokens;
+use elph_agent::compaction::compact;
+use elph_agent::compaction::compute_file_lists;
+use elph_agent::compaction::create_file_ops;
+use elph_agent::compaction::estimate_context_tokens;
+use elph_agent::compaction::estimate_tokens;
+use elph_agent::compaction::extract_file_ops_from_message;
+use elph_agent::compaction::find_cut_point;
+use elph_agent::compaction::find_turn_start_index;
+use elph_agent::compaction::format_file_operations;
+use elph_agent::compaction::generate_summary;
+use elph_agent::compaction::get_last_assistant_usage;
+use elph_agent::compaction::prepare_compaction;
+use elph_agent::compaction::serialize_conversation;
+use elph_agent::compaction::should_compact;
+use elph_agent::compaction::{CompactionPreparation, CompactionSettings};
 use elph_agent::session::SessionTreeEntry;
 use elph_agent::types::{AgentMessage, CustomAgentMessage};
+use elph_ai::AssistantContentBlock;
+use elph_ai::ContentBlock;
+use elph_ai::FauxResponseStep;
+use elph_ai::Message;
+use elph_ai::SimpleStreamOptions;
+use elph_ai::StopReason;
+use elph_ai::ThinkingLevel;
+use elph_ai::ToolCall;
+use elph_ai::Usage;
+use elph_ai::UserContent;
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
-use elph_ai::models::{CreateProviderOptions, ProviderApi, ProviderStreamsDyn, create_models, create_provider};
+use elph_ai::models::{CreateProviderOptions, ProviderApi, ProviderStreamsDyn};
+use elph_ai::models::{create_models, create_provider};
 use elph_ai::providers::adapter::faux_api;
-use elph_ai::{
-    AssistantContentBlock, ContentBlock, FauxResponseStep, Message, SimpleStreamOptions, StopReason, ThinkingLevel,
-    ToolCall, Usage, UserContent, faux_assistant_message, faux_text, faux_thinking,
-};
+use elph_ai::{faux_assistant_message, faux_text, faux_thinking};
 use serde_json::json;
 
 struct CapturingFauxStreams {

@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::api::OpenRouterImagesApi;
-use crate::auth::{
-    AuthContext, AuthModel, AuthResolutionOverrides, AuthResult, CredentialStore, InMemoryCredentialStore, ModelsError,
-    ModelsErrorCode, ProviderAuth, ProviderAuthHolder, env_api_key_auth, resolve_provider_auth,
-};
+use crate::auth::{AuthContext, AuthModel, AuthResolutionOverrides, AuthResult, CredentialStore};
+use crate::auth::{InMemoryCredentialStore, ModelsError, ModelsErrorCode, ProviderAuth, ProviderAuthHolder};
+use crate::auth::{env_api_key_auth, resolve_provider_auth};
 use crate::images::models::OPENROUTER_IMAGE_MODELS;
 use crate::types::{AssistantImages, ImagesContext, ImagesModel, ImagesOptions, ProviderImages};
 

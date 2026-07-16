@@ -17,10 +17,8 @@ pub use linkify::spans_with_links;
 pub use model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, StyledSpan};
 pub use parse::{parse_markdown_document, parse_markdown_document_with_theme};
 pub use parser_config::has_open_container_at as markdown_has_open_container_at;
-pub use render::{
-    plain_text_document, render_linkified_plain_text, render_markdown_block, render_markdown_children,
-    render_markdown_document, render_markdown_lines, streaming_tail_document,
-};
+pub use render::{plain_text_document, render_linkified_plain_text, render_markdown_block, render_markdown_children};
+pub use render::{render_markdown_document, render_markdown_lines, streaming_tail_document};
 pub use theme::MarkdownTheme;
 
 use super::scroll_box::ScrollBox;

@@ -2,11 +2,14 @@
 
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::types::{
-    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, AgentHarnessPhase, CompactResult,
-    SessionBeforeCompactEvent,
-};
-use crate::compaction::{DEFAULT_COMPACTION_SETTINGS, compact, prepare_compaction};
+use crate::agent::harness::types::AgentHarnessError;
+use crate::agent::harness::types::AgentHarnessErrorCode;
+use crate::agent::harness::types::AgentHarnessOwnEvent;
+use crate::agent::harness::types::AgentHarnessPhase;
+use crate::agent::harness::types::CompactResult;
+use crate::agent::harness::types::SessionBeforeCompactEvent;
+use crate::compaction::DEFAULT_COMPACTION_SETTINGS;
+use crate::compaction::{compact, prepare_compaction};
 use crate::session::types::{HasSessionId, SessionStorage, SessionTreeEntry};
 
 use super::helpers::{compaction_error, module_to_compact_result, session_error};

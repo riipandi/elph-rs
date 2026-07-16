@@ -9,11 +9,18 @@
 //! cargo run -p elph-agent --example agent_collaboration
 //! ```
 
-use elph_agent::collaboration::{
-    CollaborationMode, PlanConfirmationChoice, assistant_message_text, extract_proposed_plan, filter_active_tools,
-    implement_prompt, is_collaboration_tool, is_mcp_read_only_bridge_tool, is_mcp_tool, is_mutating_tool,
-    plan_mode_block_reason, plan_mode_blocks_tool, plan_mode_system_prompt,
-};
+use elph_agent::collaboration::assistant_message_text;
+use elph_agent::collaboration::extract_proposed_plan;
+use elph_agent::collaboration::filter_active_tools;
+use elph_agent::collaboration::implement_prompt;
+use elph_agent::collaboration::is_collaboration_tool;
+use elph_agent::collaboration::is_mcp_read_only_bridge_tool;
+use elph_agent::collaboration::is_mcp_tool;
+use elph_agent::collaboration::is_mutating_tool;
+use elph_agent::collaboration::plan_mode_block_reason;
+use elph_agent::collaboration::plan_mode_blocks_tool;
+use elph_agent::collaboration::plan_mode_system_prompt;
+use elph_agent::collaboration::{CollaborationMode, PlanConfirmationChoice};
 use elph_ai::{AssistantContentBlock, AssistantMessage, TextContent};
 
 fn main() {

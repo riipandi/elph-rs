@@ -12,7 +12,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
-use elph_ai::{AssistantContentBlock, Message, builtin_models, get_builtin_model};
+use elph_ai::{AssistantContentBlock, Message};
+use elph_ai::{builtin_models, get_builtin_model};
 use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";

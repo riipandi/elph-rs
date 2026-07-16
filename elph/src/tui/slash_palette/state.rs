@@ -1,6 +1,7 @@
 //! Selection state kept by the shell while the palette is active.
 
-use super::model::{SlashPaletteSnapshot, clamp_index};
+use super::model::SlashPaletteSnapshot;
+use super::model::clamp_index;
 
 /// Reset and clamp palette selection when the filter query or match list changes.
 pub fn sync_selection(tracked_query: &mut String, selected_index: &mut usize, snapshot: &SlashPaletteSnapshot) {

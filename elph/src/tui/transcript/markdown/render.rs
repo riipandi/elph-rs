@@ -1,8 +1,7 @@
 //! Paint cached markdown documents into transcript cards.
 
-use elph_tui::{
-    MarkdownDocument, plain_text_document, render_linkified_plain_text, render_markdown_block, streaming_tail_document,
-};
+use elph_tui::MarkdownDocument;
+use elph_tui::{plain_text_document, render_linkified_plain_text, render_markdown_block, streaming_tail_document};
 use iocraft::prelude::*;
 
 use super::buffer::AssistantMarkdownBuffer;

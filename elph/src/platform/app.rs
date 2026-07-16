@@ -9,7 +9,8 @@ use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(unix)]
-use libc::{SIGTERM, getppid, kill};
+use libc::SIGTERM;
+use libc::{getppid, kill};
 
 pub static WAS_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 

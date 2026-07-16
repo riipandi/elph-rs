@@ -5,13 +5,16 @@ use std::collections::HashMap;
 use elph_ai::{AssistantMessage, ImageContent, Message, Model, SimpleStreamOptions, StopReason, UserContent};
 use serde_json::json;
 
-use crate::agent::harness::types::{
-    AgentHarnessError, AgentHarnessErrorCode, AgentHarnessStreamOptions, BranchSummaryError, CompactResult,
-    CompactionError,
-};
+use crate::agent::harness::types::AgentHarnessError;
+use crate::agent::harness::types::AgentHarnessErrorCode;
+use crate::agent::harness::types::AgentHarnessStreamOptions;
+use crate::agent::harness::types::BranchSummaryError;
+use crate::agent::harness::types::CompactResult;
+use crate::agent::harness::types::CompactionError;
 use crate::compaction::CompactionResult as CompactionModuleResult;
 use crate::session::types::{CustomMessageEntryContent, SessionError, SessionTreeEntry};
-use crate::types::{AgentMessage, AgentThinkingLevel, AgentTool, llm_message_to_agent};
+use crate::types::llm_message_to_agent;
+use crate::types::{AgentMessage, AgentThinkingLevel, AgentTool};
 
 use super::HarnessOpResult;
 

@@ -1,7 +1,8 @@
 //! Obscura headless browser worker — runs on a dedicated thread via crossbeam-channel.
 
 use anyhow::{Context, Result};
-use crossbeam_channel::{Receiver, Sender, unbounded};
+use crossbeam_channel::unbounded;
+use crossbeam_channel::{Receiver, Sender};
 use obscura::Browser;
 use std::sync::OnceLock;
 use std::thread;

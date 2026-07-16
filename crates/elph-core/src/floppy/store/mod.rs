@@ -11,12 +11,14 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use std::time::{SystemTime, UNIX_EPOCH};
-use turso::{Builder, Connection, Database, params};
+use turso::params;
+use turso::{Builder, Connection, Database};
 
 use super::migrations;
 use super::scoring::empty_baseline;
 use super::types::{FloppyConfig, TaskBaseline, VectorType};
-use super::util::{DEFAULT_EMBEDDING_DIMS, drain_rows, retrieval_sql};
+use super::util::DEFAULT_EMBEDDING_DIMS;
+use super::util::{drain_rows, retrieval_sql};
 
 pub type EmbedFuture = Pin<Box<dyn Future<Output = Result<Vec<f32>>> + Send>>;
 pub type EmbedFn = Arc<dyn Fn(&str) -> EmbedFuture + Send + Sync>;

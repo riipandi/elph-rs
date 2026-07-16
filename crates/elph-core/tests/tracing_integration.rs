@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use elph_core::logger::LoggingOptions;
-use elph_core::trace::{JsonlReporter, flush, is_enabled, root_span, set_reporter};
+use elph_core::trace::JsonlReporter;
+use elph_core::trace::{flush, is_enabled, root_span, set_reporter};
 use fastrace::collector::Config;
 use fastrace::local::LocalSpan;
 

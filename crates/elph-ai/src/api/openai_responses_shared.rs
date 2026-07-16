@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Result, anyhow};
-use serde_json::{Value, json};
+use anyhow::Result;
+use anyhow::anyhow;
+use serde_json::Value;
+use serde_json::json;
 
 use crate::models::calculate_cost;
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message, Model, StopReason,
-    TextContent, TextSignatureV1, ThinkingContent, ToolCall, Usage, UserContent,
-};
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message};
+use crate::types::{Model, StopReason, TextContent, TextSignatureV1, ThinkingContent, ToolCall, Usage, UserContent};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::hash::short_hash;
 use crate::utils::json_parse::parse_streaming_json;

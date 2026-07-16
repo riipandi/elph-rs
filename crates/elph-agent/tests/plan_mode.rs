@@ -3,12 +3,22 @@ mod common;
 
 use std::sync::Arc;
 
-use elph_agent::{
-    AgentHarness, AgentHarnessEvent, AgentHarnessOptions, AgentHarnessResources, AgentThinkingLevel,
-    BuiltinToolsBuilder, CollaborationMode, InMemorySessionStorage, LocalExecutionEnv, PlanConfirmationChoice,
-    QueueMode, Session, SystemPrompt, create_search_tools, extract_proposed_plan, plan_mode_blocks_tool,
-};
-use elph_ai::{FauxResponseStep, faux_assistant_message, faux_text};
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessEvent;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::BuiltinToolsBuilder;
+use elph_agent::CollaborationMode;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::PlanConfirmationChoice;
+use elph_agent::QueueMode;
+use elph_agent::Session;
+use elph_agent::SystemPrompt;
+use elph_agent::{create_search_tools, extract_proposed_plan, plan_mode_blocks_tool};
+use elph_ai::FauxResponseStep;
+use elph_ai::{faux_assistant_message, faux_text};
 use tempfile::TempDir;
 
 fn test_env() -> (TempDir, Arc<LocalExecutionEnv>) {

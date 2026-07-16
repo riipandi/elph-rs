@@ -9,7 +9,8 @@ use elph_ai::{AssistantMessage, AssistantMessageEvent, Context, SimpleStreamOpti
 use tokio_util::sync::CancellationToken;
 
 use super::event_stream::AgentEventStream;
-use crate::types::{AgentContext, AgentEvent, AgentLoopConfig, assistant_message_to_agent};
+use crate::types::assistant_message_to_agent;
+use crate::types::{AgentContext, AgentEvent, AgentLoopConfig};
 
 use super::AgentEventCallback;
 

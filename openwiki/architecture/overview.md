@@ -48,8 +48,8 @@ The product shell. Wires together the agent runtime, TUI, CLI, and platform conc
 Key modules:
 
 - `src/cli/` — Subcommands: `run`, `acp`, `codegraph`, `completions`, `doctor`, `export`, `import`, `mcp`, `memory`, `models`, `provider`, `server`, `session`, `stats`, `update`, `worktree` (`/elph/src/cli/mod.rs`)
-- `src/tui/` — Modular iocraft-based interactive shell: `shell.rs`, `editor.rs`, `transcript/`, `agent_bridge.rs`, `chrome.rs`, `activity.rs`, `status_row.rs`, `theme.rs`, and more (`/elph/src/tui/mod.rs`)
-- `src/agent/` — Pi coding-agent equivalent: session orchestration, runtime wiring, diagnostics tool, ask_user tool, slash commands, tool policy, run mode (`/elph/src/agent/mod.rs`)
+- `src/tui/` — Modular iocraft-based interactive shell: `shell.rs`, `focus.rs`, `tool_approval.rs`, `user_question.rs`, `activity.rs`, `agent_bridge.rs`, `chrome/`, `prompt/`, `transcript/`, `slash_palette/`, `theme.rs`, and more (`/elph/src/tui/mod.rs`)
+- `src/agent/` — Pi coding-agent equivalent: session orchestration, runtime wiring, diagnostics tool, ask_user tool, slash commands, tool policy, run mode, skills loading (`skills_load.rs`), tools catalog reconciliation (`tools_catalog.rs`) (`/elph/src/agent/mod.rs`)
 - `src/platform/` — Host environment: paths, settings, bootstrap, datastore, MCP config, migrations, hooks, interrupt handling (`/elph/src/platform/mod.rs`)
 - `src/extensions/` — WASM extension host (`/elph/src/extensions/mod.rs`)
 
@@ -69,7 +69,7 @@ Key modules:
 - `session/` — Tree-structured session persistence with pluggable backends (filesystem, Turso, in-memory) (`/crates/elph-agent/src/session/mod.rs`)
 - `compaction/` — Context window management via summarization, branch clipping, token estimation (`/crates/elph-agent/src/compaction/mod.rs`)
 - `goals/` — Session goal persistence, auto-steering, accounting (`/crates/elph-agent/src/goals/mod.rs`)
-- `skills/` — Skill discovery from `SKILL.md` files (`/crates/elph-agent/src/skills/mod.rs`)
+- `skills/` — Skill discovery from `SKILL.md` files, argument hint parsing and validation (`args.rs`) (`/crates/elph-agent/src/skills/mod.rs`)
 - `tools/` — Built-in tools: `read_file`, `bash`, `edit_file`, `write_file`, `grep`, `find_path`, `list_dir`, `create_dir`, `copy_path`, `delete_path`, `move_path`, `web_search`, `web_fetch`, collaboration tools; MCP client lives under `tools/mcp/` (`/crates/elph-agent/src/tools/mod.rs`)
 - `prompt/` — Builtin prompts, external prompt templates, session naming, and TOON encoding (`/crates/elph-agent/src/prompt/`)
 - `plugins/` — WASM extension host (optional, feature `extensions`) (`/crates/elph-agent/src/plugins/mod.rs`)
@@ -115,7 +115,7 @@ Path: `/crates/elph-tui/`
 
 > **Note**: The elph-tui crate provides iocraft-based component modules (17+ modules) and 13+ examples with integration tests. The primary TUI implementation lives in the `elph` binary crate (`elph/src/tui/`). Once the widget library stabilises, reusable widgets will be extracted back into this crate and published to crates.io.
 
-Key modules (current — `/crates/elph-tui/src/`): `lib.rs` with 17+ component modules under `components/` (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `line_numbers`, `markdown`, `progress_indicator`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`). `textarea` is a subdirectory with `component.rs`, `input/` (paste, submit, wire_edit), `layout.rs`, `state.rs`. Additional crate-level modules: `text_editing/` (actions, input, line, submit, wire), `transcript_layout.rs`, `text_input_layout.rs`, `loader.rs`, `paste.rs`, `utils.rs`. Examples in `examples/` (weather, calculator, chat_layout, progress_bar, basic_counter, basic_form, basic_input, basic_layout, basic_output, basic_overlap, basic_scrolling, basic_table, basic_context). Tests in `tests/` (14 files).
+Key modules (current — `/crates/elph-tui/src/`): `lib.rs` with 17+ component modules under `components/` (`ascii_font`, `card`, `code`, `diff`, `frame_buffer`, `input`, `line_numbers`, `markdown` — now a full subdirectory with syntax-highlighted code blocks and auto-linked URLs, `progress_indicator`, `qr_code`, `scroll_bar`, `scroll_box`, `select`, `slider`, `tab_select`, `text`, `textarea`). `textarea` is a subdirectory with `component.rs`, `input/` (paste, submit, wire_edit), `layout.rs`, `state.rs`. `markdown/` has 10 sub-modules: `blocks`, `colors`, `highlight`, `layout`, `linkify`, `model`, `parse`, `parser_config`, `render`, `syntax`, `theme`. Additional crate-level modules: `text_editing/` (actions, input, line, submit, wire), `transcript_layout.rs`, `text_input_layout.rs`, `cli_progress.rs`, `loader.rs`, `paste.rs`, `utils.rs`. Examples in `examples/` (21 examples: weather, calculator, chat_layout, progress_bar, basic__, demo__). Tests in `tests/` (14 files).
 
 ### `elph-swarm` (library crate)
 
@@ -157,7 +157,7 @@ When modifying any major area:
 - **Agent runtime**: Tests in `/crates/elph-agent/tests/{agent_loop, harness, e2e, session, goals, subagent}.rs`
 - **AI providers**: Tests in `/crates/elph-ai/tests/` — check provider-specific payloads
 - **MCP**: Tests in `/crates/elph-agent/tests/{mcp_deepwiki, encrypt_string}.rs`
-- **TUI**: iocraft rendering in `elph/src/tui/`; elph-tui tests in `crates/elph-tui/tests/`
+- **TUI**: iocraft rendering in `elph/src/tui/` (shell, focus, tool_approval, slash_palette, chrome, prompt, transcript); elph-tui tests in `crates/elph-tui/tests/`
 - **Skills**: Tests in `/crates/elph-agent/tests/skills.rs`
 - **Prompt encoding**: Tests in `/crates/elph-agent/tests/prompt_encoding.rs`
 - **CLI**: Tests in `/elph/tests/{cli, bootstrap}.rs`

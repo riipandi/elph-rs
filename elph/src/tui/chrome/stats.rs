@@ -3,7 +3,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use elph_agent::{SessionTreeEntry, build_session_context, estimate_context_tokens};
+use elph_agent::SessionTreeEntry;
+use elph_agent::{build_session_context, estimate_context_tokens};
 use elph_ai::get_builtin_model;
 
 use crate::agent::CodingAgentSession;

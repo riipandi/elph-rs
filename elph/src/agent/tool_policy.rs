@@ -1,9 +1,8 @@
 //! Tool exposure and approval policy for TUI agent modes.
 
 use crate::types::AgentMode;
-use elph_agent::{
-    CollaborationMode, McpToolRegistry, filter_active_tools, filter_ask_mode_tools, is_mcp_tool, is_mutating_tool,
-};
+use elph_agent::{CollaborationMode, McpToolRegistry};
+use elph_agent::{filter_active_tools, filter_ask_mode_tools, is_mcp_tool, is_mutating_tool};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;

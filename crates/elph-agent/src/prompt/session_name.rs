@@ -2,9 +2,8 @@
 
 use elph_ai::{Context, Message, Models, SimpleStreamOptions, StopReason};
 
-use super::builtin::session_name::{
-    SESSION_NAME_SYSTEM_PROMPT, build_session_name_prompt, extract_conversation_for_naming, sanitize_session_name,
-};
+use super::builtin::session_name::SESSION_NAME_SYSTEM_PROMPT;
+use super::builtin::session_name::{build_session_name_prompt, extract_conversation_for_naming, sanitize_session_name};
 use crate::types::AgentMessage;
 
 /// Generate a short session title from the conversation transcript.

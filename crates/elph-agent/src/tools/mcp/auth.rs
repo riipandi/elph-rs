@@ -22,9 +22,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
-use super::crypto::{
-    Aes256Key, ENC_PREFIX, decrypt_json_async, default_auth_key_path, encrypt_json_async, is_encrypted_value,
-};
+use super::crypto::Aes256Key;
+use super::crypto::ENC_PREFIX;
+use super::crypto::{decrypt_json_async, default_auth_key_path, encrypt_json_async, is_encrypted_value};
 use super::store_lock::{atomic_write_private, lock_auth_store};
 
 /// Default OAuth scopes when the server does not advertise any.

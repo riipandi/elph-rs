@@ -3,12 +3,13 @@
 use std::sync::Arc;
 
 use elph_ai::Tool;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::utils::truncate::{
-    DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, TruncationOptions, format_size, truncate_head,
-};
+use crate::agent::harness::utils::truncate::TruncationOptions;
+use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES};
+use crate::agent::harness::utils::truncate::{format_size, truncate_head};
 use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, is_probably_image, read_file_text, resolve_path};
 use crate::tools::simple_tool;

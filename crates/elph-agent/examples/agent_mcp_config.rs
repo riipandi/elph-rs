@@ -11,10 +11,13 @@
 
 use std::collections::BTreeMap;
 
-use elph_agent::tools::mcp::{
-    McpConfig, McpHttpConfig, McpPolicyAction, McpPolicyConfig, McpServerConfig, McpStdioConfig,
-    mcp_tool_requires_approval, pattern_matches,
-};
+use elph_agent::tools::mcp::McpConfig;
+use elph_agent::tools::mcp::McpHttpConfig;
+use elph_agent::tools::mcp::McpPolicyAction;
+use elph_agent::tools::mcp::McpPolicyConfig;
+use elph_agent::tools::mcp::McpServerConfig;
+use elph_agent::tools::mcp::McpStdioConfig;
+use elph_agent::tools::mcp::{mcp_tool_requires_approval, pattern_matches};
 
 fn main() {
     // ── 1. Build MCP config using constructors ──

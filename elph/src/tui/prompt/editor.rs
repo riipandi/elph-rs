@@ -5,9 +5,8 @@ use iocraft::prelude::*;
 
 use crate::types::AgentMode;
 
-use crate::tui::theme::{
-    EDITOR_BORDER, EDITOR_BORDER_DIMMED, EDITOR_CURSOR, EDITOR_TEXT_DIMMED, EDITOR_TEXT_FOCUSED, rgb_color,
-};
+use crate::tui::theme::rgb_color;
+use crate::tui::theme::{EDITOR_BORDER, EDITOR_BORDER_DIMMED, EDITOR_CURSOR, EDITOR_TEXT_DIMMED, EDITOR_TEXT_FOCUSED};
 
 fn editor_max_height(screen_height: u16) -> u16 {
     (screen_height / 4).clamp(4, 12)

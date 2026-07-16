@@ -9,8 +9,8 @@ use crate::tui::theme::{
 
 use super::card::{
     COLORED_CARD_GAP, COLORED_CARD_PAD, COLORED_CARD_PAD_H, FLUSH_CARD_GAP, FLUSH_CARD_PAD, THINKING_RESPONSE_GAP,
-    format_tool_args_display, format_tool_output_display, tool_status_marker,
 };
+use super::card::{format_tool_args_display, format_tool_output_display, tool_status_marker};
 use super::markdown::AssistantMarkdownBuffer;
 
 /// Structured payload for tool invocation cards in the transcript.

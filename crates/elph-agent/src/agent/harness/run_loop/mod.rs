@@ -7,12 +7,16 @@ mod session_writes;
 mod turn_execution;
 mod turn_state;
 
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::types::{
-    AbortResult, AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent, AgentHarnessPhase, QueueUpdateEvent,
-};
+use crate::agent::harness::types::AbortResult;
+use crate::agent::harness::types::AgentHarnessError;
+use crate::agent::harness::types::AgentHarnessErrorCode;
+use crate::agent::harness::types::AgentHarnessOwnEvent;
+use crate::agent::harness::types::AgentHarnessPhase;
+use crate::agent::harness::types::QueueUpdateEvent;
 use crate::types::AgentMessage;
 
 use super::{ActiveRun, AgentHarness, HarnessOpResult};

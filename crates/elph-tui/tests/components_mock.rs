@@ -1,6 +1,7 @@
 use elph_tui::components::scroll_box::{scroll_view_down, scroll_view_up};
 use elph_tui::prelude::*;
-use futures::{StreamExt, stream};
+use futures::StreamExt;
+use futures::stream;
 use macro_rules_attribute::apply;
 use smol_macros::test;
 

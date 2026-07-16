@@ -1,13 +1,16 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
+use anyhow::bail;
 
-use super::embed::{EmbedOptions, create_embedder};
+use super::embed::EmbedOptions;
+use super::embed::create_embedder;
 
 #[cfg(feature = "embed")]
 use super::embed::DEFAULT_EMBED_MODEL;
 #[cfg(feature = "embed")]
 use super::embed::{embedding_dims, resolve_embedding_model};
 use super::paths::FloppyPaths;
-use super::store::{EmbedFn, MemoryStore, noop_embedder};
+use super::store::noop_embedder;
+use super::store::{EmbedFn, MemoryStore};
 use super::types::{FloppyConfig, VectorType};
 use super::util::DEFAULT_EMBEDDING_DIMS;
 

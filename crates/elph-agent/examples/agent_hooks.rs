@@ -8,11 +8,17 @@
 
 use std::sync::Arc;
 
-use elph_agent::{
-    AfterToolCallContext, AfterToolCallResult, Agent, AgentEvent, AgentOptions, BeforeToolCallContext,
-    BeforeToolCallResult, PartialAgentState, simple_tool,
-};
-use elph_ai::{FauxResponseStep, Tool, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
+use elph_agent::AfterToolCallContext;
+use elph_agent::AfterToolCallResult;
+use elph_agent::Agent;
+use elph_agent::AgentEvent;
+use elph_agent::AgentOptions;
+use elph_agent::BeforeToolCallContext;
+use elph_agent::BeforeToolCallResult;
+use elph_agent::PartialAgentState;
+use elph_agent::simple_tool;
+use elph_ai::{FauxResponseStep, Tool};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 
 #[tokio::main]

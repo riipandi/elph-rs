@@ -8,10 +8,10 @@
 //! ```
 
 use anyhow::Result;
-use elph_tui::{
-    Textarea, TranscriptRowLayout, active_sticky_user_message_index, layout_sticky_header, loader::SpinnerLoader, rgb,
-    scroll_view_down, scroll_view_up, transcript_bubble_inner_width, wrapped_transcript_row_count,
-};
+use elph_tui::loader::SpinnerLoader;
+use elph_tui::{Textarea, TranscriptRowLayout};
+use elph_tui::{active_sticky_user_message_index, layout_sticky_header, rgb, scroll_view_down, scroll_view_up};
+use elph_tui::{transcript_bubble_inner_width, wrapped_transcript_row_count};
 use iocraft::prelude::*;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 

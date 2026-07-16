@@ -8,12 +8,16 @@
 //! cargo run -p elph-agent --example agent_messages
 //! ```
 
-use elph_agent::messages::{
-    CustomMessageBlock, CustomMessageContent, bash_execution_to_text, create_branch_summary_message,
-    create_compaction_summary_message, create_custom_message, default_convert_to_llm, default_convert_to_llm_fn,
-    now_iso_timestamp,
-};
-use elph_agent::{AgentMessage, CustomAgentMessage, llm_message_to_agent};
+use elph_agent::llm_message_to_agent;
+use elph_agent::messages::bash_execution_to_text;
+use elph_agent::messages::create_branch_summary_message;
+use elph_agent::messages::create_compaction_summary_message;
+use elph_agent::messages::create_custom_message;
+use elph_agent::messages::default_convert_to_llm;
+use elph_agent::messages::default_convert_to_llm_fn;
+use elph_agent::messages::now_iso_timestamp;
+use elph_agent::messages::{CustomMessageBlock, CustomMessageContent};
+use elph_agent::{AgentMessage, CustomAgentMessage};
 use elph_ai::{ImageContent, TextContent};
 
 fn main() {

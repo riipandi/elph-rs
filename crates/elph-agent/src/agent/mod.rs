@@ -11,16 +11,23 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use elph_ai::{OnPayloadCallback, OnResponseCallback, ThinkingBudgets, Transport, builtin_models};
+use elph_ai::builtin_models;
+use elph_ai::{OnPayloadCallback, OnResponseCallback, ThinkingBudgets, Transport};
 use parking_lot::Mutex as ParkingMutex;
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::messages::default_convert_to_llm_fn;
 use crate::prompt::encoding::PromptEncodingConfig;
-use crate::types::{
-    AgentEvent, AgentMessage, AgentState, AgentThinkingLevel, ConvertToLlmFn, QueueMode, StreamFn, ToolExecutionMode,
-};
+use crate::types::AgentEvent;
+use crate::types::AgentMessage;
+use crate::types::AgentState;
+use crate::types::AgentThinkingLevel;
+use crate::types::ConvertToLlmFn;
+use crate::types::QueueMode;
+use crate::types::StreamFn;
+use crate::types::ToolExecutionMode;
 
 pub use queue::PendingMessageQueue;
 pub use state::default_model;

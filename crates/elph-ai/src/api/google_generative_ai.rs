@@ -1,21 +1,17 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, invoke_on_response_from_reqwest,
-    is_request_aborted, merge_model_headers,
-};
-use crate::api::google_shared::{
-    convert_messages, convert_tools, is_thinking_part, map_stop_reason_finish, map_tool_choice,
-    retain_thought_signature,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
+use crate::api::google_shared::{convert_messages, convert_tools, is_thinking_part, map_stop_reason_finish};
+use crate::api::google_shared::{map_tool_choice, retain_thought_signature};
 use crate::api::simple_options::build_base_options;
 use crate::models::{calculate_cost, clamp_thinking_level};
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams,
-    SimpleStreamOptions, StopReason, StreamOptions,
-};
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams};
+use crate::types::{SimpleStreamOptions, StopReason, StreamOptions};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::sanitize_unicode::sanitize_surrogates;
 

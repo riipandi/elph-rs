@@ -2,7 +2,8 @@ use std::fs::File;
 use std::io::{self, Write};
 
 use clap::{Args, CommandFactory};
-use clap_complete::{Shell, generate};
+use clap_complete::Shell;
+use clap_complete::generate;
 
 use super::Cli;
 use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode};

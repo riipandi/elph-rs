@@ -1,4 +1,5 @@
-use elph_ai::api::mistral_conversations::{MistralOptions, build_mistral_conversations_payload};
+use elph_ai::api::mistral_conversations::MistralOptions;
+use elph_ai::api::mistral_conversations::build_mistral_conversations_payload;
 use elph_ai::get_builtin_model;
 use elph_ai::types::{Context, Message, Tool, UserContent};
 use serde_json::json;

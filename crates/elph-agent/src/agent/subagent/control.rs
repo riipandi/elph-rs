@@ -7,11 +7,13 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use super::harness::spawn_subagent_harness;
-use super::id::{MAX_NAME_ATTEMPTS, generate_agent_name};
+use super::id::MAX_NAME_ATTEMPTS;
+use super::id::generate_agent_name;
 use super::registry::{AgentRegistry, SubagentRecord};
 use super::types::{SubagentBootstrap, SubagentInfo, SubagentLimits, SubagentStatus};
 use crate::runtime::local_env::LocalExecutionEnv;
-use crate::types::{AgentEvent, AgentTool, StreamFn, llm_message_to_agent};
+use crate::types::llm_message_to_agent;
+use crate::types::{AgentEvent, AgentTool, StreamFn};
 
 #[derive(Clone)]
 pub struct SubagentSpawnConfig {

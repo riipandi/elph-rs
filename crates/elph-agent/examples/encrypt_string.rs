@@ -24,10 +24,13 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use elph_agent::{
-    Aes256Key, ENC_PREFIX, decrypt_json_async, decrypt_string_async, encrypt_json_async, encrypt_string_async,
-    is_encrypted_value,
-};
+use elph_agent::Aes256Key;
+use elph_agent::ENC_PREFIX;
+use elph_agent::decrypt_json_async;
+use elph_agent::decrypt_string_async;
+use elph_agent::encrypt_json_async;
+use elph_agent::encrypt_string_async;
+use elph_agent::is_encrypted_value;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

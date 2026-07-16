@@ -3,12 +3,14 @@
 use std::sync::Arc;
 
 use super::TextareaProps;
-use super::input::{TextareaInputContext, TextareaInputResult, handle_textarea_terminal_event};
+use super::input::handle_textarea_terminal_event;
+use super::input::{TextareaInputContext, TextareaInputResult};
 use super::layout::{layout_cursor_for_viewport, layout_metrics_from_wrapped, layout_textarea_measured};
 use super::state::TextareaState;
 use crate::components::scroll_bar::{ScrollbarStyle, VerticalScrollbar};
+use crate::text_input_layout::WrappedTextLayout;
 use crate::text_input_layout::overlay_editor_wrap_width;
-use crate::text_input_layout::{WrappedTextLayout, update_scroll_offset};
+use crate::text_input_layout::update_scroll_offset;
 use iocraft::prelude::*;
 
 /// Prefer viewport slicing above this source length (paste-sized buffers).

@@ -7,9 +7,14 @@ use std::time::Duration;
 
 use tokio::process::Command;
 
-use crate::agent::harness::types::{
-    ExecutionEnv, ExecutionError, ExecutionErrorCode, Result, Shell, ShellExecOptions, ShellExecResult, err, ok,
-};
+use crate::agent::harness::types::ExecutionEnv;
+use crate::agent::harness::types::ExecutionError;
+use crate::agent::harness::types::ExecutionErrorCode;
+use crate::agent::harness::types::Result;
+use crate::agent::harness::types::Shell;
+use crate::agent::harness::types::ShellExecOptions;
+use crate::agent::harness::types::ShellExecResult;
+use crate::agent::harness::types::{err, ok};
 
 impl Shell for LocalExecutionEnv {
     async fn exec(&self, command: &str, options: Option<ShellExecOptions>) -> Result<ShellExecResult, ExecutionError> {

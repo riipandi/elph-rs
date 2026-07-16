@@ -2,7 +2,8 @@
 
 use std::path::Path;
 
-use anyhow::{Result, anyhow, ensure};
+use anyhow::Result;
+use anyhow::{anyhow, ensure};
 use wasmtime::component::{Component, HasSelf, Linker};
 use wasmtime::error::Context;
 use wasmtime::{Config, Engine, Store};

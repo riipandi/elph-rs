@@ -12,10 +12,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use elph_ai::Tool;
-use futures::stream::{self, StreamExt};
+use futures::stream::StreamExt;
+use futures::stream::{self};
 use parking_lot::RwLock;
 use rmcp::model::{CallToolResult, ContentBlock, Prompt, Resource, ResourceContents, Tool as McpTool};
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio::sync::mpsc;
 
 use crate::tools::simple_tool;
@@ -24,11 +26,11 @@ use crate::types::{AgentTool, AgentToolResult, ToolResultContent};
 use super::client::{call_tool_for_server, probe_server_with_auth, validate_server_config};
 use super::config::{McpConfig, McpLoadOptions, McpServerConfig};
 use super::events::McpServerEvent;
-use super::policy::{McpPolicyConfig, mcp_tool_requires_approval};
+use super::policy::McpPolicyConfig;
+use super::policy::mcp_tool_requires_approval;
 use super::session::McpSessionPool;
-use super::truncate::{
-    DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS, truncate_json_value, truncate_tool_content,
-};
+use super::truncate::{DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS};
+use super::truncate::{truncate_json_value, truncate_tool_content};
 
 /// A discovered MCP tool ready for exposure to the model.
 #[derive(Debug, Clone)]

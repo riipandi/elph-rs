@@ -18,7 +18,8 @@ use rmcp::model::{ClientJsonRpcMessage, ServerJsonRpcMessage};
 use rmcp::service::{RxJsonRpcMessage, TxJsonRpcMessage};
 use rmcp::transport::Transport;
 use serde_json::Value;
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::{mpsc, oneshot};
 
 use super::config::McpHttpConfig;
 

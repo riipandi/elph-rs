@@ -2,24 +2,20 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key,
-    invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
 use crate::api::github_copilot_headers::{build_copilot_dynamic_headers, has_copilot_vision_input};
 use crate::api::openai_prompt_cache::clamp_openai_prompt_cache_key;
-use crate::api::openai_responses_shared::{
-    OpenAIResponsesStreamOptions, ResponsesStreamState, convert_responses_messages, convert_responses_tools,
-    process_responses_stream_event,
-};
+use crate::api::openai_responses_shared::process_responses_stream_event;
+use crate::api::openai_responses_shared::{OpenAIResponsesStreamOptions, ResponsesStreamState};
+use crate::api::openai_responses_shared::{convert_responses_messages, convert_responses_tools};
 use crate::api::simple_options::build_base_options;
 use crate::models::{clamp_thinking_level, thinking_level_to_str};
-use crate::types::{
-    AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams, SimpleStreamOptions, StopReason,
-    StreamOptions, Usage,
-};
+use crate::types::{AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams, SimpleStreamOptions};
+use crate::types::{StopReason, StreamOptions, Usage};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::provider_env::get_provider_env_value;
 

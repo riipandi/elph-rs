@@ -1,20 +1,20 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key,
-    invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
 use crate::api::github_copilot_headers::{build_copilot_dynamic_headers, has_copilot_vision_input};
 use crate::api::simple_options::{adjust_max_tokens_for_thinking, build_base_options, clamp_max_tokens_to_context};
-use crate::api::sse::{ANTHROPIC_MESSAGE_EVENTS, ServerSentEvent, decode_sse_buffer, for_each_anthropic_sse_event};
+use crate::api::sse::{ANTHROPIC_MESSAGE_EVENTS, ServerSentEvent};
+use crate::api::sse::{decode_sse_buffer, for_each_anthropic_sse_event};
 use crate::api::transform_messages::transform_messages;
 use crate::models::{calculate_cost, thinking_level_to_str};
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message, Model,
-    ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, ThinkingLevel, UserContent,
-};
+use crate::types::UserContent;
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message};
+use crate::types::{Model, ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, ThinkingLevel};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::json_parse::{parse_json_with_repair, parse_streaming_json};
 use crate::utils::provider_env::get_provider_env_value;

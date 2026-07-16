@@ -11,8 +11,9 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use elph_tui::CliProgress;
 use elph_tui::prelude::*;
-use elph_tui::{CliProgress, progress_spinner};
+use elph_tui::progress_spinner;
 use tokio::time::sleep;
 
 const STEPS: &[&str] = &[

@@ -4,17 +4,25 @@ use std::sync::{Arc, Mutex as StdMutex};
 
 use elph_ai::{ProviderResponse, SimpleStreamOptions};
 
-use crate::agent::harness::types::{
-    AfterProviderResponseEvent, BeforeProviderPayloadEvent, BeforeProviderRequestEvent, ContextEvent, ToolCallEvent,
-    ToolResultEvent, clone_stream_options,
-};
+use crate::agent::harness::types::AfterProviderResponseEvent;
+use crate::agent::harness::types::BeforeProviderPayloadEvent;
+use crate::agent::harness::types::BeforeProviderRequestEvent;
+use crate::agent::harness::types::ContextEvent;
+use crate::agent::harness::types::ToolCallEvent;
+use crate::agent::harness::types::ToolResultEvent;
+use crate::agent::harness::types::clone_stream_options;
 use crate::collaboration::{plan_mode_block_reason, plan_mode_blocks_tool};
 use crate::prompt::encoding::PromptEncodingConfig;
 use crate::runtime::try_block_on;
-use crate::types::{
-    AfterToolCallResult, AgentContext, AgentLoopConfig, AgentLoopTurnUpdate, AgentMessage, BeforeToolCallResult,
-    GetQueuedMessagesFn, PrepareNextTurnFn, StreamFn,
-};
+use crate::types::AfterToolCallResult;
+use crate::types::AgentContext;
+use crate::types::AgentLoopConfig;
+use crate::types::AgentLoopTurnUpdate;
+use crate::types::AgentMessage;
+use crate::types::BeforeToolCallResult;
+use crate::types::GetQueuedMessagesFn;
+use crate::types::PrepareNextTurnFn;
+use crate::types::StreamFn;
 
 use super::super::helpers::merge_harness_into_simple;
 use super::super::{AgentHarness, AgentHarnessTurnState};

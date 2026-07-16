@@ -1,15 +1,20 @@
 //! Browser stream proxy — elph-agent module.
 
+use elph_ai::AssistantContentBlock;
+use elph_ai::AssistantMessage;
+use elph_ai::AssistantMessageEvent;
+use elph_ai::Context;
+use elph_ai::Model;
+use elph_ai::SimpleStreamOptions;
+use elph_ai::StopReason;
+use elph_ai::ToolCall;
 use elph_ai::utils::event_stream::AssistantMessageEventStream;
 use elph_ai::utils::json_parse::parse_streaming_json;
-use elph_ai::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, SimpleStreamOptions, StopReason,
-    ToolCall,
-};
 use futures::StreamExt;
 use reqwest::Client;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 /// Proxy stream options — server manages auth and forwards provider requests.

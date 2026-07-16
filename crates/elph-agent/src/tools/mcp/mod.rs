@@ -42,46 +42,144 @@ mod truncate;
 mod validate;
 
 #[cfg(feature = "mcp")]
-pub use auth::{
-    AuthStoreFile, AuthStorePathBuilder, DEFAULT_AUTH_FILE_NAME, DEFAULT_OAUTH_SCOPES, FileCredentialStore,
-    FileCredentialStoreBuilder, McpOAuthFlowOptions, McpOAuthFlowResult, auth_store_path, clear_credentials,
-    has_stored_credentials, resolve_oauth_access_token, run_oauth_flow, run_oauth_flow_with_scopes,
-};
+pub use auth::AuthStoreFile;
 #[cfg(feature = "mcp")]
-pub use auth_resolve::{McpAuthSource, McpAuthSourceReport, ResolvedMcpAuth, resolve_remote_auth};
+pub use auth::AuthStorePathBuilder;
 #[cfg(feature = "mcp")]
-pub use client::{
-    McpClient, McpConnectContext, McpProbeResult, PROBE_TIMEOUT, call_stdio_tool, call_tool_for_server, connect,
-    connect_http, connect_stdio, connect_with_context, list_tools, list_tools_for_server, parse_stdio_config,
-    probe_server, probe_server_with_auth, probe_stdio_server, shutdown_client, validate_server_config,
-};
+pub use auth::FileCredentialStore;
 #[cfg(feature = "mcp")]
-pub use config::{
-    DEFAULT_OPERATION_TIMEOUT_SECS, McpAuthConflictPolicy, McpConfig, McpHttpConfig, McpLoadOptions,
-    McpOAuthClientMeta, McpServerConfig, McpStdioConfig,
-};
+pub use auth::FileCredentialStoreBuilder;
 #[cfg(feature = "mcp")]
-pub use crypto::{
-    Aes256Key, DEFAULT_AUTH_KEY_FILE_NAME, ENC_PREFIX, decrypt_async, decrypt_json_async, decrypt_string_async,
-    decrypt_string_sync, default_auth_key_path, encrypt_async, encrypt_json_async, encrypt_string_async,
-    encrypt_string_sync, is_encrypted_value,
-};
+pub use auth::McpOAuthFlowOptions;
+#[cfg(feature = "mcp")]
+pub use auth::McpOAuthFlowResult;
+#[cfg(feature = "mcp")]
+pub use auth::auth_store_path;
+#[cfg(feature = "mcp")]
+pub use auth::clear_credentials;
+#[cfg(feature = "mcp")]
+pub use auth::has_stored_credentials;
+#[cfg(feature = "mcp")]
+pub use auth::resolve_oauth_access_token;
+#[cfg(feature = "mcp")]
+pub use auth::run_oauth_flow;
+#[cfg(feature = "mcp")]
+pub use auth::run_oauth_flow_with_scopes;
+#[cfg(feature = "mcp")]
+pub use auth::{DEFAULT_AUTH_FILE_NAME, DEFAULT_OAUTH_SCOPES};
+#[cfg(feature = "mcp")]
+pub use auth_resolve::resolve_remote_auth;
+#[cfg(feature = "mcp")]
+pub use auth_resolve::{McpAuthSource, McpAuthSourceReport, ResolvedMcpAuth};
+#[cfg(feature = "mcp")]
+pub use client::PROBE_TIMEOUT;
+#[cfg(feature = "mcp")]
+pub use client::call_stdio_tool;
+#[cfg(feature = "mcp")]
+pub use client::call_tool_for_server;
+#[cfg(feature = "mcp")]
+pub use client::connect;
+#[cfg(feature = "mcp")]
+pub use client::connect_http;
+#[cfg(feature = "mcp")]
+pub use client::connect_stdio;
+#[cfg(feature = "mcp")]
+pub use client::connect_with_context;
+#[cfg(feature = "mcp")]
+pub use client::list_tools;
+#[cfg(feature = "mcp")]
+pub use client::list_tools_for_server;
+#[cfg(feature = "mcp")]
+pub use client::parse_stdio_config;
+#[cfg(feature = "mcp")]
+pub use client::probe_server;
+#[cfg(feature = "mcp")]
+pub use client::probe_server_with_auth;
+#[cfg(feature = "mcp")]
+pub use client::probe_stdio_server;
+#[cfg(feature = "mcp")]
+pub use client::shutdown_client;
+#[cfg(feature = "mcp")]
+pub use client::validate_server_config;
+#[cfg(feature = "mcp")]
+pub use client::{McpClient, McpConnectContext, McpProbeResult};
+#[cfg(feature = "mcp")]
+pub use config::DEFAULT_OPERATION_TIMEOUT_SECS;
+#[cfg(feature = "mcp")]
+pub use config::McpAuthConflictPolicy;
+#[cfg(feature = "mcp")]
+pub use config::McpConfig;
+#[cfg(feature = "mcp")]
+pub use config::McpHttpConfig;
+#[cfg(feature = "mcp")]
+pub use config::McpLoadOptions;
+#[cfg(feature = "mcp")]
+pub use config::McpOAuthClientMeta;
+#[cfg(feature = "mcp")]
+pub use config::McpServerConfig;
+#[cfg(feature = "mcp")]
+pub use config::McpStdioConfig;
+#[cfg(feature = "mcp")]
+pub use crypto::Aes256Key;
+#[cfg(feature = "mcp")]
+pub use crypto::decrypt_async;
+#[cfg(feature = "mcp")]
+pub use crypto::decrypt_json_async;
+#[cfg(feature = "mcp")]
+pub use crypto::decrypt_string_async;
+#[cfg(feature = "mcp")]
+pub use crypto::decrypt_string_sync;
+#[cfg(feature = "mcp")]
+pub use crypto::default_auth_key_path;
+#[cfg(feature = "mcp")]
+pub use crypto::encrypt_async;
+#[cfg(feature = "mcp")]
+pub use crypto::encrypt_json_async;
+#[cfg(feature = "mcp")]
+pub use crypto::encrypt_string_async;
+#[cfg(feature = "mcp")]
+pub use crypto::encrypt_string_sync;
+#[cfg(feature = "mcp")]
+pub use crypto::is_encrypted_value;
+#[cfg(feature = "mcp")]
+pub use crypto::{DEFAULT_AUTH_KEY_FILE_NAME, ENC_PREFIX};
 #[cfg(feature = "mcp")]
 pub use events::{McpClientService, McpEventBus, McpServerEvent};
 #[cfg(feature = "mcp")]
-pub use policy::{McpPolicyAction, McpPolicyConfig, mcp_tool_requires_approval, pattern_matches};
+pub use policy::{McpPolicyAction, McpPolicyConfig};
 #[cfg(feature = "mcp")]
-pub use registry::{
-    McpLoadReport, McpPromptDescriptor, McpResourceDescriptor, McpServerLoadReport, McpToolDescriptor, McpToolRegistry,
-    expose_tool_name, mcp_result_to_agent, mcp_result_to_agent_with_limit, parse_exposed_tool_name,
-};
+pub use policy::{mcp_tool_requires_approval, pattern_matches};
+#[cfg(feature = "mcp")]
+pub use registry::McpLoadReport;
+#[cfg(feature = "mcp")]
+pub use registry::McpPromptDescriptor;
+#[cfg(feature = "mcp")]
+pub use registry::McpResourceDescriptor;
+#[cfg(feature = "mcp")]
+pub use registry::McpServerLoadReport;
+#[cfg(feature = "mcp")]
+pub use registry::McpToolDescriptor;
+#[cfg(feature = "mcp")]
+pub use registry::McpToolRegistry;
+#[cfg(feature = "mcp")]
+pub use registry::{expose_tool_name, mcp_result_to_agent, mcp_result_to_agent_with_limit, parse_exposed_tool_name};
 #[cfg(feature = "mcp")]
 pub use session::{McpServerSession, McpSessionPool};
 #[cfg(feature = "mcp")]
-pub use truncate::{DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS, truncate_chars};
+pub use truncate::truncate_chars;
 #[cfg(feature = "mcp")]
-pub use validate::{
-    McpConfigValidationError, parse_and_validate_mcp_config, parse_and_validate_mcp_config_async,
-    parse_and_validate_server_config_json, validate_mcp_config, validate_mcp_config_semantic,
-    validate_mcp_config_value,
-};
+pub use truncate::{DEFAULT_MAX_STRUCTURED_DETAIL_CHARS, DEFAULT_MAX_TOOL_RESULT_CHARS};
+#[cfg(feature = "mcp")]
+pub use validate::McpConfigValidationError;
+#[cfg(feature = "mcp")]
+pub use validate::parse_and_validate_mcp_config;
+#[cfg(feature = "mcp")]
+pub use validate::parse_and_validate_mcp_config_async;
+#[cfg(feature = "mcp")]
+pub use validate::parse_and_validate_server_config_json;
+#[cfg(feature = "mcp")]
+pub use validate::validate_mcp_config;
+#[cfg(feature = "mcp")]
+pub use validate::validate_mcp_config_semantic;
+#[cfg(feature = "mcp")]
+pub use validate::validate_mcp_config_value;

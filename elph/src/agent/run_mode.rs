@@ -4,7 +4,8 @@ use anyhow::Result;
 use std::io::Write;
 use std::path::Path;
 
-use super::runtime::{CreateSessionOptions, create_coding_session};
+use super::runtime::CreateSessionOptions;
+use super::runtime::create_coding_session;
 use crate::platform::{Paths, Settings};
 
 pub struct RunModeOptions<'a> {

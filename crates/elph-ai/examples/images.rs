@@ -5,7 +5,8 @@
 //! cargo run -p elph-ai --example images
 //! ```
 
-use elph_ai::{ContentBlock, ImagesContext, builtin_images_models};
+use elph_ai::builtin_images_models;
+use elph_ai::{ContentBlock, ImagesContext};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

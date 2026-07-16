@@ -1,7 +1,8 @@
 use anyhow::Result;
 use turso::params;
 
-use super::{MemoryStore, delete_orphan_retrievals};
+use super::MemoryStore;
+use super::delete_orphan_retrievals;
 use crate::floppy::types::DecayResult;
 
 impl MemoryStore {

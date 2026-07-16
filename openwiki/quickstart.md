@@ -27,25 +27,21 @@
 - **TOON Encoding** — Optional structured-data encoding for tool results (reduces token usage on tabular payloads).
 - **Extensions** — WASM-based dynamic plugins compiled with `wasmtime`.
 
-## Project state (HEAD `f3e9863`)
+## Project state (HEAD `fbdfa1e`)
 
 This repository is under **active development**. Recent milestones:
 
-- **TUI overhaul** — Replaced single-file `tui.rs` with a modular `tui/` directory (shell, editor, transcript, chrome, agent_bridge, activity). elph-tui crate now has 17+ implemented component modules, textarea/ directory with sub-modules, text_editing module, progress indicators, sticky scroll, paste support, and 14 integration tests (`f3e9863`, `72a95b2`, `24a36aa`, `f3bc052`).
-- **Session IDs migrated from TSID to Kalid** — Time-sortable 16-char IDs with no prefix, replacing 13-char TSID. Floppy memory store also migrated (`f3e9863` — working tree).
-- **`tools` CLI subcommand** — New `elph tools` command lists available agent tools with optional group and verbose flags (`d1d8843`).
-- **New tools** — Added `list_available_tools` (meta-tool for agent tool discovery) and `ask_user` (interactive user prompt). Renamed `multi_agent.rs` → `collaboration.rs` for collaboration tooling (`b7fd91f`).
-- **Tool reorganization** — Renamed tools for clarity (`read`→`read_file`, `edit`→`edit_file`, `write`→`write_file`, `ls`→`list_dir`, `find`→`find_path`, `websearch`→`web_search`, `webfetch`→`web_fetch`), added new filesystem tools (`create_dir`, `copy_path`, `delete_path`, `move_path`), and added `diagnostics` tool for `cargo check` integration (`d8eaf06`).
-- **Module reorganization** — Flattened harness structure: `harness/` → `agent/harness/`, `subagent/` → `agent/subagent/`, `mode/` → `collaboration/`, `mcp/` → `tools/mcp/`, `env/` → `runtime/local_env/`, `agent_loop/` → `runtime/`, prompt encoding → `prompt/encoding/` (`c3bb9fd`).
-- **Refactored** from a monolithic layout to layered crates (`elph-agent`, `elph-ai`, `elph-core`, `elph-tui`, `elph-swarm`).
-- **MCP** — Full client integration: stdio, streamable HTTP, SSE, OAuth, encrypted credentials, tool policy, session pools, hot reload.
-- **Observability** — Replaced `tracing` crate with `logforth` (structured logging) + `fastrace` (distributed tracing), including `JsonlReporter` and W3C `traceparent` propagation (`3ef42b8`).
-- **BuiltinToolsBuilder** — Feature-gated built-in tools with granular Cargo feature flags and a builder API for compile-time tool selection (`7b34c5b`).
-- **Workspace consolidation** — Removed `owly` and `eclaw` crates; unified CI (openwiki-update.yml) (`04c7352`).
-- **Prompt encoding** — Optional TOON encoding for tool results (`0a0753c`).
-- **Auto session naming** — Model-generated thread titles (`2e0297f`).
-- **Conditional tracing** — Tracing gated behind `ELPH_TRACE` env var (`04309cd`).
-- **Embeddings** — Replaced `fastembed` with `embed_anything` for local embedding models (`eb217f2`).
+- **TUI rich markdown rendering** — Full markdown-to-terminal pipeline in `crates/elph-tui/src/components/markdown/`: syntax-highlighted code blocks (syntect with Tokyo Night theme), auto-linked URLs, streaming tail rendering (`aa0aa69`, `a80a7f6`).
+- **Slash palette** — Autocomplete overlay with fuzzy search, keyboard navigation, and skill command registration (`75f5b21`, `3995657`).
+- **Focus switching** — `ShellFocus::Prompt` / `Transcript` with Esc-to-prompt, scroll keys, and auto-refocus on character input (`96fa4f7`).
+- **Tool approval modal** — Key-driven approval (`y`/`a`/`n`) in a bordered panel replacing the editor during tool confirmation (`55485b2`).
+- **Stream token tracking** — Real-time `+<delta> · <t/s>` display in the status row, turn count in chrome stats (`c90341f`, `384f9f8`).
+- **Quit confirmation during active turn** — Two-step quit flow: transcript notice + `y quit / n stay` key binding, force-quit with `/exit!` (`fbdfa1e`).
+- **Skills argument hints** — `SKILL.md` frontmatter now supports `argument-hint` for validating user-provided arguments and registering `/skill:<name>` slash invocations (`3995657`).
+- **Subagent abort** — Improved control channel for aborting subagents mid-execution (`a80a7f6`).
+- **elph-tui progress indicators** — Replaced `indicatif` with native `cli_progress.rs` component (`55485b2`).
+- **TUI overhaul** — Replaced single-file `tui.rs` with a modular `tui/` directory (shell, focus, tool_approval, user_question, activity, agent_bridge, chrome, prompt, transcript, slash_palette). elph-tui crate now has 17+ implemented component modules, markdown sub-modules, textarea/ directory with sub-modules, and 14 integration tests.
+- **Session IDs migrated from TSID to Kalid** — Time-sortable 16-char IDs with no prefix, replacing 13-char TSID. Floppy memory store also migrated (`066dd00`).
 
 ## Documentation map
 

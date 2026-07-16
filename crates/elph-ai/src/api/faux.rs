@@ -3,10 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, ProviderResponse, ProviderStreams,
-    SimpleStreamOptions, StopReason, StreamOptions, TextContent, ThinkingContent, ToolCall,
-};
+use crate::types::ToolCall;
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, ProviderResponse};
+use crate::types::{ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, TextContent, ThinkingContent};
 use crate::utils::event_stream::AssistantMessageEventStream;
 
 const DEFAULT_API: &str = "faux";

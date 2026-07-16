@@ -9,10 +9,11 @@ mod layout;
 mod state;
 
 pub use component::Textarea;
+pub use layout::TextareaLayout;
 pub use layout::{
-    TextareaLayout, compute_viewport_height, display_row_count, layout_cursor_for_viewport, layout_textarea,
-    layout_textarea_measured, logical_line_count, visible_row_count,
+    compute_viewport_height, display_row_count, layout_cursor_for_viewport, layout_textarea, layout_textarea_measured,
 };
+pub use layout::{logical_line_count, visible_row_count};
 pub use state::TextareaState;
 
 /// Props for [`Textarea`].

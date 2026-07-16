@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::Mutex;
 
 use elph_ai::api::faux::RegisterFauxProviderOptions;
-use elph_ai::{FauxProviderHandle, Model, Models, SimpleStreamOptions, builtin_models, create_models, faux_provider};
+use elph_ai::{FauxProviderHandle, Model, Models, SimpleStreamOptions};
+use elph_ai::{builtin_models, create_models, faux_provider};
 
 pub fn faux_stream_fn(faux: &FauxProviderHandle) -> elph_agent::StreamFn {
     let provider = faux.provider.clone();

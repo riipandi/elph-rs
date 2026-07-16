@@ -9,17 +9,29 @@ use std::time::Duration;
 
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
 
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessErrorCode;
+use elph_agent::AgentHarnessEvent;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessOwnEvent;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::AgentTool;
+use elph_agent::BranchSummarySummary;
+use elph_agent::CustomMessageContent;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::NavigateTreeOptions;
+use elph_agent::QueueMode;
+use elph_agent::Session;
+use elph_agent::SessionBeforeTreeResult;
+use elph_agent::Skill;
+use elph_agent::SystemPrompt;
+use elph_agent::ToolResultPatch;
 use elph_agent::session::types::SessionTreeEntry;
-use elph_agent::{
-    AgentHarness, AgentHarnessErrorCode, AgentHarnessEvent, AgentHarnessOptions, AgentHarnessOwnEvent,
-    AgentHarnessResources, AgentThinkingLevel, AgentTool, BranchSummarySummary, CustomMessageContent,
-    InMemorySessionStorage, LocalExecutionEnv, NavigateTreeOptions, QueueMode, Session, SessionBeforeTreeResult, Skill,
-    SystemPrompt, ToolResultPatch, create_custom_message, llm_message_to_agent, simple_tool,
-};
-use elph_ai::{
-    ContentBlock, FauxResponseStep, Message, Models, StopReason, Tool, UserContent, builtin_models,
-    faux_assistant_message, faux_provider, faux_text, faux_tool_call,
-};
+use elph_agent::{create_custom_message, llm_message_to_agent, simple_tool};
+use elph_ai::{ContentBlock, FauxResponseStep, Message, Models, StopReason, Tool, UserContent};
+use elph_ai::{builtin_models, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 use tempfile::TempDir;
 

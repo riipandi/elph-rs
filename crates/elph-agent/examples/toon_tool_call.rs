@@ -13,12 +13,21 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{
-    DEFAULT_ROWS, RunMeta, TOOL_CALL_PROMPT, TOOL_CALL_SYSTEM, build_agent, build_stream_fn, parse_delimiter,
-    print_encoding_preview, print_model_banner, report_tool_result, require_opencode_key, resolve_model,
-    run_agent_prompt, sample_catalog, toon_prompt_encoding_with_delimiter,
-};
-use elph_agent::{AgentEvent, AgentToolResult, PromptEncodingDelimiter, PromptEncodingMode, simple_tool};
+use common::RunMeta;
+use common::build_agent;
+use common::build_stream_fn;
+use common::parse_delimiter;
+use common::print_encoding_preview;
+use common::print_model_banner;
+use common::report_tool_result;
+use common::require_opencode_key;
+use common::resolve_model;
+use common::run_agent_prompt;
+use common::sample_catalog;
+use common::toon_prompt_encoding_with_delimiter;
+use common::{DEFAULT_ROWS, TOOL_CALL_PROMPT, TOOL_CALL_SYSTEM};
+use elph_agent::simple_tool;
+use elph_agent::{AgentEvent, AgentToolResult, PromptEncodingDelimiter, PromptEncodingMode};
 use elph_ai::Tool;
 use serde_json::json;
 

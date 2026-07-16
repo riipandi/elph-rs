@@ -6,7 +6,8 @@
 
 use elph_agent::AgentTool;
 use elph_ai::Tool;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 /// Create the `diagnostics` tool, scoped to the given project root.
 pub fn create_diagnostics_tool(cwd: &str) -> AgentTool {

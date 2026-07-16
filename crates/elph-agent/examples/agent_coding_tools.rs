@@ -15,11 +15,10 @@ use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use elph_agent::{
-    Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_all_tools, create_edit_tools,
-    create_search_tools,
-};
-use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
+use elph_agent::{Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState};
+use elph_agent::{create_all_tools, create_edit_tools, create_search_tools};
+use elph_ai::{Message, StopReason};
+use elph_ai::{builtin_models, get_builtin_model};
 use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";

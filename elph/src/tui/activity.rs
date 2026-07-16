@@ -157,6 +157,7 @@ impl TurnTokenTracker {
         }
     }
 
+    #[cfg(test)]
     pub fn active_tokens(&self) -> u64 {
         self.baseline_tokens.saturating_add(self.stream_tokens)
     }

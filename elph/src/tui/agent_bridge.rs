@@ -4,8 +4,9 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::agent::format_skill_conflict_notice;
 use crate::agent::goal_slash::handle_goal_slash;
-use crate::agent::{AgentUiEvent, CodingAgentSession, SlashDispatch, format_skill_conflict_notice};
+use crate::agent::{AgentUiEvent, CodingAgentSession, SlashDispatch};
 use crate::extensions::ExtensionHost;
 use crate::platform::Paths;
 

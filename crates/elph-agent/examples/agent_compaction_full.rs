@@ -9,7 +9,8 @@
 //! cargo run -p elph-agent --example agent_compaction_full
 //! ```
 
-use elph_agent::{AgentMessage, llm_message_to_agent};
+use elph_agent::AgentMessage;
+use elph_agent::llm_message_to_agent;
 use elph_ai::{AssistantMessage, Message, TextContent, UserContent};
 
 fn now_ms() -> i64 {

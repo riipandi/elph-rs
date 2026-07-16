@@ -4,7 +4,8 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::anyhow;
+use anyhow::{Context, Result};
 use regex::Regex;
 use reqwest::Client;
 use url::Url;

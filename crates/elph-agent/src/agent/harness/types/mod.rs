@@ -7,32 +7,85 @@ mod hooks;
 mod options;
 mod result;
 
-pub use errors::{
-    AgentHarnessError, AgentHarnessErrorCode, BranchSummaryError, BranchSummaryErrorCode, CompactionError,
-    CompactionErrorCode, ExecutionError, ExecutionErrorCode, FileError, FileErrorCode,
-};
-pub use events::{
-    AbortEvent, AbortResult, AfterProviderResponseEvent, AgentHarnessOwnEvent, AgentHarnessPhase,
-    BeforeAgentStartEvent, BeforeProviderPayloadEvent, BeforeProviderRequestEvent, BranchSummaryResult, CompactResult,
-    CompactionPreparation, ContextEvent, FileOperations, ModelUpdateEvent, ModelUpdateSource, NavigateTreeResult,
-    PendingSessionWrite, QueueUpdateEvent, ResourcesUpdateEvent, SavePointEvent, SessionBeforeCompactEvent,
-    SessionBeforeTreeEvent, SessionCompactEvent, SessionTreeEvent, SettledEvent, ThinkingLevelUpdateEvent,
-    ToolCallEvent, ToolResultEvent, ToolsUpdateEvent, TreePreparation, is_known_harness_hook_type,
-};
-pub use filesystem::{
-    CreateDirOptions, CreateTempFileOptions, ExecutionEnv, FileInfo, FileKind, FileSystem, ReadTextLinesOptions,
-    RemoveOptions, Shell, ShellExecOptions, ShellExecResult,
-};
-pub use hooks::{
-    BeforeAgentStartResult, BeforeProviderPayloadResult, BeforeProviderRequestResult, BranchSummarySummary,
-    ContextResult, HarnessHookResult, SessionBeforeCompactResult, SessionBeforeTreeResult, ToolCallHookResult,
-    ToolResultPatch,
-};
-pub use options::{
-    AgentHarnessOptions, AgentHarnessPromptOptions, AgentHarnessResources, AgentHarnessStreamOptions,
-    AgentHarnessStreamOptionsPatch, CompactionSettings, DEFAULT_COMPACTION_SETTINGS, DEFAULT_SKILL_VALIDATION_SETTINGS,
-    PromptTemplate, Skill, SkillLoadOptions, SkillValidationSettings, SystemPrompt, SystemPromptContext,
-    SystemPromptFn, apply_stream_options_patch, clone_stream_options, resolve_project_skills_dirs,
-    resolve_user_skills_dirs,
-};
-pub use result::{HarnessResult, Result, err, get_or_throw, get_or_undefined, ok, to_error};
+pub use errors::AgentHarnessError;
+pub use errors::AgentHarnessErrorCode;
+pub use errors::BranchSummaryError;
+pub use errors::BranchSummaryErrorCode;
+pub use errors::CompactionError;
+pub use errors::CompactionErrorCode;
+pub use errors::ExecutionError;
+pub use errors::ExecutionErrorCode;
+pub use errors::FileError;
+pub use errors::FileErrorCode;
+pub use events::AbortEvent;
+pub use events::AbortResult;
+pub use events::AfterProviderResponseEvent;
+pub use events::AgentHarnessOwnEvent;
+pub use events::AgentHarnessPhase;
+pub use events::BeforeAgentStartEvent;
+pub use events::BeforeProviderPayloadEvent;
+pub use events::BeforeProviderRequestEvent;
+pub use events::BranchSummaryResult;
+pub use events::CompactResult;
+pub use events::CompactionPreparation;
+pub use events::ContextEvent;
+pub use events::FileOperations;
+pub use events::ModelUpdateEvent;
+pub use events::ModelUpdateSource;
+pub use events::NavigateTreeResult;
+pub use events::PendingSessionWrite;
+pub use events::QueueUpdateEvent;
+pub use events::ResourcesUpdateEvent;
+pub use events::SavePointEvent;
+pub use events::SessionBeforeCompactEvent;
+pub use events::SessionBeforeTreeEvent;
+pub use events::SessionCompactEvent;
+pub use events::SessionTreeEvent;
+pub use events::SettledEvent;
+pub use events::ThinkingLevelUpdateEvent;
+pub use events::ToolCallEvent;
+pub use events::ToolResultEvent;
+pub use events::ToolsUpdateEvent;
+pub use events::TreePreparation;
+pub use events::is_known_harness_hook_type;
+pub use filesystem::CreateDirOptions;
+pub use filesystem::CreateTempFileOptions;
+pub use filesystem::ExecutionEnv;
+pub use filesystem::FileInfo;
+pub use filesystem::FileKind;
+pub use filesystem::FileSystem;
+pub use filesystem::ReadTextLinesOptions;
+pub use filesystem::RemoveOptions;
+pub use filesystem::Shell;
+pub use filesystem::ShellExecOptions;
+pub use filesystem::ShellExecResult;
+pub use hooks::BeforeAgentStartResult;
+pub use hooks::BeforeProviderPayloadResult;
+pub use hooks::BeforeProviderRequestResult;
+pub use hooks::BranchSummarySummary;
+pub use hooks::ContextResult;
+pub use hooks::HarnessHookResult;
+pub use hooks::SessionBeforeCompactResult;
+pub use hooks::SessionBeforeTreeResult;
+pub use hooks::ToolCallHookResult;
+pub use hooks::ToolResultPatch;
+pub use options::AgentHarnessOptions;
+pub use options::AgentHarnessPromptOptions;
+pub use options::AgentHarnessResources;
+pub use options::AgentHarnessStreamOptions;
+pub use options::AgentHarnessStreamOptionsPatch;
+pub use options::CompactionSettings;
+pub use options::PromptTemplate;
+pub use options::Skill;
+pub use options::SkillLoadOptions;
+pub use options::SkillValidationSettings;
+pub use options::SystemPrompt;
+pub use options::SystemPromptContext;
+pub use options::SystemPromptFn;
+pub use options::apply_stream_options_patch;
+pub use options::clone_stream_options;
+pub use options::resolve_project_skills_dirs;
+pub use options::resolve_user_skills_dirs;
+pub use options::{DEFAULT_COMPACTION_SETTINGS, DEFAULT_SKILL_VALIDATION_SETTINGS};
+pub use result::{HarnessResult, Result};
+pub use result::{err, get_or_throw, get_or_undefined, ok, to_error};

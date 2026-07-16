@@ -1,4 +1,5 @@
-use elph_ai::api::openai_prompt_cache::{OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH, clamp_openai_prompt_cache_key};
+use elph_ai::api::openai_prompt_cache::OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH;
+use elph_ai::api::openai_prompt_cache::clamp_openai_prompt_cache_key;
 
 #[test]
 fn clamps_prompt_cache_key_to_sixty_four_characters() {

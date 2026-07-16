@@ -1,4 +1,5 @@
-use elph_tui::components::scroll_bar::{ScrollbarStyle, scrollbar_thumb_rows};
+use elph_tui::components::scroll_bar::ScrollbarStyle;
+use elph_tui::components::scroll_bar::scrollbar_thumb_rows;
 use elph_tui::components::scroll_box::scroll_view_max_offset;
 
 #[test]

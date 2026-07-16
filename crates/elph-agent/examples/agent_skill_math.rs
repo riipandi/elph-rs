@@ -19,7 +19,8 @@ use elph_agent::agent::harness::format_skills_for_system_prompt;
 use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::skills::{format_skill_invocation, load_skills_with_options};
 use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
-use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
+use elph_ai::{Message, StopReason};
+use elph_ai::{builtin_models, get_builtin_model};
 use elph_tui::progress_spinner;
 use tempfile::TempDir;
 

@@ -9,30 +9,36 @@ use elph_tui::rgb;
 use iocraft::prelude::*;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::agent::{
-    AgentUiEvent, CodingAgentSession, ToolApprovalChoice, parse_skill_slash, slash_commands_for_palette,
-};
+use crate::agent::slash_commands_for_palette;
+use crate::agent::{AgentUiEvent, CodingAgentSession, ToolApprovalChoice};
 use crate::extensions::ExtensionHost;
-use crate::platform::{Paths, PromptInterrupt, handle_prompt_interrupt_text};
-use crate::types::{AgentMode, SlashCommand, ThinkingLevel, is_force_quit_command, is_quit_command};
+use crate::platform::handle_prompt_interrupt_text;
+use crate::platform::{Paths, PromptInterrupt};
+use crate::types::{AgentMode, SlashCommand, ThinkingLevel};
+use crate::types::{is_force_quit_command, is_quit_command};
 
+use crate::tui::activity::TurnTokenTracker;
 use crate::tui::activity::{
-    TurnTokenTracker, activity_label_for_event, format_busy_right_with_quit_confirm, format_busy_token_info,
-    format_quit_canceled_notice, format_quit_while_busy_transcript, format_turn_canceled_notice,
-    format_turn_complete_notice,
+    activity_label_for_event, format_busy_right_with_quit_confirm, format_busy_token_info, format_quit_canceled_notice,
+    format_quit_while_busy_transcript, format_turn_canceled_notice, format_turn_complete_notice,
 };
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
 use crate::tui::chrome::{ChromeStats, Header, StatusRow};
 use crate::tui::chrome::{format_elapsed_secs, header_stats_from_chrome, read_git_branch, refresh_chrome_stats};
-use crate::tui::focus::{ShellFocus, prompt_focus_char};
+use crate::tui::focus::ShellFocus;
+use crate::tui::focus::prompt_focus_char;
 use crate::tui::labels::{footer_left_label, project_footer_label, session_label};
 use crate::tui::prompt::{Footer, PromptChrome};
 use crate::tui::session_prefs::persist_session_prefs;
-use crate::tui::slash_handler::{SlashContext, SlashOutcome, handle_slash_submit, overlay_deferred_message};
-use crate::tui::slash_palette::{SlashPaletteKeyAction, build_snapshot, resolve_snapshot_key_action, sync_selection};
-use crate::tui::tool_approval::{PendingToolApproval, ToolApprovalPrompt, choice_from_key};
+use crate::tui::slash_handler::{SlashContext, SlashOutcome};
+use crate::tui::slash_handler::{handle_slash_submit, overlay_deferred_message};
+use crate::tui::slash_palette::SlashPaletteKeyAction;
+use crate::tui::slash_palette::{build_snapshot, resolve_snapshot_key_action, sync_selection};
+use crate::tui::tool_approval::choice_from_key;
+use crate::tui::tool_approval::{PendingToolApproval, ToolApprovalPrompt};
 use crate::tui::transcript::{TranscriptMessage, TranscriptPanel, TranscriptStyle};
-use crate::tui::user_question::{PendingUserQuestion, UserQuestionPrompt, confirm_from_key, option_index_from_key};
+use crate::tui::user_question::{PendingUserQuestion, UserQuestionPrompt};
+use crate::tui::user_question::{confirm_from_key, option_index_from_key};
 
 const SHELL_TICK_MS: u64 = 50;
 const CHROME_REFRESH_TICKS: u32 = 20;
@@ -47,22 +53,16 @@ struct IdleStatusNotice {
     since: Instant,
 }
 
-fn slash_turn_sets_busy(input: &str, templates: &[PromptTemplate], skills: &[Skill]) -> bool {
-    let trimmed = input.trim();
-    if trimmed == "/compact" || trimmed == "/c" || trimmed.starts_with("/compact ") || trimmed.starts_with("/c ") {
-        return true;
-    }
-    let body = trimmed.trim_start_matches('/').trim();
-    if let Some((name, _)) = parse_skill_slash(body)
-        && skills.iter().any(|skill| skill.name == name)
-    {
-        return true;
-    }
-    let name = body
-        .split_once(' ')
-        .map_or(body, |(command, _)| command)
-        .to_ascii_lowercase();
-    templates.iter().any(|template| template.name == name)
+fn agent_event_keeps_busy(event: &AgentUiEvent) -> bool {
+    matches!(
+        event,
+        AgentUiEvent::TextDelta(_)
+            | AgentUiEvent::ThinkingDelta(_)
+            | AgentUiEvent::ToolStart { .. }
+            | AgentUiEvent::ToolUpdate { .. }
+            | AgentUiEvent::ToolEnd { .. }
+            | AgentUiEvent::SubagentStatus { .. }
+    )
 }
 
 #[derive(Props)]
@@ -389,6 +389,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         break;
                     };
                     events_processed += 1;
+                    if !busy.get() && agent_event_keeps_busy(&event) {
+                        mark_busy(
+                            &mut BusyActivation {
+                                busy: &mut busy,
+                                busy_started_at: &mut busy_started_at,
+                                elapsed_secs: &mut elapsed_secs,
+                                spinner_tick: &mut spinner_tick,
+                                activity_label: &mut activity_label,
+                            },
+                            false,
+                        );
+                    }
                     if let AgentUiEvent::RunCompleted { elapsed_secs } = &event {
                         run_completed = true;
                         run_completed_elapsed = Some(*elapsed_secs);
@@ -524,9 +536,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             let mut pending_tool_approval = pending_tool_approval;
             let mut pending_user_question = pending_user_question;
             let mut pending_quit_confirm = pending_quit_confirm;
-            if pending_quit_confirm.get()
-                && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-            {
+            if pending_quit_confirm.get() && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) {
                 match code {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         confirm_pending_quit(PendingQuitAction {
@@ -909,22 +919,6 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         },
                         on_submit: move |text: String| {
                     shell_focus.set(ShellFocus::Prompt);
-                    if let Some(question) = pending_user_question.write().take() {
-                        let answer = if text.trim().is_empty() {
-                            question.default.clone().unwrap_or_default()
-                        } else {
-                            text
-                        };
-                        question.respond(answer);
-                        draft.set(String::new());
-                        live_draft.set(String::new());
-                        suppress_enter_newline.set(true);
-                        activity_label.set("Thinking".to_string());
-                        return;
-                    }
-                    if text.trim().is_empty() {
-                        return;
-                    }
                     if is_force_quit_command(&text) || is_quit_command(&text) {
                         let _ = request_quit(
                             PendingQuitAction {
@@ -944,6 +938,22 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         draft.set(String::new());
                         live_draft.set(String::new());
                         suppress_enter_newline.set(true);
+                        return;
+                    }
+                    if let Some(question) = pending_user_question.write().take() {
+                        let answer = if text.trim().is_empty() {
+                            question.default.clone().unwrap_or_default()
+                        } else {
+                            text
+                        };
+                        question.respond(answer);
+                        draft.set(String::new());
+                        live_draft.set(String::new());
+                        suppress_enter_newline.set(true);
+                        activity_label.set("Thinking".to_string());
+                        return;
+                    }
+                    if text.trim().is_empty() {
                         return;
                     }
 
@@ -1010,7 +1020,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             );
                         }
                         SlashOutcome::SpawnAgentTurn if is_slash => {
-                            if agent_session.is_some() && slash_turn_sets_busy(&text, &templates, &loaded_skills) {
+                            if agent_session.is_some() {
                                 chrome_refresh_pending.set(true);
                                 idle_status_notice.set(None);
                                 turn_cancel_requested.set(false);
@@ -1074,7 +1084,26 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent::parse_skill_slash;
     use elph_agent::Skill;
+
+    fn slash_turn_sets_busy(input: &str, templates: &[PromptTemplate], skills: &[Skill]) -> bool {
+        let trimmed = input.trim();
+        if trimmed == "/compact" || trimmed == "/c" || trimmed.starts_with("/compact ") || trimmed.starts_with("/c ") {
+            return true;
+        }
+        let body = trimmed.trim_start_matches('/').trim();
+        if let Some((name, _)) = parse_skill_slash(body)
+            && skills.iter().any(|skill| skill.name == name)
+        {
+            return true;
+        }
+        let name = body
+            .split_once(' ')
+            .map_or(body, |(command, _)| command)
+            .to_ascii_lowercase();
+        templates.iter().any(|template| template.name == name)
+    }
 
     fn sample_skill() -> Skill {
         Skill {

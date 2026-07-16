@@ -21,7 +21,8 @@
 
 use std::path::Path;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
+use anyhow::bail;
 
 use super::auth::{has_stored_credentials, resolve_oauth_access_token};
 use super::config::{McpAuthConflictPolicy, McpHttpConfig};

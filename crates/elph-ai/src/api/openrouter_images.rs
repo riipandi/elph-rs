@@ -1,16 +1,15 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use anyhow::{Result, anyhow};
-use serde_json::{Value, json};
+use anyhow::Result;
+use anyhow::anyhow;
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, invoke_on_response_from_reqwest, merge_model_headers,
-    with_trace_headers,
-};
-use crate::types::{
-    AssistantImages, ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ProviderImages, StopReason,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, invoke_on_response_from_reqwest};
+use crate::api::common::{merge_model_headers, with_trace_headers};
+use crate::types::StopReason;
+use crate::types::{AssistantImages, ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ProviderImages};
 use crate::utils::error_body::{format_provider_error, normalize_provider_error};
 use crate::utils::sanitize_unicode::sanitize_surrogates;
 

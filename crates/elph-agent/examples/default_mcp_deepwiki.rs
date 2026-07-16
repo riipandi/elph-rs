@@ -12,15 +12,19 @@ mod common;
 use std::sync::Arc;
 use std::time::Duration;
 
-use common::{
-    DEEPWIKI_MCP_URL, MCP_DEFAULT_REPO, MCP_DEFAULT_TOOL, MCP_SYSTEM, RunMeta, baseline_prompt_encoding, build_agent,
-    build_mcp_prompt, build_stream_fn, print_model_banner, report_tool_result, require_opencode_key, resolve_model,
-    run_agent_prompt,
-};
-use elph_agent::{
-    AgentEvent, McpConfig, McpHttpConfig, McpLoadOptions, McpServerConfig, McpToolRegistry, expose_tool_name,
-    parse_and_validate_mcp_config,
-};
+use common::RunMeta;
+use common::baseline_prompt_encoding;
+use common::build_agent;
+use common::build_mcp_prompt;
+use common::build_stream_fn;
+use common::print_model_banner;
+use common::report_tool_result;
+use common::require_opencode_key;
+use common::resolve_model;
+use common::run_agent_prompt;
+use common::{DEEPWIKI_MCP_URL, MCP_DEFAULT_REPO, MCP_DEFAULT_TOOL, MCP_SYSTEM};
+use elph_agent::{AgentEvent, McpConfig, McpHttpConfig, McpLoadOptions, McpServerConfig, McpToolRegistry};
+use elph_agent::{expose_tool_name, parse_and_validate_mcp_config};
 
 struct Args {
     repo: String,

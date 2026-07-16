@@ -6,7 +6,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use elph_ai::AssistantMessage;
 use tokio_util::sync::CancellationToken;
 
-use crate::prompt::encoding::{PromptEncodingConfig, apply_to_tool_result};
+use crate::prompt::encoding::PromptEncodingConfig;
+use crate::prompt::encoding::apply_to_tool_result;
 use crate::types::{AfterToolCallContext, AfterToolCallResult, AgentContext, AgentLoopConfig, AgentToolResult};
 
 use super::{ExecutedToolCallOutcome, FinalizedToolCall, PreparedToolCall};

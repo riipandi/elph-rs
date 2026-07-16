@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use super::types::{
-    ApiKeyCredential, AuthContext, AuthModel, AuthResult, BoxFuture, Credential, CredentialStore, OAuthCredential,
-    ProviderAuth,
-};
+use super::types::{ApiKeyCredential, AuthContext, AuthModel, AuthResult, BoxFuture, Credential, CredentialStore};
+use super::types::{OAuthCredential, ProviderAuth};
 use crate::types::ProviderEnv;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

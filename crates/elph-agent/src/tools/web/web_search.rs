@@ -1,6 +1,7 @@
 //! `web_search` agent tool.
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 use elph_ai::Tool;
 
@@ -10,7 +11,8 @@ use crate::types::{AgentTool, AgentToolResult};
 
 use super::common::http_client;
 use super::engines::search_engine;
-use super::ranking::{Engine, format_results, ordered_try_list};
+use super::ranking::Engine;
+use super::ranking::{format_results, ordered_try_list};
 
 #[cfg(feature = "obscura")]
 use super::obscura;

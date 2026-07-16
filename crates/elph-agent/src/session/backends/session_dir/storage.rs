@@ -3,21 +3,30 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
-use tokio::fs::{self, OpenOptions};
+use tokio::fs::OpenOptions;
+use tokio::fs::{self};
 use tokio::io::AsyncWriteExt;
 
 use crate::session::id::generate_entry_id;
 use crate::session::storage_utils::{append_to_index, build_index, create_leaf_entry, find_entries, get_path_to_root};
-use crate::session::types::{
-    SessionDirMetadata, SessionError, SessionErrorCode, SessionIndex, SessionStorage, SessionTreeEntry,
-};
+use crate::session::types::SessionDirMetadata;
+use crate::session::types::SessionError;
+use crate::session::types::SessionErrorCode;
+use crate::session::types::SessionIndex;
+use crate::session::types::SessionStorage;
+use crate::session::types::SessionTreeEntry;
 use crate::types::AgentMessage;
 
 use super::chat::{tree_message_to_chat_line, user_prompt_text};
-use super::layout::{
-    CHAT_HISTORY_FILE, EVENTS_FILE, PROMPT_CONTEXT_FILE, PROMPT_CONTEXT_VERSION, PROMPT_HISTORY_FILE, SESSION_SUBDIRS,
-    SUMMARY_FILE, SYSTEM_PROMPT_FILE, UPDATES_FILE,
-};
+use super::layout::CHAT_HISTORY_FILE;
+use super::layout::EVENTS_FILE;
+use super::layout::PROMPT_CONTEXT_FILE;
+use super::layout::PROMPT_CONTEXT_VERSION;
+use super::layout::PROMPT_HISTORY_FILE;
+use super::layout::SESSION_SUBDIRS;
+use super::layout::SUMMARY_FILE;
+use super::layout::SYSTEM_PROMPT_FILE;
+use super::layout::UPDATES_FILE;
 use super::summary::SessionSummary;
 
 #[derive(Clone)]

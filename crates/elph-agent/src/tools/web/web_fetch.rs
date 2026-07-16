@@ -1,6 +1,7 @@
 //! `web_fetch` agent tool.
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 use elph_ai::Tool;
 
@@ -8,7 +9,8 @@ use crate::tools::common::check_aborted;
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult};
 
-use super::common::{FETCH_MAX_BYTES, USER_AGENT, html_to_text, http_client, is_html_content_type, parse_public_url};
+use super::common::{FETCH_MAX_BYTES, USER_AGENT};
+use super::common::{html_to_text, http_client, is_html_content_type, parse_public_url};
 
 #[cfg(feature = "obscura")]
 use super::obscura::FetchPageResult;

@@ -1,7 +1,8 @@
 //! Model and auth resolution.
 
 use anyhow::{Context, Result};
-use elph_ai::{Model, Models, get_builtin_model};
+use elph_ai::get_builtin_model;
+use elph_ai::{Model, Models};
 use std::sync::Arc;
 
 use super::provider::resolve_provider_and_model;

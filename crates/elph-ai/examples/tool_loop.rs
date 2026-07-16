@@ -9,11 +9,9 @@
 
 use std::io::Write;
 
-use elph_ai::{
-    AssistantContentBlock, AssistantMessageEvent, ContentBlock, Context, FauxModelDefinition, FauxResponseStep,
-    Message, RegisterFauxProviderOptions, StopReason, Tool, UserContent, create_models, faux_assistant_message,
-    faux_provider, faux_text, faux_tool_call,
-};
+use elph_ai::{AssistantContentBlock, AssistantMessageEvent, ContentBlock, Context, FauxModelDefinition};
+use elph_ai::{FauxResponseStep, Message, RegisterFauxProviderOptions, StopReason, Tool, UserContent};
+use elph_ai::{create_models, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 
 #[tokio::main]

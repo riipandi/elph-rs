@@ -1,8 +1,7 @@
 use elph_ai::api::openai_compat::ResolvedOpenAICompletionsCompat;
 use elph_ai::api::openai_completions::convert_messages;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, Context, Message, Model, ModelCost, ThinkingContent, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, Context, Message, Model, ModelCost, ThinkingContent};
 
 fn thinking_as_text_compat() -> ResolvedOpenAICompletionsCompat {
     ResolvedOpenAICompletionsCompat {

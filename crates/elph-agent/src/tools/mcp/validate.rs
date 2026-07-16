@@ -2,7 +2,8 @@
 
 use std::sync::OnceLock;
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use serde_json::Value;
 
 use super::client::validate_server_config;

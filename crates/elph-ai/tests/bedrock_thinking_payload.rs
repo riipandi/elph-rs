@@ -1,4 +1,5 @@
-use elph_ai::api::bedrock_converse_stream::{BedrockOptions, build_bedrock_converse_body};
+use elph_ai::api::bedrock_converse_stream::BedrockOptions;
+use elph_ai::api::bedrock_converse_stream::build_bedrock_converse_body;
 use elph_ai::get_builtin_model;
 use elph_ai::types::{Context, Message, ThinkingLevel, UserContent};
 use serde_json::Value;

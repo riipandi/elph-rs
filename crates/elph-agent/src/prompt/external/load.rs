@@ -1,10 +1,12 @@
 //! Load slash-command prompt templates from filesystem paths.
 
 use crate::agent::harness::types::{FileErrorCode, FileInfo, FileKind, FileSystem, Result};
-use crate::prompt::{
-    LoadPromptTemplatesResult, LoadSourcedPromptTemplatesResult, PromptTemplateDiagnostic,
-    PromptTemplateDiagnosticCode, SourcedPromptTemplate, SourcedPromptTemplateDiagnostic,
-};
+use crate::prompt::LoadPromptTemplatesResult;
+use crate::prompt::LoadSourcedPromptTemplatesResult;
+use crate::prompt::PromptTemplateDiagnostic;
+use crate::prompt::PromptTemplateDiagnosticCode;
+use crate::prompt::SourcedPromptTemplate;
+use crate::prompt::SourcedPromptTemplateDiagnostic;
 use crate::runtime::local_env::LocalExecutionEnv;
 
 use super::parse::{diagnostic, load_template_from_file};

@@ -8,14 +8,28 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::types::{
-    AfterProviderResponseEvent, AgentHarnessError, AgentHarnessErrorCode, AgentHarnessOwnEvent,
-    AgentHarnessStreamOptions, BeforeAgentStartEvent, BeforeAgentStartResult, BeforeProviderPayloadEvent,
-    BeforeProviderPayloadResult, BeforeProviderRequestEvent, BeforeProviderRequestResult, ContextEvent, ContextResult,
-    SessionBeforeCompactEvent, SessionBeforeCompactResult, SessionBeforeTreeEvent, SessionBeforeTreeResult,
-    ToolCallEvent, ToolCallHookResult, ToolResultEvent, ToolResultPatch, apply_stream_options_patch,
-    clone_stream_options,
-};
+use crate::agent::harness::types::AfterProviderResponseEvent;
+use crate::agent::harness::types::AgentHarnessError;
+use crate::agent::harness::types::AgentHarnessErrorCode;
+use crate::agent::harness::types::AgentHarnessOwnEvent;
+use crate::agent::harness::types::AgentHarnessStreamOptions;
+use crate::agent::harness::types::BeforeAgentStartEvent;
+use crate::agent::harness::types::BeforeAgentStartResult;
+use crate::agent::harness::types::BeforeProviderPayloadEvent;
+use crate::agent::harness::types::BeforeProviderPayloadResult;
+use crate::agent::harness::types::BeforeProviderRequestEvent;
+use crate::agent::harness::types::BeforeProviderRequestResult;
+use crate::agent::harness::types::ContextEvent;
+use crate::agent::harness::types::ContextResult;
+use crate::agent::harness::types::SessionBeforeCompactEvent;
+use crate::agent::harness::types::SessionBeforeCompactResult;
+use crate::agent::harness::types::SessionBeforeTreeEvent;
+use crate::agent::harness::types::SessionBeforeTreeResult;
+use crate::agent::harness::types::ToolCallEvent;
+use crate::agent::harness::types::ToolCallHookResult;
+use crate::agent::harness::types::ToolResultEvent;
+use crate::agent::harness::types::ToolResultPatch;
+use crate::agent::harness::types::{apply_stream_options_patch, clone_stream_options};
 use crate::types::AgentEvent;
 
 pub const SUBSCRIBER_EVENT_TYPE: &str = "*";

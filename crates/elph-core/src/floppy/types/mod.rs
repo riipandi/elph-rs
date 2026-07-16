@@ -10,5 +10,5 @@ pub use memory::{
 pub use report::{ContradictResult, MemoryReportInput, MemoryReportType, ReportCorrectionInput, ReportUserInput};
 pub use task::{
     EndTaskWithDecayResult, SelfReportEntry, StartTaskResult, TaskBaseline, TaskCreatedMemory, TaskEndInput,
-    TaskRecord, TaskRetrieval, TaskStatus, TimelineEvent, TimelineEventKind,
 };
+pub use task::{TaskRecord, TaskRetrieval, TaskStatus, TimelineEvent, TimelineEventKind};

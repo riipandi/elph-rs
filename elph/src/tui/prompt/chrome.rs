@@ -6,7 +6,8 @@ use crate::types::{AgentMode, ThinkingLevel};
 
 use super::editor::Editor;
 use super::footer::Footer;
-use crate::tui::slash_palette::{SlashCommandPalette, SlashPaletteSnapshot, palette_anchor_bottom};
+use crate::tui::slash_palette::palette_anchor_bottom;
+use crate::tui::slash_palette::{SlashCommandPalette, SlashPaletteSnapshot};
 
 #[derive(Default, Props)]
 pub struct PromptChromeProps {

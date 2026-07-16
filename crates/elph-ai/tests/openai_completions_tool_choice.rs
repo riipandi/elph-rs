@@ -1,7 +1,8 @@
 mod common;
 
 use common::{completions_proxy_model, sample_user_context};
-use elph_ai::api::openai_completions::{OpenAICompletionsOptions, build_openai_completions_params};
+use elph_ai::api::openai_completions::OpenAICompletionsOptions;
+use elph_ai::api::openai_completions::build_openai_completions_params;
 use elph_ai::get_builtin_model;
 use elph_ai::models::{clamp_thinking_level, thinking_level_to_str};
 use elph_ai::types::{Context, Message, OpenAICompletionsCompat, ThinkingLevel, Tool, UserContent};

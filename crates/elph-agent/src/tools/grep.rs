@@ -3,17 +3,25 @@
 use std::sync::Arc;
 
 use elph_ai::Tool;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::types::{FileKind, FileSystem, Result as HarnessResult};
-use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, TruncationOptions, truncate_head};
+use crate::agent::harness::utils::truncate::DEFAULT_MAX_BYTES;
+use crate::agent::harness::utils::truncate::TruncationOptions;
+use crate::agent::harness::utils::truncate::truncate_head;
 use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, resolve_path};
-use crate::tools::fff_picker::{
-    build_grep_mode, build_grep_options, build_grep_query, build_picker, format_grep_output, parse_grep_query,
-    resolve_path_scope, resolve_search_base, run_with_abort_signal,
-};
+use crate::tools::fff_picker::build_grep_mode;
+use crate::tools::fff_picker::build_grep_options;
+use crate::tools::fff_picker::build_grep_query;
+use crate::tools::fff_picker::build_picker;
+use crate::tools::fff_picker::format_grep_output;
+use crate::tools::fff_picker::parse_grep_query;
+use crate::tools::fff_picker::resolve_path_scope;
+use crate::tools::fff_picker::resolve_search_base;
+use crate::tools::fff_picker::run_with_abort_signal;
 use crate::tools::simple_tool;
 use crate::types::{AgentTool, AgentToolResult};
 

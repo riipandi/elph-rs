@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use elph_agent::goals::{GoalStatus, GoalStore, create_goal_tools};
-use elph_agent::{AgentToolResult, Migration, ensure_database};
+use elph_agent::ensure_database;
+use elph_agent::goals::create_goal_tools;
+use elph_agent::goals::{GoalStatus, GoalStore};
+use elph_agent::{AgentToolResult, Migration};
 use serde_json::json;
 
 const GOALS_MIGRATIONS: &[Migration] = &[

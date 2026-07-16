@@ -4,10 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use elph_ai::auth::{AuthContext, BoxFuture};
-use elph_ai::types::{
-    AnthropicMessagesCompat, AssistantMessage, CacheRetention, Context, Message, Model, ModelCost,
-    OpenAICompletionsCompat, OpenAIResponsesCompat, StopReason, StreamOptions, Usage, UserContent,
-};
+use elph_ai::types::{AnthropicMessagesCompat, AssistantMessage, CacheRetention, Context, Message, Model, ModelCost};
+use elph_ai::types::{OpenAICompletionsCompat, OpenAIResponsesCompat, StopReason, StreamOptions, Usage, UserContent};
 
 pub struct FakeAuthContext {
     pub env: HashMap<String, String>,

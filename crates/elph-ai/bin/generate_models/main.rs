@@ -18,9 +18,12 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use chat::{ChatOptions, generate_chat};
-use image::{ImageOptions, generate_image};
-use test_image::{TestImageOptions, generate_test_image};
+use chat::ChatOptions;
+use chat::generate_chat;
+use image::ImageOptions;
+use image::generate_image;
+use test_image::TestImageOptions;
+use test_image::generate_test_image;
 
 #[derive(Parser, Debug)]
 #[command(

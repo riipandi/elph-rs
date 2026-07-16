@@ -10,9 +10,13 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use elph_agent::{
-    AgentBuilder, AgentInit, BuiltinToolsBuilder, InitProgress, LocalExecutionEnv, LogRotation, LoggingOptions,
-};
+use elph_agent::AgentBuilder;
+use elph_agent::AgentInit;
+use elph_agent::BuiltinToolsBuilder;
+use elph_agent::InitProgress;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::LogRotation;
+use elph_agent::LoggingOptions;
 
 fn main() {
     // ── 1. AgentBuilder: compose init settings ──

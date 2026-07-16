@@ -2,8 +2,10 @@
 
 use iocraft::prelude::*;
 
-use super::super::model::{SlashPaletteSnapshot, list_viewport_cap, palette_window_start};
-use super::super::row_layout::{CMD_DESC_GAP_COLS, visible_terminal_rows, wrap_palette_description};
+use super::super::model::SlashPaletteSnapshot;
+use super::super::model::{list_viewport_cap, palette_window_start};
+use super::super::row_layout::CMD_DESC_GAP_COLS;
+use super::super::row_layout::{visible_terminal_rows, wrap_palette_description};
 use super::chrome::PaletteCardChrome;
 
 #[derive(Clone, Default, Props)]

@@ -1,7 +1,8 @@
 //! TOON encode helpers with JSON fallback.
 
 use serde_json::Value;
-use toon_format::{EncodeOptions, encode};
+use toon_format::EncodeOptions;
+use toon_format::encode;
 
 use super::config::PromptEncodingConfig;
 use super::fence::format_toon_block;
@@ -35,7 +36,8 @@ pub fn encode_value(value: &Value, config: &PromptEncodingConfig) -> Option<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{Value, json};
+    use serde_json::Value;
+    use serde_json::json;
     use toon_format::decode_default;
 
     use super::super::config::{PromptEncodingDelimiter, PromptEncodingMode};

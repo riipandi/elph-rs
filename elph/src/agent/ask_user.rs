@@ -8,7 +8,8 @@
 
 use elph_agent::AgentTool;
 use elph_ai::Tool;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio::sync::{mpsc, oneshot};
 
 use super::events::{AgentUiEvent, UserQuestionOption, UserQuestionRequest};

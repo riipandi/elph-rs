@@ -4,9 +4,11 @@
 //! write a single overwritten stderr line.
 
 use std::borrow::Cow;
-use std::io::{IsTerminal, Write, stderr};
+use std::io::stderr;
+use std::io::{IsTerminal, Write};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
+use std::thread::JoinHandle;
+use std::thread::{self};
 use std::time::Duration;
 
 use iocraft::prelude::*;
