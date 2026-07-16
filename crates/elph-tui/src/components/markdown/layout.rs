@@ -6,7 +6,7 @@ use crate::wrapped_transcript_row_count;
 use super::blocks::CODE_VERTICAL_PADDING;
 use super::blocks::{code_content_width, segment_end, segment_gap_after};
 use super::model::{MarkdownDocument, MarkdownLine, MarkdownLineKind};
-use super::table::format_markdown_table;
+use super::table::markdown_table_row_count;
 
 fn line_plain_text(line: &MarkdownLine) -> String {
     line.spans.iter().map(|span| span.text.as_str()).collect()
@@ -71,8 +71,7 @@ pub fn markdown_document_row_count(document: &MarkdownDocument, wrap_width: u16)
             }
         } else if line.kind == MarkdownLineKind::Table {
             if let Some(table) = &line.table {
-                let rows = format_markdown_table(table, wrap_width);
-                total = total.saturating_add(rows.len().max(1) as u16);
+                total = total.saturating_add(markdown_table_row_count(table, wrap_width));
             }
         } else {
             total = total.saturating_add(line_row_count(line, wrap_width));
@@ -130,6 +129,13 @@ mod tests {
         let doc = parse_markdown_document("- ✅ Done");
         let rows = markdown_document_row_count(&doc, 8);
         assert!(rows >= 2, "wide emoji should wrap before byte-count heuristics, got {rows}");
+    }
+
+    #[test]
+    fn gfm_table_row_count_uses_flex_layout() {
+        let doc = parse_markdown_document("| Name | Status |\n| --- | --- |\n| Ada | ✅ |");
+        let rows = markdown_document_row_count(&doc, 40);
+        assert!(rows >= 3, "bordered table should consume multiple rows, got {rows}");
     }
 
     #[test]

@@ -18,6 +18,9 @@ pub struct MarkdownTheme {
     pub code_inset: u16,
     pub blockquote: Color,
     pub list_marker: Color,
+    pub table_border: Color,
+    pub table_header: Color,
+    pub table_zebra: Color,
 }
 
 impl MarkdownTheme {
@@ -35,6 +38,9 @@ impl MarkdownTheme {
             code_inset: theme.container_inset(),
             blockquote: theme.text_muted,
             list_marker: theme.accent_soft,
+            table_border: theme.border_subtle,
+            table_header: theme.warning,
+            table_zebra: theme.selection_bg,
         }
     }
 }

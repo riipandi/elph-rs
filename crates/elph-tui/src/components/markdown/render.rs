@@ -5,7 +5,7 @@ use iocraft::prelude::*;
 use super::blocks::{CODE_BLOCK_INSET_V, code_content_width, segment_end, segment_gap_after};
 use super::linkify::spans_with_links;
 use super::model::{MarkdownDocument, MarkdownLine, MarkdownLineKind, StyledSpan};
-use super::table::format_markdown_table;
+use super::table::render_markdown_table;
 use super::theme::MarkdownTheme;
 
 fn span_to_mixed(span: &StyledSpan) -> MixedTextContent {
@@ -103,30 +103,12 @@ fn render_table_block(
     margin_bottom: u16,
 ) -> AnyElement<'static> {
     let table = line.table.as_ref().expect("table markdown line must carry table data");
-    let rows = format_markdown_table(table, width);
-    let items: Vec<AnyElement<'static>> = rows
-        .iter()
-        .map(|row| {
-            element! {
-                View(width: width, flex_shrink: 0f32) {
-                    Text(content: row.as_str(), color: theme.body, wrap: TextWrap::NoWrap)
-                }
-            }
-            .into()
-        })
-        .collect();
-    element! {
-        View(
-            width: width,
-            margin_bottom: margin_bottom,
-            flex_direction: FlexDirection::Column,
-            gap: 0,
-            flex_shrink: 0f32,
-        ) {
-            #(items)
+    render_markdown_table(table, width, theme, margin_bottom).unwrap_or_else(|| {
+        element! {
+            View(width: width, margin_bottom: margin_bottom, flex_shrink: 0f32)
         }
-    }
-    .into()
+        .into()
+    })
 }
 
 fn render_list_block(lines: &[MarkdownLine], width: u16, margin_bottom: u16) -> AnyElement<'static> {
@@ -344,6 +326,15 @@ mod tests {
         let doc = streaming_tail_document("```rust\nlet x = 1;");
         assert!(doc.lines.iter().any(|line| line.kind == MarkdownLineKind::Code));
         assert!(doc.lines.iter().all(|line| !line.code_background));
+    }
+
+    #[test]
+    fn gfm_table_renders_in_markdown_block() {
+        let doc = parse_markdown_document("| Tool | Count |\n| --- | --- |\n| grep | 3 |");
+        let block = render_markdown_block(&doc, 50);
+        let rendered = element! { View(width: 50) { #(vec![block]) } }.to_string();
+        assert!(rendered.contains("grep"));
+        assert!(rendered.contains('3'));
     }
 
     #[test]
