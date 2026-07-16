@@ -42,6 +42,7 @@ pub struct TextareaProps {
     /// Parent sets `true` to clear the live buffer (e.g. Ctrl+C while idle).
     pub force_clear: Option<Ref<bool>>,
     pub scrollbar_style: Option<ScrollbarStyle>,
+    pub theme: Option<UiTheme>,
     /// When true, plain `Enter` calls [`Self::on_submit`] (Shift+Enter / Ctrl+J still insert newlines).
     pub submit_on_enter: bool,
     pub on_submit: HandlerMut<'static, String>,
@@ -50,4 +51,5 @@ pub struct TextareaProps {
 }
 
 use crate::components::scroll_bar::ScrollbarStyle;
+use crate::components::theme::UiTheme;
 use iocraft::prelude::*;

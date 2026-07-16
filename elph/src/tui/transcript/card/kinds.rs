@@ -1,5 +1,6 @@
 //! Per-style transcript card renderers.
 
+use elph_tui::components::{ProcessActivityTrail, ProcessStatus, ProcessStatusRow};
 use iocraft::prelude::*;
 
 use crate::tui::theme::{TEXT_FG, THINKING_FG, TOOL_ARGS_FG, TOOL_OUTPUT_FG};
@@ -17,6 +18,15 @@ pub fn tool_status_marker(style: TranscriptStyle) -> &'static str {
         TranscriptStyle::ToolSuccess => "●",
         TranscriptStyle::ToolFailed => "✕",
         _ => "○",
+    }
+}
+
+fn tool_process_status(style: TranscriptStyle) -> ProcessStatus {
+    match style {
+        TranscriptStyle::ToolRunning => ProcessStatus::Running,
+        TranscriptStyle::ToolSuccess => ProcessStatus::Done,
+        TranscriptStyle::ToolFailed => ProcessStatus::Failed,
+        _ => ProcessStatus::Queued,
     }
 }
 
@@ -55,9 +65,14 @@ pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bot
     let chrome = TranscriptCardChrome::tinted(screen_width, style, margin_bottom);
 
     if let Some(tool) = &message.tool {
-        let header = format!("{} {}", tool_status_marker(style), tool.name);
         let args = format_tool_args_display(&tool.args_summary);
         let output = format_tool_output_display(&tool.output);
+        let running = style == TranscriptStyle::ToolRunning;
+        let status = tool_process_status(style);
+        let inner_width = chrome
+            .outer_width
+            .saturating_sub(chrome.padding_h.saturating_mul(2))
+            .max(8);
         return element! {
             View(
                 width: chrome.outer_width,
@@ -71,7 +86,25 @@ pub fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bot
                 flex_direction: FlexDirection::Column,
                 gap: 0,
             ) {
-                Text(color: chrome.foreground, wrap: TextWrap::NoWrap, content: header)
+                ProcessStatusRow(
+                    status: status,
+                    label: tool.name.clone(),
+                    running_color: Some(chrome.foreground),
+                    done_color: Some(chrome.foreground),
+                    failed_color: Some(chrome.foreground),
+                    emphasize_running: true,
+                )
+                #(if running && output.is_empty() {
+                    Some(element! {
+                        ProcessActivityTrail(
+                            width: inner_width.min(28),
+                            active: true,
+                            accent: Some(chrome.foreground),
+                        )
+                    })
+                } else {
+                    None
+                })
                 #(if !args.is_empty() {
                     Some(element! {
                         Text(color: TOOL_ARGS_FG, wrap: TextWrap::Wrap, content: args)

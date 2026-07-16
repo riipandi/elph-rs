@@ -1,6 +1,7 @@
 //! Syntax-highlighted code block (basic token coloring).
 
 use super::line_numbers::LineNumbers;
+use super::theme::{UiTheme, resolve_ui_theme};
 use iocraft::prelude::*;
 
 /// Props for [`CodeBlock`].
@@ -10,9 +11,12 @@ pub struct CodeBlockProps {
     pub source: String,
     pub show_line_numbers: bool,
     pub gutter_width: u16,
+    pub border_color: Option<Color>,
+    pub background_color: Option<Color>,
+    pub theme: Option<UiTheme>,
 }
 
-pub fn highlight_rust_line(line: &str) -> Vec<MixedTextContent> {
+pub fn highlight_rust_line(line: &str, theme: UiTheme) -> Vec<MixedTextContent> {
     let keywords = [
         "fn", "let", "mut", "pub", "use", "struct", "enum", "impl", "return", "if", "else", "match",
     ];
@@ -29,7 +33,7 @@ pub fn highlight_rust_line(line: &str) -> Vec<MixedTextContent> {
         }
 
         if rest.starts_with("//") {
-            parts.push(MixedTextContent::new(rest).color(Color::DarkGrey));
+            parts.push(MixedTextContent::new(rest).color(theme.text_muted));
             break;
         }
 
@@ -37,7 +41,7 @@ pub fn highlight_rust_line(line: &str) -> Vec<MixedTextContent> {
             && let Some(end) = rest[1..].find('"')
         {
             let chunk = &rest[..end + 2];
-            parts.push(MixedTextContent::new(chunk).color(Color::Green));
+            parts.push(MixedTextContent::new(chunk).color(theme.success));
             rest = &rest[end + 2..];
             continue;
         }
@@ -45,24 +49,24 @@ pub fn highlight_rust_line(line: &str) -> Vec<MixedTextContent> {
         if let Some(word_end) = rest.find(|c: char| !c.is_alphanumeric() && c != '_') {
             if word_end == 0 {
                 let (ch, tail) = rest.split_at(1);
-                parts.push(MixedTextContent::new(ch).color(Color::Grey));
+                parts.push(MixedTextContent::new(ch).color(theme.text_secondary));
                 rest = tail;
                 continue;
             }
             let word = &rest[..word_end];
             let color = if keywords.contains(&word) {
-                Color::Cyan
+                theme.accent_soft
             } else {
-                Color::Grey
+                theme.text_secondary
             };
             parts.push(MixedTextContent::new(word).color(color));
             rest = &rest[word_end..];
         } else {
             let word = rest;
             let color = if keywords.contains(&word) {
-                Color::Cyan
+                theme.accent_soft
             } else {
-                Color::Grey
+                theme.text_secondary
             };
             parts.push(MixedTextContent::new(word).color(color));
             break;
@@ -78,14 +82,17 @@ pub fn highlight_rust_line(line: &str) -> Vec<MixedTextContent> {
 
 /// Code block with optional line numbers and basic highlighting.
 #[component]
-pub fn CodeBlock(props: &CodeBlockProps) -> impl Into<AnyElement<'static>> {
+pub fn CodeBlock(props: &CodeBlockProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let border_color = props.border_color.unwrap_or(theme.border);
+    let background_color = props.background_color.unwrap_or(theme.border_subtle);
     let lines: Vec<&str> = props.source.lines().collect();
     let line_count = lines.len().max(1);
 
     let mut code_lines = Vec::new();
     for line in &lines {
         code_lines.push(element! {
-            MixedText(contents: highlight_rust_line(line), wrap: TextWrap::NoWrap)
+            MixedText(contents: highlight_rust_line(line, theme), wrap: TextWrap::NoWrap)
         });
     }
 
@@ -93,8 +100,10 @@ pub fn CodeBlock(props: &CodeBlockProps) -> impl Into<AnyElement<'static>> {
         View(
             width: props.width,
             flex_direction: FlexDirection::Row,
-            background_color: Color::Rgb { r: 30, g: 30, b: 30 },
-            padding: 1,
+            background_color: background_color,
+            border_style: BorderStyle::Single,
+            border_color: border_color,
+            padding: theme.container_inset(),
         ) {
             #(if props.show_line_numbers {
                 element! {
@@ -102,6 +111,7 @@ pub fn CodeBlock(props: &CodeBlockProps) -> impl Into<AnyElement<'static>> {
                         LineNumbers(
                             line_count: line_count,
                             gutter_width: props.gutter_width.max(4),
+                            theme: Some(theme),
                         )
                     }
                 }

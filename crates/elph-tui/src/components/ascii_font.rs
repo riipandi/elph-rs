@@ -1,5 +1,6 @@
 //! ASCII banner text (FIGlet + compact bitmap fallback).
 
+use super::theme::{UiTheme, resolve_ui_theme};
 use figlet_rs::FIGlet;
 use iocraft::prelude::*;
 
@@ -9,6 +10,7 @@ pub struct AsciiTextProps {
     pub text: String,
     pub use_figlet: bool,
     pub color: Option<Color>,
+    pub theme: Option<UiTheme>,
 }
 
 fn bitmap_char(ch: char) -> [&'static str; 5] {
@@ -46,13 +48,14 @@ pub fn render_figlet(text: &str) -> String {
 
 /// Large ASCII/FIGlet banner text.
 #[component]
-pub fn AsciiText(props: &AsciiTextProps) -> impl Into<AnyElement<'static>> {
+pub fn AsciiText(props: &AsciiTextProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
     let rendered = if props.use_figlet {
         render_figlet(&props.text)
     } else {
         render_bitmap(&props.text)
     };
-    let color = props.color.unwrap_or(Color::Cyan);
+    let color = props.color.unwrap_or(theme.accent_soft);
 
     let rows: Vec<_> = rendered
         .lines()

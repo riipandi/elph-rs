@@ -13,7 +13,7 @@ use std::time::Duration;
 fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let (width, height) = hooks.use_terminal_size();
     let mut system = hooks.use_context_mut::<SystemContext>();
-    let mut time = hooks.use_state(|| Local::now());
+    let mut time = hooks.use_state(Local::now);
     let mut should_exit = hooks.use_state(|| false);
 
     hooks.use_future(async move {
@@ -24,12 +24,16 @@ fn MainShell(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     });
 
     hooks.use_terminal_events({
-        move |event| match event {
-            TerminalEvent::Key(KeyEvent { code, kind, .. }) if kind != KeyEventKind::Release => match code {
-                KeyCode::Char('q') => should_exit.set(true),
-                _ => {}
-            },
-            _ => {}
+        move |event| {
+            let TerminalEvent::Key(KeyEvent { code, kind, .. }) = event else {
+                return;
+            };
+            if kind == KeyEventKind::Release {
+                return;
+            }
+            if code == KeyCode::Char('q') {
+                should_exit.set(true);
+            }
         }
     });
 

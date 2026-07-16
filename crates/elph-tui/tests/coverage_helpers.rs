@@ -69,10 +69,11 @@ fn delete_blank_line_above_content_line() {
 
 #[test]
 fn select_helpers_cover_row_and_key_paths() {
-    assert_eq!(select_row_prefix(true), "› ");
-    assert_eq!(select_row_prefix(false), "  ");
-    assert_eq!(select_row_colors(true), (Color::Yellow, Weight::Bold));
-    assert_eq!(select_row_colors(false), (Color::Grey, Weight::Normal));
+    assert_eq!(select_row_prefix(true), "›");
+    assert_eq!(select_row_prefix(false), " ");
+    let theme = elph_tui::components::UiTheme::default();
+    assert_eq!(select_row_colors(theme, true), (theme.text_primary, Weight::Bold));
+    assert_eq!(select_row_colors(theme, false), (theme.text_secondary, Weight::Normal));
     assert_eq!(select_clamped_index(9, 3), 2);
     assert_eq!(select_clamped_index(1, 0), 0);
     assert_eq!(select_key_to_index(1, 5, KeyCode::Down, KeyModifiers::SHIFT, 2), 3);
@@ -88,10 +89,14 @@ fn slider_key_to_value_clamps() {
 
 #[test]
 fn tab_select_helpers_cover_styles() {
-    assert_eq!(tab_select_tab_styles(true), (BorderStyle::Round, Color::Cyan, Weight::Bold));
+    let theme = elph_tui::components::UiTheme::default();
     assert_eq!(
-        tab_select_tab_styles(false),
-        (BorderStyle::None, Color::DarkGrey, Weight::Normal)
+        tab_select_tab_styles(theme, true),
+        (BorderStyle::Round, theme.accent_soft, Weight::Bold)
+    );
+    assert_eq!(
+        tab_select_tab_styles(theme, false),
+        (BorderStyle::None, theme.text_muted, Weight::Normal)
     );
     assert_eq!(tab_select_clamped_index(4, 2), 1);
 }
@@ -118,8 +123,9 @@ fn apply_wire_edit_key_noop_when_cursor_unchanged() {
 
 #[test]
 fn highlight_rust_single_token_line() {
+    use elph_tui::components::UiTheme;
     use elph_tui::components::code::highlight_rust_line;
-    assert!(!highlight_rust_line("foobar").is_empty());
+    assert!(!highlight_rust_line("foobar", UiTheme::default()).is_empty());
 }
 
 #[test]

@@ -1,0 +1,357 @@
+//! Shared visual tokens for elph-tui components (Pi dark–aligned).
+
+use crate::color::rgb;
+use iocraft::hooks::UseContext;
+use iocraft::prelude::*;
+
+/// Cohesive terminal palette and spacing for interactive components.
+///
+/// Spacing follows a 1:2:3 cell modular scale (`padding_sm` / `padding_md` / `padding_lg`)
+/// so borders, gutters, and content columns stay visually aligned across widgets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiTheme {
+    pub text_primary: Color,
+    pub text_secondary: Color,
+    pub text_muted: Color,
+    pub text_hint: Color,
+    pub accent: Color,
+    pub accent_soft: Color,
+    pub border: Color,
+    pub border_focus: Color,
+    pub border_subtle: Color,
+    pub surface: Color,
+    pub selection_bg: Color,
+    pub success: Color,
+    pub warning: Color,
+    pub error: Color,
+    pub gap_sm: u16,
+    pub gap_md: u16,
+    pub gap_lg: u16,
+    pub padding_sm: u16,
+    pub padding_md: u16,
+    pub padding_lg: u16,
+}
+
+impl Default for UiTheme {
+    fn default() -> Self {
+        Self {
+            text_primary: rgb(212, 212, 212),
+            text_secondary: rgb(180, 180, 188),
+            text_muted: rgb(136, 136, 144),
+            text_hint: rgb(108, 108, 116),
+            accent: rgb(129, 161, 193),
+            accent_soft: rgb(6, 182, 212),
+            border: rgb(72, 72, 80),
+            border_focus: rgb(129, 161, 193),
+            border_subtle: rgb(48, 48, 56),
+            surface: Color::Reset,
+            selection_bg: rgb(40, 44, 52),
+            success: rgb(152, 195, 121),
+            warning: rgb(240, 198, 116),
+            error: rgb(224, 108, 117),
+            gap_sm: 0,
+            gap_md: 1,
+            gap_lg: 2,
+            padding_sm: 1,
+            padding_md: 2,
+            padding_lg: 3,
+        }
+    }
+}
+
+/// Marker column width (`›` + gap) for list rows.
+pub const LIST_MARKER_COL: u16 = 2;
+
+/// Horizontal chrome consumed by a single-line border plus inner inset.
+pub const BORDER_CHROME_COLS: u16 = 2;
+
+impl UiTheme {
+    pub fn focus_border(self, has_focus: bool) -> BorderStyle {
+        if has_focus {
+            BorderStyle::Round
+        } else {
+            BorderStyle::None
+        }
+    }
+
+    /// Bordered container chrome (round when focused, single when not).
+    pub fn container_border(self, has_focus: bool) -> BorderStyle {
+        if has_focus {
+            BorderStyle::Round
+        } else {
+            BorderStyle::Single
+        }
+    }
+
+    pub fn focus_border_color(self, has_focus: bool) -> Color {
+        if has_focus {
+            self.border_focus
+        } else {
+            self.border_subtle
+        }
+    }
+
+    pub fn container_border_color(self, has_focus: bool) -> Color {
+        if has_focus { self.border_focus } else { self.border }
+    }
+
+    pub fn list_marker_color(self, selected: bool) -> Color {
+        if selected { self.accent_soft } else { self.text_hint }
+    }
+
+    /// Inner horizontal inset for bordered panels and list viewports.
+    pub fn container_inset(self) -> u16 {
+        self.padding_sm
+    }
+
+    /// Inner horizontal inset for single-line inputs.
+    pub fn input_inset(self) -> u16 {
+        self.padding_sm
+    }
+
+    /// Gap between a line-number gutter and code body.
+    pub fn gutter_gap(self) -> u16 {
+        self.gap_md
+    }
+
+    /// Minimum content rows for tab panels and compact containers.
+    pub fn panel_min_height(self) -> u16 {
+        3
+    }
+
+    /// Inner width inside a bordered list viewport.
+    pub fn list_viewport_inner_width(self, outer_width: u16) -> u16 {
+        outer_width
+            .saturating_sub(BORDER_CHROME_COLS)
+            .saturating_sub(self.container_inset().saturating_mul(2))
+            .max(1)
+    }
+
+    /// Left inset for wrapped description lines under a list row name.
+    pub fn list_desc_padding_left(self) -> u16 {
+        LIST_MARKER_COL.saturating_add(self.gap_md)
+    }
+
+    /// Detail line indent for checklist-style rows (marker + gap).
+    pub fn detail_padding_left(self) -> u16 {
+        self.list_desc_padding_left().saturating_add(self.gap_md)
+    }
+
+    /// Transparent/default fill for inline panels and lists.
+    pub fn list_surface(self) -> Color {
+        self.surface
+    }
+
+    /// Opaque fill for modal dialog cards (avoids bleed-through from content behind).
+    pub fn dialog_surface(self) -> Color {
+        self.selection_bg
+    }
+
+    /// Horizontal inset shared by shell chrome zones (header, transcript, status, prompt).
+    pub fn shell_zone_padding(self) -> u16 {
+        self.padding_sm
+    }
+
+    /// Editor inner width inside a full-width round border with zone padding.
+    pub fn shell_editor_inner_width(self, screen_width: u16) -> u16 {
+        screen_width
+            .saturating_sub(BORDER_CHROME_COLS)
+            .saturating_sub(self.shell_zone_padding().saturating_mul(2))
+            .max(1)
+    }
+
+    /// Inner inset between dialog round border and content (uniform fallback).
+    pub fn dialog_shell_inset(self) -> u16 {
+        self.dialog_shell_inset_horizontal()
+    }
+
+    /// Horizontal inset inside the dialog round border.
+    pub fn dialog_shell_inset_horizontal(self) -> u16 {
+        self.padding_md
+    }
+
+    /// Vertical inset inside the dialog round border (tighter than horizontal).
+    pub fn dialog_shell_inset_vertical(self) -> u16 {
+        self.padding_sm
+    }
+
+    /// Opaque fill for dialog-embedded lists and panels.
+    pub fn dialog_content_surface(self) -> Color {
+        self.dialog_surface()
+    }
+
+    /// Gap below the header row, before the divider.
+    pub fn dialog_header_gap(self) -> u16 {
+        self.gap_sm
+    }
+
+    /// Gap between major dialog body blocks (prompt, list, actions).
+    pub fn dialog_section_gap(self) -> u16 {
+        self.gap_md
+    }
+
+    /// Gap between stacked rows inside list-style dialog bodies.
+    pub fn dialog_row_gap(self) -> u16 {
+        self.gap_sm
+    }
+
+    /// Alias of [`Self::dialog_section_gap`] — use flex `gap` only, never stack with padding.
+    pub fn dialog_action_gap(self) -> u16 {
+        self.dialog_section_gap()
+    }
+
+    /// Editable text — primary when focused, dimmed grey when inactive.
+    pub fn input_text_color(self, has_focus: bool) -> Color {
+        if has_focus { self.text_primary } else { self.text_muted }
+    }
+
+    /// High-contrast caret block for focused editors.
+    pub fn input_cursor_color(self) -> Color {
+        self.accent_soft
+    }
+
+    pub fn input_border_color(self, has_focus: bool) -> Color {
+        if has_focus {
+            self.border_focus
+        } else {
+            self.border_subtle
+        }
+    }
+
+    pub fn scrollbar_style(self) -> super::scroll_bar::ScrollbarStyle {
+        super::scroll_bar::ScrollbarStyle {
+            thumb_color: Some(self.border_focus),
+            track_color: Some(self.border_subtle),
+        }
+    }
+}
+
+/// Marker column for a selected list row.
+pub fn list_marker(selected: bool) -> &'static str {
+    if selected { "›" } else { " " }
+}
+
+/// Name style for one list row.
+pub fn list_row_name_style(theme: UiTheme, selected: bool) -> (Color, Weight) {
+    if selected {
+        (theme.text_primary, Weight::Bold)
+    } else {
+        (theme.text_secondary, Weight::Normal)
+    }
+}
+
+/// Description style for one list row.
+pub fn list_row_desc_style(theme: UiTheme, selected: bool) -> Color {
+    if selected {
+        theme.text_secondary
+    } else {
+        theme.text_muted
+    }
+}
+
+/// Tab chrome for horizontal selectors.
+pub fn tab_styles(theme: UiTheme, active: bool) -> (BorderStyle, Color, Weight) {
+    if active {
+        (BorderStyle::Round, theme.accent_soft, Weight::Bold)
+    } else {
+        (BorderStyle::None, theme.text_muted, Weight::Normal)
+    }
+}
+
+/// Resolve the active theme: explicit `theme` prop → [`UiThemeProvider`] context → [`Default`].
+pub fn resolve_ui_theme(hooks: &Hooks, prop: Option<UiTheme>) -> UiTheme {
+    prop.or_else(|| hooks.try_use_context::<UiTheme>().map(|theme| *theme))
+        .unwrap_or_default()
+}
+
+/// Props for [`UiThemeProvider`] — app-level theme (React `ThemeProvider` analogue).
+#[derive(Default, Props)]
+pub struct UiThemeProviderProps<'a> {
+    pub theme: UiTheme,
+    pub children: Vec<AnyElement<'a>>,
+}
+
+/// Supplies a default [`UiTheme`] to all descendant components via iocraft context.
+///
+/// Per-component `theme: Some(...)` props still override this value.
+#[component]
+pub fn UiThemeProvider<'a>(props: &mut UiThemeProviderProps<'a>) -> impl Into<AnyElement<'a>> {
+    let theme = props.theme;
+    let children = std::mem::take(&mut props.children);
+    element! {
+        ContextProvider(value: Context::owned(theme)) {
+            #(children)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn markers_differ_for_selection() {
+        assert_eq!(list_marker(true), "›");
+        assert_eq!(list_marker(false), " ");
+    }
+
+    #[test]
+    fn selected_name_is_bold_primary() {
+        let theme = UiTheme::default();
+        assert_eq!(list_row_name_style(theme, true), (theme.text_primary, Weight::Bold));
+    }
+
+    #[test]
+    fn container_border_round_when_focused() {
+        let theme = UiTheme::default();
+        assert_eq!(theme.container_border(true), BorderStyle::Round);
+        assert_eq!(theme.container_border(false), BorderStyle::Single);
+    }
+
+    #[test]
+    fn list_desc_indent_aligns_with_name() {
+        let theme = UiTheme::default();
+        assert_eq!(theme.list_desc_padding_left(), LIST_MARKER_COL + theme.gap_md);
+    }
+
+    #[test]
+    fn spacing_scale_is_monotonic() {
+        let theme = UiTheme::default();
+        assert!(theme.gap_sm <= theme.gap_md);
+        assert!(theme.gap_md <= theme.gap_lg);
+        assert!(theme.padding_sm <= theme.padding_md);
+        assert!(theme.padding_md <= theme.padding_lg);
+    }
+
+    #[test]
+    fn text_roles_decrease_in_emphasis() {
+        let theme = UiTheme::default();
+        let primary = theme.text_primary;
+        let secondary = theme.text_secondary;
+        let muted = theme.text_muted;
+        let hint = theme.text_hint;
+        let lum = |c: Color| match c {
+            Color::Rgb { r, g, b } => (r as u32 + g as u32 + b as u32) / 3,
+            _ => 128,
+        };
+        assert!(lum(primary) >= lum(secondary));
+        assert!(lum(secondary) >= lum(muted));
+        assert!(lum(muted) >= lum(hint));
+    }
+
+    #[test]
+    fn inactive_input_text_is_dimmed() {
+        let theme = UiTheme::default();
+        assert_eq!(theme.input_text_color(true), theme.text_primary);
+        assert_eq!(theme.input_text_color(false), theme.text_muted);
+    }
+
+    #[test]
+    fn list_viewport_width_accounts_for_border_and_inset() {
+        let theme = UiTheme::default();
+        assert_eq!(
+            theme.list_viewport_inner_width(20),
+            20 - BORDER_CHROME_COLS - theme.container_inset() * 2
+        );
+    }
+}

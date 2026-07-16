@@ -15,7 +15,7 @@ pub fn highlight_code_block(language: Option<&str>, code: &str, theme: &Markdown
                 let spans: Vec<StyledSpan> = regions
                     .into_iter()
                     .filter(|(_, text)| !text.is_empty())
-                    .map(|(style, text)| syntect_to_styled_span(style, text, theme.body))
+                    .map(|(style, text)| syntect_to_styled_span(style, text, theme.body, theme.ui))
                     .collect();
                 MarkdownLine {
                     kind: MarkdownLineKind::Code,

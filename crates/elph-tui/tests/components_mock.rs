@@ -399,6 +399,56 @@ async fn input_unfocused_ignores_keys() {
 }
 
 #[apply(test!)]
+async fn demo_input_combo_types_in_focused_field_without_deadlock() {
+    #[component]
+    fn DemoInputLayout(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+        let mut system = hooks.use_context_mut::<SystemContext>();
+        let name = hooks.use_state(String::new);
+        let notes = hooks.use_state(String::new);
+        let mut focus = hooks.use_state(|| 0u8);
+        let mut exit = hooks.use_state(|| false);
+
+        hooks.use_terminal_events(move |event| {
+            let TerminalEvent::Key(KeyEvent { code, kind, .. }) = event else {
+                return;
+            };
+            if kind == KeyEventKind::Release {
+                return;
+            }
+            match code {
+                KeyCode::Char('q') => exit.set(true),
+                KeyCode::Tab => focus.set((focus.get() + 1) % 2),
+                _ => {}
+            }
+        });
+
+        if exit.get() {
+            system.exit();
+        }
+
+        element! {
+            View(flex_direction: FlexDirection::Column, gap: 1u16) {
+                Input(width: 40u16, initial_value: String::new(), has_focus: focus.get() == 0, value: name)
+                Textarea(width: 40u16, min_height: 4u16, has_focus: focus.get() == 1, value: notes)
+            }
+        }
+    }
+
+    let frames = element!(DemoInputLayout)
+        .mock_terminal_render_loop(MockTerminalConfig::with_events(stream::iter(vec![
+            key(KeyCode::Char('a')),
+            key(KeyCode::Char('b')),
+            key(KeyCode::Tab),
+            key(KeyCode::Char('c')),
+            key(KeyCode::Char('q')),
+        ])))
+        .map(|c| c.to_string())
+        .collect::<Vec<_>>()
+        .await;
+    assert!(!frames.is_empty());
+}
+
+#[apply(test!)]
 async fn textarea_multiline_with_scrollbar() {
     let text = "line one\nline two\nline three\nline four\nline five";
     let frames = render_harness_with_events(

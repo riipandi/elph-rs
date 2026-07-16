@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use elph_tui::loader::SpinnerLoader;
-use elph_tui::{Textarea, TranscriptRowLayout};
+use elph_tui::{ProcessActivityTrail, ProcessStatus, ProcessStatusRow, Textarea, TranscriptRowLayout};
 use elph_tui::{active_sticky_user_message_index, layout_sticky_header, rgb, scroll_view_down, scroll_view_up};
 use elph_tui::{transcript_bubble_inner_width, wrapped_transcript_row_count};
 use iocraft::prelude::*;
@@ -152,12 +152,22 @@ fn tool_marker(style: TranscriptStyle) -> &'static str {
     }
 }
 
+fn tool_process_status(style: TranscriptStyle) -> ProcessStatus {
+    match style {
+        TranscriptStyle::ToolRunning => ProcessStatus::Running,
+        TranscriptStyle::ToolSuccess => ProcessStatus::Done,
+        TranscriptStyle::ToolFailed => ProcessStatus::Failed,
+        _ => ProcessStatus::Queued,
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TranscriptStyle {
     User,
     SkillPrompt,
     Thinking,
     Assistant,
+    #[expect(dead_code)]
     Error,
     Meta,
     ToolRunning,
@@ -381,8 +391,11 @@ fn transcript_message_bubble(
 fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom: u16) -> AnyElement<'static> {
     let style = message.style;
     let tool = message.tool.as_ref().expect("tool card detail");
-    let header = format!("{} {}", tool_marker(style), tool.name);
     let output = tool.output.trim().to_string();
+    let running = style == TranscriptStyle::ToolRunning;
+    let status = tool_process_status(style);
+    let text_color = style.text_color();
+    let inner_width = screen_width.saturating_sub(3 + COLORED_CARD_PAD_H * 2).max(8);
     element! {
         View(
             width: screen_width - 3,
@@ -396,7 +409,25 @@ fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom:
             flex_direction: FlexDirection::Column,
             gap: 0,
         ) {
-            Text(color: style.text_color(), wrap: TextWrap::NoWrap, content: header)
+            ProcessStatusRow(
+                status: status,
+                label: tool.name.clone(),
+                running_color: Some(text_color),
+                done_color: Some(text_color),
+                failed_color: Some(text_color),
+                emphasize_running: true,
+            )
+            #(if running && output.is_empty() {
+                Some(element! {
+                    ProcessActivityTrail(
+                        width: inner_width.min(28),
+                        active: true,
+                        accent: Some(text_color),
+                    )
+                })
+            } else {
+                None
+            })
             #(if !tool.args.is_empty() {
                 Some(element! {
                     Text(
@@ -573,7 +604,7 @@ fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl Into<
         .sticky_scroll
         .then(|| {
             active_sticky_user_message_index(
-                &row_layouts,
+                row_layouts,
                 is_sticky_prompt,
                 handle.scroll_offset(),
                 handle.is_auto_scroll_pinned(),

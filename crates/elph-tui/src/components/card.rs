@@ -2,6 +2,8 @@
 
 use iocraft::prelude::*;
 
+use super::theme::{UiTheme, resolve_ui_theme};
+
 /// Border style alias matching OpenTUI naming.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CardBorderStyle {
@@ -36,18 +38,26 @@ pub struct CardProps<'a> {
     pub background_color: Option<Color>,
     pub padding: u16,
     pub gap: u16,
+    pub theme: Option<UiTheme>,
     pub children: Vec<AnyElement<'a>>,
 }
 
 /// Bordered container with optional overlapping title label.
 #[component]
-pub fn Card<'a>(props: &mut CardProps<'a>) -> impl Into<AnyElement<'a>> {
+pub fn Card<'a>(props: &mut CardProps<'a>, hooks: Hooks) -> impl Into<AnyElement<'a>> {
     let border = props.border_style.to_iocraft();
     let show_title = !props.title.is_empty() && props.border_style != CardBorderStyle::None;
     let children = std::mem::take(&mut props.children);
     let title = props.title.clone();
-    let border_color = props.border_color.unwrap_or(Color::DarkGrey);
-    let background_color = props.background_color.unwrap_or(Color::Reset);
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let border_color = props.border_color.unwrap_or(theme.border);
+    let background_color = props.background_color.unwrap_or(theme.list_surface());
+    let padding = if props.padding == 0 {
+        theme.padding_md
+    } else {
+        props.padding
+    };
+    let gap = if props.gap == 0 { theme.gap_md } else { props.gap };
 
     element! {
         View(
@@ -56,8 +66,8 @@ pub fn Card<'a>(props: &mut CardProps<'a>) -> impl Into<AnyElement<'a>> {
             border_style: border,
             border_color: border_color,
             background_color: background_color,
-            padding: props.padding,
-            gap: props.gap,
+            padding: padding,
+            gap: gap,
             flex_direction: FlexDirection::Column,
             position: Position::Relative,
         ) {
@@ -72,7 +82,7 @@ pub fn Card<'a>(props: &mut CardProps<'a>) -> impl Into<AnyElement<'a>> {
                     ) {
                         Text(
                             content: format!(" {} ", title),
-                            color: border_color,
+                            color: theme.text_primary,
                             weight: Weight::Bold,
                             wrap: TextWrap::NoWrap,
                         )

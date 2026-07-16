@@ -1,5 +1,6 @@
 //! Cell grid for custom drawing. The iocraft render loop already diffs frames.
 
+use super::theme::{UiTheme, resolve_ui_theme};
 use iocraft::prelude::*;
 
 /// A simple character cell grid.
@@ -71,12 +72,18 @@ impl FrameBuffer {
 pub struct FrameBufferViewProps {
     pub buffer: FrameBuffer,
     pub color: Option<Color>,
+    pub border_color: Option<Color>,
+    pub background_color: Option<Color>,
+    pub theme: Option<UiTheme>,
 }
 
 /// Render a [`FrameBuffer`] as monospace text lines.
 #[component]
-pub fn FrameBufferView(props: &FrameBufferViewProps) -> impl Into<AnyElement<'static>> {
-    let color = props.color.unwrap_or(Color::Grey);
+pub fn FrameBufferView(props: &FrameBufferViewProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let color = props.color.unwrap_or(theme.text_secondary);
+    let border_color = props.border_color.unwrap_or(theme.border);
+    let background_color = props.background_color.unwrap_or(theme.surface);
     let rows: Vec<_> = props
         .buffer
         .lines()
@@ -92,8 +99,9 @@ pub fn FrameBufferView(props: &FrameBufferViewProps) -> impl Into<AnyElement<'st
         View(
             flex_direction: FlexDirection::Column,
             border_style: BorderStyle::Single,
-            border_color: Color::DarkGrey,
-            padding: 1,
+            border_color: border_color,
+            background_color: background_color,
+            padding: theme.padding_sm,
         ) {
             #(rows)
         }

@@ -130,7 +130,7 @@ fn ProgressBarLine(props: &ProgressBarLineProps, hooks: Hooks) -> impl Into<AnyE
 
     element! {
         View(flex_direction: FlexDirection::Row, align_items: AlignItems::Center, gap: 1u16) {
-            SpinnerLoaderView(color: rgb(0x7d, 0xce, 0xa0), active: props.pos < props.len)
+            SpinnerLoaderView(color: Some(rgb(0x7d, 0xce, 0xa0)), active: props.pos < props.len)
             Text(color: Color::Cyan, wrap: TextWrap::NoWrap, content: format!("{} ", props.message))
             Text(color: Color::Cyan, wrap: TextWrap::NoWrap, content: "[".to_string())
             Text(color: Color::Cyan, wrap: TextWrap::NoWrap, content: filled)

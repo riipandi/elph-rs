@@ -2,6 +2,8 @@
 
 use iocraft::prelude::*;
 
+use super::theme::{UiTheme, resolve_ui_theme};
+
 /// Colors for an iocraft [`ScrollView`] scrollbar.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollbarStyle {
@@ -11,10 +13,7 @@ pub struct ScrollbarStyle {
 
 impl ScrollbarStyle {
     pub fn dark() -> Self {
-        Self {
-            thumb_color: Some(Color::Rgb { r: 88, g: 88, b: 88 }),
-            track_color: Some(Color::Rgb { r: 48, g: 48, b: 48 }),
-        }
+        UiTheme::default().scrollbar_style()
     }
 }
 
@@ -75,6 +74,8 @@ pub struct ScrollIndicatorProps {
     pub total: u32,
     pub visible: u32,
     pub width: u16,
+    pub color: Option<Color>,
+    pub theme: Option<UiTheme>,
 }
 
 /// Props for [`VerticalScrollbar`].
@@ -88,6 +89,7 @@ pub struct VerticalScrollbarProps {
     pub track_height: Option<u16>,
     /// Track rows above the scroll thumb zone (sticky header inset).
     pub track_inset_top: Option<u16>,
+    pub theme: Option<UiTheme>,
 }
 
 /// Character for one vertical scrollbar cell.
@@ -129,10 +131,11 @@ pub fn scrollbar_track_row_flags(
 
 /// One-column vertical scrollbar (iocraft [`ScrollView`] style).
 #[component]
-pub fn VerticalScrollbar(props: &VerticalScrollbarProps) -> impl Into<AnyElement<'static>> {
-    let style = props.style.unwrap_or_else(ScrollbarStyle::dark);
-    let thumb_color = style.thumb_color.unwrap_or(Color::White);
-    let track_color = style.track_color.unwrap_or(Color::DarkGrey);
+pub fn VerticalScrollbar(props: &VerticalScrollbarProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let style = props.style.unwrap_or_else(|| theme.scrollbar_style());
+    let thumb_color = style.thumb_color.unwrap_or(theme.border_focus);
+    let track_color = style.track_color.unwrap_or(theme.border_subtle);
     let track_height = props.track_height.unwrap_or(props.viewport_height);
     let track_inset = props.track_inset_top.unwrap_or(0);
 
@@ -185,12 +188,13 @@ mod tests {
 
 /// Read-only scroll position indicator (e.g. `12/40`).
 #[component]
-pub fn ScrollIndicator(props: &ScrollIndicatorProps) -> impl Into<AnyElement<'static>> {
+pub fn ScrollIndicator(props: &ScrollIndicatorProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
     let label = scroll_indicator_label(props.offset, props.visible, props.total);
 
     element! {
         View(width: props.width, align_items: AlignItems::End) {
-            Text(content: label, color: Color::DarkGrey, wrap: TextWrap::NoWrap)
+            Text(content: label, color: props.color.unwrap_or(theme.text_muted), wrap: TextWrap::NoWrap)
         }
     }
 }

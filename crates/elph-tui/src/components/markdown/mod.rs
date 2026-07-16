@@ -22,6 +22,7 @@ pub use render::{render_markdown_document, render_markdown_lines, streaming_tail
 pub use theme::MarkdownTheme;
 
 use super::scroll_box::ScrollBox;
+use super::theme::{UiTheme, resolve_ui_theme};
 use iocraft::prelude::*;
 
 /// Props for [`MarkdownView`].
@@ -30,12 +31,15 @@ pub struct MarkdownViewProps {
     pub width: u16,
     pub height: u16,
     pub source: String,
+    pub theme: Option<UiTheme>,
 }
 
 /// Scrollable markdown document.
 #[component]
-pub fn MarkdownView(props: &MarkdownViewProps) -> impl Into<AnyElement<'static>> {
-    let document = parse_markdown_document(&props.source);
+pub fn MarkdownView(props: &MarkdownViewProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let ui_theme = resolve_ui_theme(&hooks, props.theme);
+    let markdown_theme = MarkdownTheme::from_ui_theme(ui_theme);
+    let document = parse_markdown_document_with_theme(&props.source, &markdown_theme);
     let block = render_markdown_block(&document, props.width.max(1));
 
     element! {

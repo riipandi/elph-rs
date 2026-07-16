@@ -80,7 +80,7 @@ fn Demo(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     color: Color::Grey,
                 )
                 View(flex_direction: FlexDirection::Row, align_items: AlignItems::Center, gap: 1u16) {
-                    SpinnerLoaderView(color: accent, active: active.get())
+                    SpinnerLoaderView(color: Some(accent), active: active.get())
                     StyledText(content: state_label.to_string(), color: state_color)
                 }
             }
@@ -95,7 +95,7 @@ fn Demo(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                     color: Color::Grey,
                 )
                 View(flex_direction: FlexDirection::Row, align_items: AlignItems::Center, gap: 1u16) {
-                    KittScannerView(width: 10u16, accent: accent, active: active.get())
+                    KittScannerView(width: 10u16, accent: Some(accent), active: active.get())
                     StyledText(content: state_label.to_string(), color: state_color)
                 }
             }
@@ -106,7 +106,7 @@ fn Demo(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
                 padding: 1u16,
             ) {
                 View(flex_direction: FlexDirection::Row, align_items: AlignItems::Center, gap: 1u16) {
-                    SpinnerLoaderView(color: accent, active: active.get())
+                    SpinnerLoaderView(color: Some(accent), active: active.get())
                     StyledText(
                         content: "Reading src/tui/shell.rs · 12s".to_string(),
                         color: Color::DarkGrey,

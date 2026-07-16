@@ -1,10 +1,16 @@
 //! Vertical list selector (OpenTUI Select analogue).
 
 use crate::types::SelectOption;
+use crate::wrapped_transcript_row_count;
 use iocraft::prelude::*;
 
+use super::theme::{LIST_MARKER_COL, UiTheme, list_marker, list_row_desc_style, list_row_name_style, resolve_ui_theme};
+
+/// `height: 0` lets the list grow to fit every option (dialog-friendly).
+pub const SELECT_LIST_AUTO_HEIGHT: u16 = 0;
+
 /// Props for [`SelectList`].
-#[derive(Clone, Default, Props)]
+#[derive(Default, Props)]
 pub struct SelectListProps {
     pub width: u16,
     pub height: u16,
@@ -13,12 +19,105 @@ pub struct SelectListProps {
     pub has_focus: bool,
     pub show_description: bool,
     pub fast_scroll_step: usize,
+    pub theme: Option<UiTheme>,
+    /// Use dialog surface fills so list chrome matches modal shells.
+    pub in_dialog: bool,
+    pub on_change: HandlerMut<'static, usize>,
 }
 
-/// Label text for one [`SelectList`] row.
+fn select_container_surface(theme: UiTheme, in_dialog: bool) -> Color {
+    if in_dialog {
+        theme.dialog_content_surface()
+    } else {
+        theme.list_surface()
+    }
+}
+
+fn select_row_surface(theme: UiTheme, selected: bool, in_dialog: bool) -> Color {
+    if selected {
+        theme.selection_bg
+    } else if in_dialog {
+        theme.dialog_content_surface()
+    } else {
+        theme.surface
+    }
+}
+
+/// Display rows one option consumes.
+pub fn select_option_rows(show_description: bool, description: &str) -> usize {
+    if show_description && !description.is_empty() {
+        2
+    } else {
+        1
+    }
+}
+
+/// Row counts for all options.
+pub fn select_row_counts(options: &[SelectOption], show_description: bool) -> Vec<usize> {
+    options
+        .iter()
+        .map(|opt| select_option_rows(show_description, &opt.description))
+        .collect()
+}
+
+/// Wrap-aware row counts for layout and viewport sizing.
+pub fn select_measured_row_counts(
+    options: &[SelectOption],
+    show_description: bool,
+    list_width: u16,
+    theme: UiTheme,
+) -> Vec<usize> {
+    let inner = select_inner_width(theme, list_width);
+    let desc_width = inner.saturating_sub(theme.list_desc_padding_left()).max(1);
+    options
+        .iter()
+        .map(|opt| {
+            let mut rows = 1usize;
+            if show_description && !opt.description.is_empty() {
+                rows += wrapped_transcript_row_count(&opt.description, desc_width) as usize;
+            }
+            rows
+        })
+        .collect()
+}
+
+/// Total display rows for a list, including inter-item spacing inside the viewport.
+pub fn select_list_total_rows(
+    options: &[SelectOption],
+    show_description: bool,
+    list_width: u16,
+    theme: UiTheme,
+) -> usize {
+    let row_counts = select_measured_row_counts(options, show_description, list_width, theme);
+    let items: usize = row_counts.iter().sum();
+    if options.is_empty() {
+        return 1;
+    }
+    let gaps = theme.gap_sm as usize * options.len().saturating_sub(1);
+    items.saturating_add(gaps).max(1)
+}
+
+/// Resolve viewport rows (`0` height prop = fit all options).
+pub fn select_resolve_viewport_rows(
+    options: &[SelectOption],
+    show_description: bool,
+    list_width: u16,
+    theme: UiTheme,
+    height: u16,
+) -> (usize, usize) {
+    let total = select_list_total_rows(options, show_description, list_width, theme);
+    let cap = if height == SELECT_LIST_AUTO_HEIGHT {
+        total
+    } else {
+        height.max(1) as usize
+    };
+    (total.max(1).min(cap), total)
+}
+
+/// Label text for one [`SelectList`] row (legacy single-line helper).
 pub fn select_option_line(prefix: &str, name: &str, description: &str, show_description: bool) -> String {
     let desc = if show_description && !description.is_empty() {
-        format!("\n   {description}")
+        format!("\n  {description}")
     } else {
         String::new()
     };
@@ -27,16 +126,12 @@ pub fn select_option_line(prefix: &str, name: &str, description: &str, show_desc
 
 /// Row prefix for a [`SelectList`] option.
 pub fn select_row_prefix(selected: bool) -> &'static str {
-    if selected { "› " } else { "  " }
+    list_marker(selected)
 }
 
-/// Row colors for a [`SelectList`] option.
-pub fn select_row_colors(selected: bool) -> (Color, Weight) {
-    if selected {
-        (Color::Yellow, Weight::Bold)
-    } else {
-        (Color::Grey, Weight::Normal)
-    }
+/// Row colors for a [`SelectList`] option name.
+pub fn select_row_colors(theme: UiTheme, selected: bool) -> (Color, Weight) {
+    list_row_name_style(theme, selected)
 }
 
 /// Clamped selected index for a non-empty option list.
@@ -70,7 +165,7 @@ pub fn select_key_delta(code: KeyCode, fast: bool, step: usize) -> Option<isize>
     }
 }
 
-/// First visible row index for a centered selection window.
+/// First visible row index for a centered selection window (option-index based).
 pub fn select_window_start(selected: usize, height: usize, len: usize) -> usize {
     if len == 0 {
         return 0;
@@ -78,59 +173,199 @@ pub fn select_window_start(selected: usize, height: usize, len: usize) -> usize 
     selected.saturating_sub(height / 2).min(len.saturating_sub(1))
 }
 
+/// First option index to show when viewport is measured in display rows.
+pub fn select_window_start_for_rows(selected: usize, viewport_rows: usize, row_counts: &[usize]) -> usize {
+    let len = row_counts.len();
+    if len == 0 || viewport_rows == 0 {
+        return 0;
+    }
+    let total: usize = row_counts.iter().sum();
+    if total <= viewport_rows {
+        return 0;
+    }
+    let selected = selected.min(len - 1);
+    let rows_before: usize = row_counts[..selected].iter().sum();
+    let start_row = rows_before
+        .saturating_sub(viewport_rows / 2)
+        .min(total.saturating_sub(viewport_rows));
+    let mut acc = 0usize;
+    for (i, count) in row_counts.iter().enumerate() {
+        if acc >= start_row {
+            return i;
+        }
+        acc += count;
+    }
+    len.saturating_sub(1)
+}
+
+/// How many display rows are hidden above the current window.
+pub fn select_hidden_rows_above(window_start: usize, row_counts: &[usize]) -> usize {
+    row_counts.iter().take(window_start).sum()
+}
+
+/// How many display rows are hidden below the visible slice.
+pub fn select_hidden_rows_below(window_start: usize, visible_rows: usize, row_counts: &[usize]) -> usize {
+    let total: usize = row_counts.iter().sum();
+    let above = select_hidden_rows_above(window_start, row_counts);
+    total.saturating_sub(above + visible_rows)
+}
+
+/// Inner content width inside list padding and border chrome.
+pub fn select_inner_width(theme: UiTheme, width: u16) -> u16 {
+    theme.list_viewport_inner_width(width)
+}
+
 /// Keyboard-navigable option list.
 #[component]
-pub fn SelectList(props: &SelectListProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+pub fn SelectList(props: &mut SelectListProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let internal_index = hooks.use_state(|| 0usize);
     let mut selected = props.selected_index.unwrap_or(internal_index);
     let step = props.fast_scroll_step.max(1);
     let has_focus = props.has_focus;
     let options = props.options.clone();
     let show_description = props.show_description;
-    let height = props.height.max(1) as usize;
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let in_dialog = props.in_dialog;
+    let container_surface = select_container_surface(theme, in_dialog);
+    let inner_width = select_inner_width(theme, props.width);
+    let (viewport_rows, total_rows) =
+        select_resolve_viewport_rows(&options, show_description, props.width, theme, props.height);
+    let scrollable = total_rows > viewport_rows;
 
     let option_count = options.len();
-    hooks.use_terminal_events(move |event| {
-        if !has_focus {
-            return;
-        }
-        let TerminalEvent::Key(KeyEvent {
-            code, kind, modifiers, ..
-        }) = event
-        else {
-            return;
-        };
-        if kind == KeyEventKind::Release {
-            return;
-        }
+    hooks.use_terminal_events({
+        let mut on_change = props.on_change.take();
+        move |event| {
+            if !has_focus {
+                return;
+            }
+            let TerminalEvent::Key(KeyEvent {
+                code, kind, modifiers, ..
+            }) = event
+            else {
+                return;
+            };
+            if kind == KeyEventKind::Release {
+                return;
+            }
 
-        let len = option_count;
-        if len == 0 {
-            return;
-        }
+            let len = option_count;
+            if len == 0 {
+                return;
+            }
 
-        selected.set(select_key_to_index(selected.get(), len, code, modifiers, step));
+            let prev = selected.get();
+            let next = select_key_to_index(prev, len, code, modifiers, step);
+            if next != prev {
+                selected.set(next);
+                if !on_change.is_default() {
+                    on_change(next);
+                }
+            }
+        }
     });
 
     let len = options.len();
     let index = select_clamped_index(selected.get(), len);
-    let window_start = select_window_start(index, height, len);
+    let row_counts = select_measured_row_counts(&options, show_description, props.width, theme);
+    let window_start = select_window_start_for_rows(index, viewport_rows, &row_counts);
 
     let mut rows: Vec<AnyElement<'static>> = Vec::new();
+    let mut used_rows = 0usize;
+
     if len == 0 {
-        rows.push(element! { Text(content: "(no options)", color: Color::DarkGrey) }.into());
+        rows.push(
+            element! {
+                Text(content: "(no options)".to_string(), color: theme.text_muted, wrap: TextWrap::NoWrap)
+            }
+            .into(),
+        );
     } else {
-        for (i, opt) in options.iter().enumerate().skip(window_start).take(height) {
-            let selected_row = i == index;
-            let prefix = select_row_prefix(selected_row);
-            let (name_color, weight) = select_row_colors(selected_row);
-            let line = select_option_line(prefix, &opt.name, &opt.description, show_description);
+        let hidden_above = select_hidden_rows_above(window_start, &row_counts);
+        if hidden_above > 0 {
             rows.push(
                 element! {
                     Text(
-                        content: line,
-                        color: name_color,
-                        weight: weight,
+                        content: format!("  ↑ {hidden_above} more"),
+                        color: theme.text_hint,
+                        wrap: TextWrap::NoWrap,
+                    )
+                }
+                .into(),
+            );
+            used_rows += 1;
+        }
+
+        for (i, opt) in options.iter().enumerate().skip(window_start) {
+            let item_rows = row_counts[i];
+            if used_rows > 0 && used_rows + item_rows > viewport_rows {
+                break;
+            }
+
+            let selected_row = i == index;
+            let marker = list_marker(selected_row);
+            let (name_color, name_weight) = list_row_name_style(theme, selected_row);
+            let desc_color = list_row_desc_style(theme, selected_row);
+            let show_desc = show_description && !opt.description.is_empty();
+
+            rows.push(
+                element! {
+                    View(
+                        width: inner_width,
+                        flex_direction: FlexDirection::Column,
+                        gap: 0,
+                        background_color: select_row_surface(theme, selected_row, in_dialog),
+                        padding_left: theme.container_inset(),
+                        padding_right: theme.container_inset(),
+                        padding_top: if i > window_start { theme.gap_sm } else { 0 },
+                    ) {
+                        View(flex_direction: FlexDirection::Row, gap: theme.gap_md, align_items: AlignItems::Center) {
+                            View(width: LIST_MARKER_COL, flex_shrink: 0f32) {
+                                Text(
+                                    content: marker.to_string(),
+                                    color: theme.list_marker_color(selected_row),
+                                    wrap: TextWrap::NoWrap,
+                                )
+                            }
+                            Text(
+                                content: opt.name.clone(),
+                                color: name_color,
+                                weight: name_weight,
+                                wrap: TextWrap::NoWrap,
+                            )
+                        }
+                        #(if show_desc {
+                            Some(element! {
+                                View(padding_left: theme.list_desc_padding_left()) {
+                                    Text(
+                                        content: opt.description.clone(),
+                                        color: desc_color,
+                                        wrap: TextWrap::Wrap,
+                                    )
+                                }
+                            })
+                        } else {
+                            None
+                        })
+                    }
+                }
+                .into(),
+            );
+            used_rows += item_rows;
+        }
+
+        let rows_before = select_hidden_rows_above(window_start, &row_counts);
+        let rows_shown = used_rows.saturating_sub(usize::from(hidden_above > 0));
+        let hidden_below = row_counts
+            .iter()
+            .sum::<usize>()
+            .saturating_sub(rows_before + rows_shown);
+        if hidden_below > 0 {
+            rows.push(
+                element! {
+                    Text(
+                        content: format!("  ↓ {hidden_below} more"),
+                        color: theme.text_hint,
                         wrap: TextWrap::NoWrap,
                     )
                 }
@@ -139,17 +374,69 @@ pub fn SelectList(props: &SelectListProps, mut hooks: Hooks) -> impl Into<AnyEle
         }
     }
 
-    element! {
-        View(
-            width: props.width,
-            height: props.height,
-            flex_direction: FlexDirection::Column,
-            border_style: if has_focus { BorderStyle::Single } else { BorderStyle::None },
-            border_color: Color::DarkGrey,
-            padding_left: 1,
-            padding_right: 1,
-        ) {
-            #(rows)
+    if scrollable {
+        element! {
+            View(
+                width: props.width,
+                height: viewport_rows as u16,
+                min_height: viewport_rows as u16,
+                flex_direction: FlexDirection::Column,
+                gap: theme.gap_sm,
+                border_style: theme.container_border(has_focus),
+                border_color: theme.container_border_color(has_focus),
+                background_color: container_surface,
+                padding: theme.padding_sm,
+                overflow: Overflow::Hidden,
+                flex_shrink: 0f32,
+            ) {
+                #(rows)
+            }
         }
+    } else {
+        element! {
+            View(
+                width: props.width,
+                flex_direction: FlexDirection::Column,
+                gap: theme.gap_sm,
+                border_style: theme.container_border(has_focus),
+                border_color: theme.container_border_color(has_focus),
+                background_color: container_surface,
+                padding: theme.padding_sm,
+                flex_shrink: 0f32,
+            ) {
+                #(rows)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn row_counts_reflect_descriptions() {
+        let options = vec![SelectOption::new("a", ""), SelectOption::new("b", "detail")];
+        assert_eq!(select_row_counts(&options, false), vec![1, 1]);
+        assert_eq!(select_row_counts(&options, true), vec![1, 2]);
+    }
+
+    #[test]
+    fn window_start_for_rows_centers_selection() {
+        let counts = vec![1; 20];
+        assert_eq!(select_window_start_for_rows(5, 5, &counts), 3);
+    }
+
+    #[test]
+    fn auto_height_fits_all_mode_options() {
+        let theme = UiTheme::default();
+        let options = crate::types::DialogAgentMode::all()
+            .into_iter()
+            .map(|mode| SelectOption::new(mode.label(), mode.description()))
+            .collect::<Vec<_>>();
+        let total = select_list_total_rows(&options, true, 48, theme);
+        let (viewport, _) = select_resolve_viewport_rows(&options, true, 48, theme, SELECT_LIST_AUTO_HEIGHT);
+        assert_eq!(viewport, total);
+        assert!(total >= 8);
     }
 }

@@ -16,32 +16,33 @@ name = "elph_tui"
 path = "src/lib.rs"
 
 [dependencies]
+anstyle-syntect.workspace = true
+anstyle.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 figlet-rs.workspace = true
+html-escape.workspace = true
 iocraft.workspace = true
 linkify.workspace = true
 memchr.workspace = true
 pulldown-cmark.workspace = true
-syntect.workspace = true
 qrcode.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 similar.workspace = true
+supports-color.workspace = true
+syntect.workspace = true
+textwrap.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
+two-face.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
-anstyle.workspace = true
-anstyle-syntect.workspace = true
-two-face.workspace = true
-textwrap.workspace = true
-supports-color.workspace = true
 url.workspace = true
-html-escape.workspace = true
 
 [dev-dependencies]
 futures.workspace = true
+lipsum = "0.9.1"
 macro_rules_attribute = "0.2.0"
 mexprp = { version = "0.3.1", default-features = false }
 smol = "2.0.2"
@@ -112,6 +113,10 @@ name = "demo_scroll"
 path = "examples/demo_scroll.rs"
 
 [[example]]
+name = "demo_theme"
+path = "examples/demo_theme.rs"
+
+[[example]]
 name = "demo_select"
 path = "examples/demo_select.rs"
 
@@ -138,6 +143,18 @@ path = "examples/demo_loading_indicator.rs"
 [[example]]
 name = "demo_progress_indicator"
 path = "examples/demo_progress_indicator.rs"
+
+[[example]]
+name = "demo_dialog_shell"
+path = "examples/demo_dialog_shell.rs"
+
+[[example]]
+name = "demo_dialog_choices"
+path = "examples/demo_dialog_choices.rs"
+
+[[example]]
+name = "coding_agent"
+path = "examples/apps/coding_agent/main.rs"
 
 [lints.rust]
 linker_messages = "allow"

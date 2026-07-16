@@ -263,8 +263,9 @@ fn scrollbar_thumb_position_zero_viewport() {
 
 #[test]
 fn highlight_rust_line_trailing_word() {
+    use elph_tui::components::UiTheme;
     use elph_tui::components::code::highlight_rust_line;
-    let parts = highlight_rust_line("foobar");
+    let parts = highlight_rust_line("foobar", UiTheme::default());
     assert!(!parts.is_empty());
 }
 

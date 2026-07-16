@@ -77,6 +77,10 @@ pub fn handle_textarea_terminal_event(
     if ctx.slash_palette_active.is_some_and(|active| active.get())
         && is_slash_palette_capture_key(code, kind, modifiers)
     {
+        // Shell may set suppress_enter on the same key; clear it so the next Enter can submit.
+        if let Some(mut suppress) = ctx.suppress_enter_newline {
+            suppress.set(false);
+        }
         return TextareaInputResult::Consumed;
     }
 

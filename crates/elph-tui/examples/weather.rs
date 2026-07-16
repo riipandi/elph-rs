@@ -89,7 +89,7 @@ impl WeatherDataCurrent {
             71 | 77 => Color::White,
             73 | 75 | 85 | 86 => Color::White,
             80 => Color::Cyan,
-            95 | 96 | 97 => Color::Yellow,
+            95..=97 => Color::Yellow,
             _ => Color::White,
         }
     }
@@ -105,7 +105,7 @@ impl WeatherDataCurrent {
             71 | 77 => "❄️",
             73 | 75 | 85 | 86 => "🌨️",
             80 => "🌦️",
-            95 | 96 | 97 => "⛈️",
+            95..=97 => "⛈️",
             _ => "❓",
         }
     }
@@ -132,7 +132,7 @@ impl WeatherData {
         let location = LocationData::fetch().await?;
         let client = reqwest::Client::new();
         let mut ret: Self = client
-            .get(&format!(
+            .get(format!(
                 "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,precipitation_probability",
                 location.lat, location.lon
             ))

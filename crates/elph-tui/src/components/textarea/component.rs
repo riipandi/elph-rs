@@ -7,7 +7,8 @@ use super::input::handle_textarea_terminal_event;
 use super::input::{TextareaInputContext, TextareaInputResult};
 use super::layout::{layout_cursor_for_viewport, layout_metrics_from_wrapped, layout_textarea_measured};
 use super::state::TextareaState;
-use crate::components::scroll_bar::{ScrollbarStyle, VerticalScrollbar};
+use crate::components::scroll_bar::VerticalScrollbar;
+use crate::components::theme::resolve_ui_theme;
 use crate::text_input_layout::WrappedTextLayout;
 use crate::text_input_layout::overlay_editor_wrap_width;
 use crate::text_input_layout::update_scroll_offset;
@@ -168,52 +169,64 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
 
     let h_pad = if show_border { 2 } else { 0 };
     let inner_width = props.width.saturating_sub(h_pad);
-    let ed = editor.read();
-    let _generation = generation.get();
-    let layout_cursor = layout_cursor_for_viewport(&ed.text, ed.cursor);
-    let (layout, wrapped) = resolve_textarea_layout(
-        &mut layout_cache,
-        &ed.text,
-        layout_cursor,
-        inner_width,
-        min_height,
-        props.max_height,
-    );
-    let display_cursor = layout_cursor_for_viewport(&ed.text, ed.cursor);
-    let (cursor_row, cursor_col) = wrapped.row_column_for_offset(&ed.text, display_cursor);
-    let next_scroll = update_scroll_offset(scroll_row.get(), cursor_row, layout.viewport_height, layout.content_rows);
-    if next_scroll != scroll_row.get() {
-        scroll_row.set(next_scroll);
-    }
-    let use_viewport_slice = ed.text.len() >= VIEWPORT_SLICE_MIN_CHARS;
-    let visible_row_count = layout.viewport_height.saturating_add(1);
-    let (rendered_text, text_wrap, content_scroll_offset, cursor_display_row) = if use_viewport_slice {
-        let slice_key = (ed.text.clone(), next_scroll, visible_row_count);
-        let content = if viewport_cache
-            .read()
-            .as_ref()
-            .is_some_and(|c| c.text == slice_key.0 && c.scroll_row == slice_key.1 && c.viewport_rows == slice_key.2)
-        {
-            viewport_cache.read().as_ref().expect("viewport cache").content.clone()
+    // Snapshot layout while the editor read guard is held, then drop it before registering
+    // terminal hooks — otherwise key dispatch can block on `editor.write()` during render.
+    let (layout, rendered_text, text_wrap, content_scroll_offset, cursor_display_row, cursor_col_clamped) = {
+        let ed = editor.read();
+        let _generation = generation.get();
+        let layout_cursor = layout_cursor_for_viewport(&ed.text, ed.cursor);
+        let (layout, wrapped) = resolve_textarea_layout(
+            &mut layout_cache,
+            &ed.text,
+            layout_cursor,
+            inner_width,
+            min_height,
+            props.max_height,
+        );
+        let display_cursor = layout_cursor_for_viewport(&ed.text, ed.cursor);
+        let (cursor_row, cursor_col) = wrapped.row_column_for_offset(&ed.text, display_cursor);
+        let next_scroll =
+            update_scroll_offset(scroll_row.get(), cursor_row, layout.viewport_height, layout.content_rows);
+        if next_scroll != scroll_row.get() {
+            scroll_row.set(next_scroll);
+        }
+        let use_viewport_slice = ed.text.len() >= VIEWPORT_SLICE_MIN_CHARS;
+        let visible_row_count = layout.viewport_height.saturating_add(1);
+        let (rendered_text, text_wrap, content_scroll_offset, cursor_display_row) = if use_viewport_slice {
+            let slice_key = (ed.text.clone(), next_scroll, visible_row_count);
+            let content =
+                if viewport_cache.read().as_ref().is_some_and(|c| {
+                    c.text == slice_key.0 && c.scroll_row == slice_key.1 && c.viewport_rows == slice_key.2
+                }) {
+                    viewport_cache.read().as_ref().expect("viewport cache").content.clone()
+                } else {
+                    let content = wrapped.display_text_for_row_range(&ed.text, next_scroll, visible_row_count);
+                    viewport_cache.set(Some(ViewportRenderCache {
+                        text: slice_key.0,
+                        scroll_row: slice_key.1,
+                        viewport_rows: slice_key.2,
+                        content: content.clone(),
+                    }));
+                    content
+                };
+            (content, TextWrap::NoWrap, 0i32, cursor_row.saturating_sub(next_scroll))
         } else {
-            let content = wrapped.display_text_for_row_range(&ed.text, next_scroll, visible_row_count);
-            viewport_cache.set(Some(ViewportRenderCache {
-                text: slice_key.0,
-                scroll_row: slice_key.1,
-                viewport_rows: slice_key.2,
-                content: content.clone(),
-            }));
-            content
+            viewport_cache.set(None);
+            (ed.text.clone(), TextWrap::Wrap, next_scroll as i32, cursor_row)
         };
-        (content, TextWrap::NoWrap, 0i32, cursor_row.saturating_sub(next_scroll))
-    } else {
-        viewport_cache.set(None);
-        (ed.text.clone(), TextWrap::Wrap, next_scroll as i32, cursor_row)
-    };
-    let cursor_col_clamped = if layout.input_width > 0 {
-        cursor_col.min(layout.input_width.saturating_sub(1))
-    } else {
-        cursor_col
+        let cursor_col_clamped = if layout.input_width > 0 {
+            cursor_col.min(layout.input_width.saturating_sub(1))
+        } else {
+            cursor_col
+        };
+        (
+            layout,
+            rendered_text,
+            text_wrap,
+            content_scroll_offset,
+            cursor_display_row,
+            cursor_col_clamped,
+        )
     };
 
     hooks.use_terminal_events({
@@ -228,6 +241,10 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
         let submit_on_enter = props.submit_on_enter;
         let input_width = layout.input_width;
         move |event| {
+            if !has_focus {
+                return;
+            }
+
             let mut esc = pending_esc.get();
             let text_before = editor.read().text.clone();
             let result = {
@@ -299,10 +316,12 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
         BorderStyle::None
     };
 
-    let scrollbar_style = props.scrollbar_style.unwrap_or_else(ScrollbarStyle::dark);
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let scrollbar_style = props.scrollbar_style.unwrap_or_else(|| theme.scrollbar_style());
     let outer_viewport = layout.viewport_height;
-    let text_color = props.text_color.unwrap_or(Color::Grey);
-    let cursor_color = props.cursor_color.unwrap_or(Color::DarkGrey);
+    let text_color = props.text_color.unwrap_or_else(|| theme.input_text_color(has_focus));
+    let cursor_color = props.cursor_color.unwrap_or_else(|| theme.input_cursor_color());
+    let border_inset = if show_border { theme.input_inset() } else { 0 };
 
     element! {
         View(
@@ -312,9 +331,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
             position: Position::Relative,
             overflow: Overflow::Hidden,
             border_style: border_style,
-            border_color: Color::DarkGrey,
-            padding_left: if show_border { 1 } else { 0 },
-            padding_right: if show_border { 1 } else { 0 },
+            border_color: theme.input_border_color(has_focus),
+            padding_left: border_inset,
+            padding_right: border_inset,
         ) {
             View(
                 position: Position::Absolute,
@@ -363,7 +382,7 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                         VerticalScrollbar(
                             viewport_height: outer_viewport,
                             content_height: layout.content_rows,
-                            scroll_offset: next_scroll,
+                            scroll_offset: scroll_row.get(),
                             style: Some(scrollbar_style),
                         )
                     }

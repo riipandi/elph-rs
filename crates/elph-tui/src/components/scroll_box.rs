@@ -1,6 +1,7 @@
 //! Bounded scrollable region (OpenTUI scroll container analogue).
 
 use super::scroll_bar::ScrollbarStyle;
+use super::theme::{UiTheme, resolve_ui_theme};
 use iocraft::prelude::*;
 
 /// Bottom-pinned line offset for a [`ScrollView`] with `auto_scroll: true`.
@@ -64,14 +65,19 @@ pub struct ScrollBoxProps<'a> {
     pub scroll_step: u16,
     pub scrollbar: bool,
     pub scrollbar_style: Option<ScrollbarStyle>,
+    pub theme: Option<UiTheme>,
+    /// Optional handle to read scroll offset for linked [`VerticalScrollbar`] / [`ScrollIndicator`].
+    pub handle: Option<Ref<ScrollViewHandle>>,
     pub children: Vec<AnyElement<'a>>,
 }
 
 /// Clipped viewport with an inner [`ScrollView`].
 #[component]
-pub fn ScrollBox<'a>(props: &mut ScrollBoxProps<'a>) -> impl Into<AnyElement<'a>> {
-    let style = props.scrollbar_style.unwrap_or_else(ScrollbarStyle::dark);
+pub fn ScrollBox<'a>(props: &mut ScrollBoxProps<'a>, hooks: Hooks) -> impl Into<AnyElement<'a>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let style = props.scrollbar_style.unwrap_or_else(|| theme.scrollbar_style());
     let children = std::mem::take(&mut props.children);
+    let builtin_scrollbar = props.scrollbar && props.handle.is_none();
 
     element! {
         View(
@@ -79,10 +85,12 @@ pub fn ScrollBox<'a>(props: &mut ScrollBoxProps<'a>) -> impl Into<AnyElement<'a>
             height: props.height,
             overflow: Overflow::Hidden,
             border_style: BorderStyle::Single,
-            border_color: Color::DarkGrey,
+            border_color: theme.border,
+            background_color: theme.list_surface(),
         ) {
             View(width: 100pct, height: 100pct, overflow: Overflow::Hidden) {
                 ScrollView(
+                    handle: props.handle,
                     auto_scroll: props.auto_scroll,
                     keyboard_scroll: Some(props.keyboard_scroll),
                     scroll_step: if props.scroll_step == 0 {
@@ -90,7 +98,7 @@ pub fn ScrollBox<'a>(props: &mut ScrollBoxProps<'a>) -> impl Into<AnyElement<'a>
                     } else {
                         Some(props.scroll_step)
                     },
-                    scrollbar: Some(props.scrollbar),
+                    scrollbar: Some(builtin_scrollbar),
                     scrollbar_thumb_color: style.thumb_color,
                     scrollbar_track_color: style.track_color,
                 ) {

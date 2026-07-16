@@ -8,6 +8,7 @@ use iocraft::prelude::{Color, Weight};
 use syntect::highlighting::Style as SyntectStyle;
 
 use super::model::StyledSpan;
+use crate::components::theme::UiTheme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum ColorLevel {
@@ -117,7 +118,7 @@ fn ansi256_to_ansi16(index: Ansi256Color) -> AnsiColor {
     }
 }
 
-fn anstyle_color_to_iocraft(color: AnstyleColor) -> Color {
+fn anstyle_color_to_iocraft(color: AnstyleColor, theme: UiTheme) -> Color {
     match color {
         AnstyleColor::Rgb(rgb) => Color::Rgb {
             r: rgb.0,
@@ -125,30 +126,35 @@ fn anstyle_color_to_iocraft(color: AnstyleColor) -> Color {
             b: rgb.2,
         },
         AnstyleColor::Ansi(ansi) => match ansi {
-            AnsiColor::Black | AnsiColor::BrightBlack => Color::DarkGrey,
-            AnsiColor::Red | AnsiColor::BrightRed => Color::DarkRed,
-            AnsiColor::Green | AnsiColor::BrightGreen => Color::DarkGreen,
-            AnsiColor::Yellow | AnsiColor::BrightYellow => Color::Yellow,
-            AnsiColor::Blue | AnsiColor::BrightBlue => Color::Blue,
+            AnsiColor::Black | AnsiColor::BrightBlack => theme.text_muted,
+            AnsiColor::Red | AnsiColor::BrightRed => theme.error,
+            AnsiColor::Green | AnsiColor::BrightGreen => theme.success,
+            AnsiColor::Yellow | AnsiColor::BrightYellow => theme.warning,
+            AnsiColor::Blue | AnsiColor::BrightBlue => theme.accent,
             AnsiColor::Magenta | AnsiColor::BrightMagenta => Color::Magenta,
-            AnsiColor::Cyan | AnsiColor::BrightCyan => Color::Cyan,
-            AnsiColor::White | AnsiColor::BrightWhite => Color::Grey,
+            AnsiColor::Cyan | AnsiColor::BrightCyan => theme.accent_soft,
+            AnsiColor::White | AnsiColor::BrightWhite => theme.text_secondary,
         },
         AnstyleColor::Ansi256(index) => {
             if let Some(adapted) = adapt_anstyle_color(AnstyleColor::Ansi256(index)) {
-                return anstyle_color_to_iocraft(adapted);
+                return anstyle_color_to_iocraft(adapted, theme);
             }
-            Color::Grey
+            theme.text_secondary
         }
     }
 }
 
-pub fn syntect_to_styled_span(style: SyntectStyle, text: impl Into<String>, fallback: Color) -> StyledSpan {
+pub fn syntect_to_styled_span(
+    style: SyntectStyle,
+    text: impl Into<String>,
+    fallback: Color,
+    theme: UiTheme,
+) -> StyledSpan {
     let anstyle = to_anstyle(style);
     let color = anstyle
         .get_fg_color()
         .and_then(adapt_anstyle_color)
-        .map(anstyle_color_to_iocraft)
+        .map(|c| anstyle_color_to_iocraft(c, theme))
         .unwrap_or(fallback);
     let effects = anstyle.get_effects();
     StyledSpan {

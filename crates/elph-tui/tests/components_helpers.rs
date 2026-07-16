@@ -32,20 +32,22 @@ fn diff_helpers_cover_all_tags() {
     assert_eq!(diff_line_prefix(ChangeTag::Delete), "- ");
     assert_eq!(diff_line_prefix(ChangeTag::Insert), "+ ");
     assert_eq!(diff_line_prefix(ChangeTag::Equal), "  ");
-    assert!(matches!(diff_line_color(ChangeTag::Delete), Color::DarkRed));
-    assert!(matches!(diff_line_color(ChangeTag::Insert), Color::DarkGreen));
-    assert!(matches!(diff_line_color(ChangeTag::Equal), Color::DarkGrey));
+    let theme = elph_tui::components::UiTheme::default();
+    assert_eq!(diff_line_color(theme, ChangeTag::Delete), theme.error);
+    assert_eq!(diff_line_color(theme, ChangeTag::Insert), theme.success);
+    assert_eq!(diff_line_color(theme, ChangeTag::Equal), theme.text_muted);
 }
 
 #[test]
 fn side_by_side_diff_handles_uneven_line_counts() {
-    let lines = side_by_side_lines("one\ntwo", "alpha\nbeta\ngamma", 8);
+    let theme = elph_tui::components::UiTheme::default();
+    let lines = side_by_side_lines("one\ntwo", "alpha\nbeta\ngamma", 8, theme.error, theme.success, theme.border);
     assert_eq!(lines.len(), 3);
 }
 
 #[test]
 fn unified_diff_empty_inputs() {
-    let lines = unified_lines("", "");
+    let lines = unified_lines("", "", elph_tui::components::UiTheme::default(), None, None, None);
     assert!(lines.is_empty());
 }
 
@@ -160,15 +162,16 @@ fn frame_buffer_bounds_and_lines() {
 
 #[test]
 fn highlight_rust_line_covers_comments_strings_and_symbols() {
-    let comment = highlight_rust_line("  // note");
+    let theme = elph_tui::components::UiTheme::default();
+    let comment = highlight_rust_line("  // note", theme);
     assert!(!comment.is_empty());
-    let string = highlight_rust_line(r#"let s = "hi";"#);
+    let string = highlight_rust_line(r#"let s = "hi";"#, theme);
     assert!(!string.is_empty());
-    let punct = highlight_rust_line("fn main() {");
+    let punct = highlight_rust_line("fn main() {", theme);
     assert!(!punct.is_empty());
-    let keyword = highlight_rust_line("pub fn foo()");
+    let keyword = highlight_rust_line("pub fn foo()", theme);
     assert!(!keyword.is_empty());
-    let empty = highlight_rust_line("");
+    let empty = highlight_rust_line("", theme);
     assert_eq!(empty.len(), 1);
 }
 
@@ -204,7 +207,7 @@ fn scrollbar_thumb_row_flags_fill_viewport_when_content_fits() {
 
 #[test]
 fn select_option_line_with_and_without_description() {
-    assert_eq!(select_option_line("> ", "Save", "file", true), "> Save\n   file");
+    assert_eq!(select_option_line("> ", "Save", "file", true), "> Save\n  file");
     assert_eq!(select_option_line("  ", "Save", "file", false), "  Save");
 }
 

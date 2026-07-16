@@ -1,5 +1,6 @@
 //! QR code block display.
 
+use super::theme::{UiTheme, resolve_ui_theme};
 use iocraft::prelude::*;
 use qrcode::QrCode;
 
@@ -10,6 +11,8 @@ pub struct QrCodeViewProps {
     pub dark_char: String,
     pub light_char: String,
     pub color: Option<Color>,
+    pub border_color: Option<Color>,
+    pub theme: Option<UiTheme>,
 }
 
 pub fn render_qr(payload: &str, dark: &str, light: &str) -> String {
@@ -36,7 +39,8 @@ pub fn render_qr(payload: &str, dark: &str, light: &str) -> String {
 
 /// QR code rendered as block characters.
 #[component]
-pub fn QrCodeView(props: &QrCodeViewProps) -> impl Into<AnyElement<'static>> {
+pub fn QrCodeView(props: &QrCodeViewProps, hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
     let dark = if props.dark_char.is_empty() {
         "██"
     } else {
@@ -48,10 +52,16 @@ pub fn QrCodeView(props: &QrCodeViewProps) -> impl Into<AnyElement<'static>> {
         &props.light_char
     };
     let grid = render_qr(&props.payload, dark, light);
-    let color = props.color.unwrap_or(Color::White);
+    let color = props.color.unwrap_or(theme.text_primary);
+    let border_color = props.border_color.unwrap_or(theme.border_subtle);
 
     element! {
-        View(flex_direction: FlexDirection::Column) {
+        View(
+            flex_direction: FlexDirection::Column,
+            border_style: BorderStyle::Single,
+            border_color: border_color,
+            padding: theme.padding_sm,
+        ) {
             #(grid.lines().map(|line| {
                 element! {
                     Text(content: line.to_string(), color, wrap: TextWrap::NoWrap)

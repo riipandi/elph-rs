@@ -33,7 +33,7 @@ _RESIDUAL_ := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 $(foreach a,$(_RESIDUAL_),$(eval .PHONY: $a))
 $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
-.PHONY: build build-elph run watch test test-elph check-elph lint lint-elph fmt clean check coverage help stats generate-models prepare
+.PHONY: build build-elph run watch test test-elph test-elph-tui check-elph check-elph-tui lint lint-elph lint-elph-tui build-elph-tui-examples fmt clean check coverage help stats generate-models prepare
 .PHONY: cross cross-pull release release-linux release-macos release-windows
 .PHONY: bump bump-elph bump-libs publish publish-dry-run version
 
@@ -92,8 +92,17 @@ test: ## Run all workspace tests
 test-elph: ## Run tests for elph and its workspace deps
 	@$(CARGO) nextest run --no-fail-fast -p elph-ai -p elph-agent -p elph-core -p elph $(ARGS)
 
+test-elph-tui: ## Run elph-tui tests
+	@$(CARGO) nextest run --no-fail-fast -p elph-tui $(ARGS)
+
 check-elph: ## Check elph and its workspace deps compile
 	@$(CARGO) check -p elph-ai -p elph-agent -p elph-core -p elph 2>&1
+
+check-elph-tui: ## Check elph-tui compiles (lib, tests, examples)
+	@$(CARGO) check -p elph-tui --all-targets 2>&1
+
+build-elph-tui-examples: ## Build all elph-tui examples
+	@$(CARGO) build -p elph-tui --examples 2>&1
 
 generate-models: ## Regenerate elph-ai model catalogs from catalog source (ELPH_AI_CATALOG_DIR, ARGS=--skip-scripts)
 	@test -f "$(ELPH_AI_CATALOG_DIR)/scripts/generate-models.ts" || { \
@@ -136,6 +145,9 @@ lint: lint-elph ## Run clippy linter
 
 lint-elph: ## Run clippy for elph and its workspace deps
 	@$(CARGO) clippy -p elph -p elph-core -p elph-agent -p elph-ai --all-targets -- -D warnings
+
+lint-elph-tui: ## Run clippy for elph-tui
+	@$(CARGO) clippy -p elph-tui --all-targets -- -D warnings
 
 fmt: ## Format all code
 	@$(CARGO) fmt --all -- --style-edition 2024

@@ -4,23 +4,25 @@ use std::time::Duration;
 
 use iocraft::prelude::*;
 
-use crate::color::rgb;
+use crate::components::theme::{UiTheme, resolve_ui_theme};
 use crate::loader::{KittScanner, KittScannerConfig, LoaderCell, SpinnerLoader};
 
 /// Props for [`KittScannerView`].
 #[derive(Clone, Copy, Props)]
 pub struct KittScannerViewProps {
     pub width: u16,
-    pub accent: Color,
+    pub accent: Option<Color>,
     pub active: bool,
+    pub theme: Option<UiTheme>,
 }
 
 impl Default for KittScannerViewProps {
     fn default() -> Self {
         Self {
             width: 8,
-            accent: rgb(0xfa, 0xb2, 0x83),
+            accent: None,
             active: true,
+            theme: None,
         }
     }
 }
@@ -28,15 +30,17 @@ impl Default for KittScannerViewProps {
 /// Props for [`SpinnerLoaderView`].
 #[derive(Clone, Copy, Props)]
 pub struct SpinnerLoaderViewProps {
-    pub color: Color,
+    pub color: Option<Color>,
     pub active: bool,
+    pub theme: Option<UiTheme>,
 }
 
 impl Default for SpinnerLoaderViewProps {
     fn default() -> Self {
         Self {
-            color: rgb(0xfa, 0xb2, 0x83),
+            color: None,
             active: true,
+            theme: None,
         }
     }
 }
@@ -44,9 +48,11 @@ impl Default for SpinnerLoaderViewProps {
 /// Renders a KITT-style scanner (`■` head + fading trail, `⬝` inactive dots).
 #[component]
 pub fn KittScannerView(props: &KittScannerViewProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let accent = props.accent.unwrap_or(theme.warning);
     let mut scanner = hooks.use_ref(|| {
         let config = KittScannerConfig {
-            accent: props.accent,
+            accent,
             width: if props.width > 0 {
                 props.width as usize
             } else {
@@ -72,8 +78,8 @@ pub fn KittScannerView(props: &KittScannerViewProps, mut hooks: Hooks) -> impl I
         }
     });
 
-    if props.accent != scanner.read().accent() {
-        scanner.write().set_accent(props.accent);
+    if accent != scanner.read().accent() {
+        scanner.write().set_accent(accent);
     }
 
     let _tick = frame_tick.get();
@@ -81,7 +87,7 @@ pub fn KittScannerView(props: &KittScannerViewProps, mut hooks: Hooks) -> impl I
     let cells: Vec<LoaderCell> = if props.active {
         scanner.read().into_cells(render_width)
     } else {
-        idle_cells(render_width, props.accent)
+        idle_cells(render_width, accent)
     };
 
     let cell_elements: Vec<_> = cells
@@ -111,6 +117,8 @@ pub fn KittScannerView(props: &KittScannerViewProps, mut hooks: Hooks) -> impl I
 /// Renders a cycling braille spinner (`⠋⠙⠹…`).
 #[component]
 pub fn SpinnerLoaderView(props: &SpinnerLoaderViewProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
+    let theme = resolve_ui_theme(&hooks, props.theme);
+    let color = props.color.unwrap_or(theme.warning);
     let mut spinner = hooks.use_state(SpinnerLoader::new);
 
     hooks.use_future(async move {
@@ -125,7 +133,7 @@ pub fn SpinnerLoaderView(props: &SpinnerLoaderViewProps, mut hooks: Hooks) -> im
     let glyph = if props.active { spinner.get().glyph() } else { " " };
 
     element! {
-        Text(color: props.color, wrap: TextWrap::NoWrap, content: glyph.to_string())
+        Text(color: color, wrap: TextWrap::NoWrap, content: glyph.to_string())
     }
 }
 

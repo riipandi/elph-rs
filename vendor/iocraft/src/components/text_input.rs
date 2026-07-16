@@ -4,9 +4,8 @@ use crate::{
     element,
     hooks::{Ref, State, UseMemo, UseRef, UseState, UseTerminalEvents},
     segmented_string::SegmentedString,
-    AnyElement, CanvasTextStyle, Color, Component, ComponentDrawer, ComponentUpdater, HandlerMut,
-    Hook, Hooks, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, LayoutStyle, Overflow, Position,
-    Props, Size, TerminalEvent, Weight,
+    AnyElement, CanvasTextStyle, Color, Component, ComponentDrawer, ComponentUpdater, HandlerMut, Hook, Hooks, KeyCode,
+    KeyEvent, KeyEventKind, KeyModifiers, LayoutStyle, Overflow, Position, Props, Size, TerminalEvent, Weight,
 };
 use std::sync::Arc;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -67,9 +66,7 @@ impl TextInputHandle {
     ///
     /// The offset is in bytes, not characters.
     pub fn cursor_offset(&self) -> usize {
-        self.inner
-            .as_ref()
-            .map_or(0, |inner| inner.cursor_offset.get())
+        self.inner.as_ref().map_or(0, |inner| inner.cursor_offset.get())
     }
 }
 
@@ -178,10 +175,7 @@ impl TextBuffer {
                 }
             }
         }
-        (
-            self.rows.len() as _,
-            self.rows.last().map_or(0, |r| r.width as _),
-        )
+        (self.rows.len() as _, self.rows.last().map_or(0, |r| r.width as _))
     }
 
     fn lines(&self) -> impl Iterator<Item = &str> {
@@ -196,10 +190,7 @@ impl TextBuffer {
         if offset == 0 {
             0
         } else {
-            self.text[..offset]
-                .char_indices()
-                .last()
-                .map_or(0, |(i, _)| i)
+            self.text[..offset].char_indices().last().map_or(0, |(i, _)| i)
         }
     }
 
@@ -282,12 +273,7 @@ impl Component for TextBufferView {
         Self::default()
     }
 
-    fn update(
-        &mut self,
-        props: &mut Self::Props<'_>,
-        _hooks: Hooks,
-        updater: &mut ComponentUpdater,
-    ) {
+    fn update(&mut self, props: &mut Self::Props<'_>, _hooks: Hooks, updater: &mut ComponentUpdater) {
         self.text_style = CanvasTextStyle {
             color: props.color,
             weight: props.weight,
@@ -353,11 +339,7 @@ pub fn TextInput(mut hooks: Hooks, props: &mut TextInputProps) -> impl Into<AnyE
     let multiline = props.multiline;
     let plain_enter_inserts_newline = props.plain_enter_inserts_newline.unwrap_or(true);
     let has_focus = props.has_focus;
-    let wrap = if multiline {
-        TextWrap::Wrap
-    } else {
-        TextWrap::NoWrap
-    };
+    let wrap = if multiline { TextWrap::Wrap } else { TextWrap::NoWrap };
 
     let mut prev_value = hooks.use_state(|| "".to_string());
     let mut cursor_offset = hooks.use_state(|| 0usize);
@@ -459,30 +441,20 @@ pub fn TextInput(mut hooks: Hooks, props: &mut TextInputProps) -> impl Into<AnyE
 
             match event {
                 TerminalEvent::Key(KeyEvent {
-                    code,
-                    kind,
-                    modifiers,
-                    ..
-                }) if kind != KeyEventKind::Release
-                    && modifiers.contains(KeyModifiers::CONTROL) =>
-                {
-                    match code {
-                        KeyCode::Char('a') => {
-                            cursor_offset.set(buffer.row_start_offset(cursor_offset.get()));
-                            vertical_movement_col_preference.set(None);
-                        }
-                        KeyCode::Char('e') => {
-                            cursor_offset.set(buffer.row_end_offset(cursor_offset.get()));
-                            vertical_movement_col_preference.set(None);
-                        }
-                        _ => {}
+                    code, kind, modifiers, ..
+                }) if kind != KeyEventKind::Release && modifiers.contains(KeyModifiers::CONTROL) => match code {
+                    KeyCode::Char('a') => {
+                        cursor_offset.set(buffer.row_start_offset(cursor_offset.get()));
+                        vertical_movement_col_preference.set(None);
                     }
-                }
+                    KeyCode::Char('e') => {
+                        cursor_offset.set(buffer.row_end_offset(cursor_offset.get()));
+                        vertical_movement_col_preference.set(None);
+                    }
+                    _ => {}
+                },
                 TerminalEvent::Key(KeyEvent {
-                    code,
-                    kind,
-                    modifiers,
-                    ..
+                    code, kind, modifiers, ..
                 }) if kind != KeyEventKind::Release
                     && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
                 {
@@ -504,11 +476,7 @@ pub fn TextInput(mut hooks: Hooks, props: &mut TextInputProps) -> impl Into<AnyE
                             value = latest_value.read().clone();
                             let mut offset = cursor_offset.get();
                             if offset > 0 {
-                                offset -= value[..offset]
-                                    .chars()
-                                    .last()
-                                    .unwrap()
-                                    .len_utf8();
+                                offset -= value[..offset].chars().last().unwrap().len_utf8();
                                 value.remove(offset);
                             }
                             on_change(value.clone());
@@ -527,9 +495,7 @@ pub fn TextInput(mut hooks: Hooks, props: &mut TextInputProps) -> impl Into<AnyE
                         }
                         // Shift+Enter → wire newline; plain Enter → wire submit when disabled here.
                         KeyCode::Enter
-                            if multiline
-                                && plain_enter_inserts_newline
-                                && !modifiers.contains(KeyModifiers::SHIFT) =>
+                            if multiline && plain_enter_inserts_newline && !modifiers.contains(KeyModifiers::SHIFT) =>
                         {
                             value = latest_value.read().clone();
                             let mut offset = cursor_offset.get();
@@ -545,10 +511,8 @@ pub fn TextInput(mut hooks: Hooks, props: &mut TextInputProps) -> impl Into<AnyE
                                 let (_, col) = buffer.row_column_for_offset(cursor_offset.get());
                                 vertical_movement_col_preference.set(Some(col));
                             }
-                            cursor_offset.set(buffer.above_offset(
-                                cursor_offset.get(),
-                                vertical_movement_col_preference.get(),
-                            ));
+                            cursor_offset
+                                .set(buffer.above_offset(cursor_offset.get(), vertical_movement_col_preference.get()));
                         }
                         KeyCode::Down if multiline => {
                             clear_vertical_movement_col_preference = false;
@@ -556,10 +520,8 @@ pub fn TextInput(mut hooks: Hooks, props: &mut TextInputProps) -> impl Into<AnyE
                                 let (_, col) = buffer.row_column_for_offset(cursor_offset.get());
                                 vertical_movement_col_preference.set(Some(col));
                             }
-                            cursor_offset.set(buffer.below_offset(
-                                cursor_offset.get(),
-                                vertical_movement_col_preference.get(),
-                            ));
+                            cursor_offset
+                                .set(buffer.below_offset(cursor_offset.get(), vertical_movement_col_preference.get()));
                         }
                         KeyCode::Left => {
                             cursor_offset.set(buffer.left_of_offset(cursor_offset.get()));
@@ -618,18 +580,15 @@ enum NewCursorOffsetHint {
     Deletion,
 }
 
-fn new_cursor_offset(
-    prev_value: &str,
-    cursor_offset: usize,
-    value: &str,
-    hint: NewCursorOffsetHint,
-) -> usize {
-    let has_same_head = value.len() >= cursor_offset
-        && value.as_bytes()[..cursor_offset] == prev_value.as_bytes()[..cursor_offset];
+fn new_cursor_offset(prev_value: &str, cursor_offset: usize, value: &str, hint: NewCursorOffsetHint) -> usize {
+    // Batched key events can advance the live cursor before `prev_value` catches up on render.
+    let cursor_offset = cursor_offset.min(prev_value.len());
+    let has_same_head =
+        value.len() >= cursor_offset && value.as_bytes()[..cursor_offset] == prev_value.as_bytes()[..cursor_offset];
 
     let tail_len = prev_value.len() - cursor_offset;
-    let has_same_tail = value.len() >= tail_len
-        && value.as_bytes()[value.len() - tail_len..] == prev_value.as_bytes()[cursor_offset..];
+    let has_same_tail =
+        value.len() >= tail_len && value.as_bytes()[value.len() - tail_len..] == prev_value.as_bytes()[cursor_offset..];
 
     if value.len() >= prev_value.len() && has_same_head && has_same_tail {
         // insertion (or no change)
@@ -711,17 +670,15 @@ mod tests {
     #[apply(test!)]
     async fn test_text_input() {
         let actual = element!(MyComponent)
-            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(
-                vec![
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('f'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('f'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
-                ],
-            )))
+            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(vec![
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('f'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('f'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
+            ])))
             .map(|c| c.to_string())
             .collect::<Vec<_>>()
             .await;
@@ -734,12 +691,10 @@ mod tests {
         let actual = element! {
             MyComponent(initial_value: "foo")
         }
-        .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(
-            vec![
-                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
-                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
-            ],
-        )))
+        .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(vec![
+            TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
+            TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
+        ])))
         .map(|c| c.to_string())
         .collect::<Vec<_>>()
         .await;
@@ -750,26 +705,24 @@ mod tests {
     #[apply(test!)]
     async fn test_text_input_overflow() {
         let actual = element!(MyComponent)
-            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(
-                vec![
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('x'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
-                ],
-            )))
+            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(vec![
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Repeat, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('x'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
+            ])))
             .map(|c| c.to_string())
             .collect::<Vec<_>>()
             .await;
@@ -780,16 +733,14 @@ mod tests {
     #[apply(test!)]
     async fn test_text_input_kanji() {
         let actual = element!(MyComponent)
-            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(
-                vec![
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('一'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('一'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('二'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('二'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
-                ],
-            )))
+            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(vec![
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('一'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('一'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('二'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('二'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
+            ])))
             .map(|c| c.to_string())
             .collect::<Vec<_>>()
             .await;
@@ -800,20 +751,18 @@ mod tests {
     #[apply(test!)]
     async fn test_text_input_multiline_newline() {
         let actual = element!(MyMultilineComponent)
-            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(
-                vec![
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('f'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('f'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('o'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('\n'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('\n'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
-                    TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
-                ],
-            )))
+            .mock_terminal_render_loop(MockTerminalConfig::with_events(futures::stream::iter(vec![
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('f'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('f'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('o'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('\n'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('\n'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Press, KeyCode::Char('!'))),
+                TerminalEvent::Key(KeyEvent::new(KeyEventKind::Release, KeyCode::Char('!'))),
+            ])))
             .map(|c| c.to_string())
             .collect::<Vec<_>>()
             .await;
@@ -836,40 +785,19 @@ mod tests {
 
     #[test]
     fn test_test_buffer_row_column_for_offset() {
-        assert_eq!(
-            TextBuffer::new("一二!", 10).row_column_for_offset(7),
-            (0, 5)
-        );
+        assert_eq!(TextBuffer::new("一二!", 10).row_column_for_offset(7), (0, 5));
 
-        assert_eq!(
-            TextBuffer::new("foo bar bazqux", 10).row_column_for_offset(9),
-            (1, 1)
-        );
+        assert_eq!(TextBuffer::new("foo bar bazqux", 10).row_column_for_offset(9), (1, 1));
 
-        assert_eq!(
-            TextBuffer::new("1234512345", 10).row_column_for_offset(10),
-            (0, 10)
-        );
+        assert_eq!(TextBuffer::new("1234512345", 10).row_column_for_offset(10), (0, 10));
 
-        assert_eq!(
-            TextBuffer::new("12345123451", 10).row_column_for_offset(11),
-            (1, 1)
-        );
+        assert_eq!(TextBuffer::new("12345123451", 10).row_column_for_offset(11), (1, 1));
 
-        assert_eq!(
-            TextBuffer::new("asd asd asd", 10).row_column_for_offset(11),
-            (1, 3)
-        );
+        assert_eq!(TextBuffer::new("asd asd asd", 10).row_column_for_offset(11), (1, 3));
 
-        assert_eq!(
-            TextBuffer::new("12345123 5 ", 10).row_column_for_offset(11),
-            (0, 11)
-        );
+        assert_eq!(TextBuffer::new("12345123 5 ", 10).row_column_for_offset(11), (0, 11));
 
-        assert_eq!(
-            TextBuffer::new("asd\n", 10).row_column_for_offset(4),
-            (1, 0)
-        );
+        assert_eq!(TextBuffer::new("asd\n", 10).row_column_for_offset(4), (1, 0));
     }
 
     #[test]
@@ -877,55 +805,22 @@ mod tests {
         let mixed_text = "你好世界，Hello World";
         let cursor_offset = mixed_text.find('W').unwrap();
         assert_eq!(
-            new_cursor_offset(
-                mixed_text,
-                cursor_offset,
-                "你好世界，Hello aWorld",
-                NewCursorOffsetHint::None
-            ),
+            new_cursor_offset(mixed_text, cursor_offset, "你好世界，Hello aWorld", NewCursorOffsetHint::None),
             cursor_offset + 1
         );
 
+        assert_eq!(new_cursor_offset("", 0, "foo", NewCursorOffsetHint::None), 3);
+        assert_eq!(new_cursor_offset("foo", 3, "foobar", NewCursorOffsetHint::None), 6);
+        assert_eq!(new_cursor_offset("foobar", 3, "foobar", NewCursorOffsetHint::None), 3);
+        assert_eq!(new_cursor_offset("foobar", 3, "fooar", NewCursorOffsetHint::None), 3);
+        assert_eq!(new_cursor_offset("foobar", 3, "fooasdbar", NewCursorOffsetHint::None), 6);
+        assert_eq!(new_cursor_offset("a\n", 0, "\n", NewCursorOffsetHint::None), 0);
         assert_eq!(
-            new_cursor_offset("", 0, "foo", NewCursorOffsetHint::None),
-            3
-        );
-        assert_eq!(
-            new_cursor_offset("foo", 3, "foobar", NewCursorOffsetHint::None),
-            6
-        );
-        assert_eq!(
-            new_cursor_offset("foobar", 3, "foobar", NewCursorOffsetHint::None),
-            3
-        );
-        assert_eq!(
-            new_cursor_offset("foobar", 3, "fooar", NewCursorOffsetHint::None),
-            3
-        );
-        assert_eq!(
-            new_cursor_offset("foobar", 3, "fooasdbar", NewCursorOffsetHint::None),
-            6
-        );
-        assert_eq!(
-            new_cursor_offset("a\n", 0, "\n", NewCursorOffsetHint::None),
-            0
-        );
-        assert_eq!(
-            new_cursor_offset(
-                "asddasd\nasdasd",
-                3,
-                "asdasd\nasdasd",
-                NewCursorOffsetHint::Backspace
-            ),
+            new_cursor_offset("asddasd\nasdasd", 3, "asdasd\nasdasd", NewCursorOffsetHint::Backspace),
             2
         );
         assert_eq!(
-            new_cursor_offset(
-                "asddasd\nasdasd",
-                3,
-                "asdasd\nasdasd",
-                NewCursorOffsetHint::Deletion
-            ),
+            new_cursor_offset("asddasd\nasdasd", 3, "asdasd\nasdasd", NewCursorOffsetHint::Deletion),
             3
         );
     }

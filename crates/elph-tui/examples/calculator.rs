@@ -212,7 +212,7 @@ fn Calculator(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
         if clear_on_number.get() {
             expr.set("0.".to_string());
             clear_on_number.set(false);
-        } else if expr.read().chars().last() != Some('.') {
+        } else if !expr.read().ends_with('.') {
             expr.set(expr.to_string() + ".");
         }
     };
@@ -339,7 +339,7 @@ fn App(mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
     let (width, height) = hooks.use_terminal_size();
     let mut system = hooks.use_context_mut::<SystemContext>();
     let mut should_exit = hooks.use_state(|| false);
-    let mut theme = hooks.use_state(|| Theme::default());
+    let mut theme = hooks.use_state(Theme::default);
 
     hooks.use_terminal_events({
         move |event| match event {

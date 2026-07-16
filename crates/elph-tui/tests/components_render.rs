@@ -1,3 +1,4 @@
+use elph_tui::components::UiTheme;
 use elph_tui::components::ascii_font::render_bitmap;
 use elph_tui::components::code::highlight_rust_line;
 use elph_tui::components::diff::unified_lines;
@@ -6,13 +7,13 @@ use elph_tui::components::qr_code::render_qr;
 
 #[test]
 fn highlights_keywords() {
-    let parts = highlight_rust_line("fn main() {}");
+    let parts = highlight_rust_line("fn main() {}", UiTheme::default());
     assert!(!parts.is_empty());
 }
 
 #[test]
 fn unified_diff_non_empty() {
-    let lines = unified_lines("a\n", "b\n");
+    let lines = unified_lines("a\n", "b\n", UiTheme::default(), None, None, None);
     assert!(!lines.is_empty());
 }
 
