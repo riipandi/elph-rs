@@ -1,7 +1,6 @@
 //! Harness filesystem and shell types.
 
 use std::future::Future;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -144,23 +143,7 @@ pub trait FileSystem: Send + Sync {
     fn cleanup<'a>(&'a self) -> impl Future<Output = ()> + Send + use<'a, Self>;
 }
 
-#[allow(clippy::type_complexity)]
-#[derive(Clone)]
-pub struct ShellExecOptions {
-    pub cwd: Option<String>,
-    pub env: Option<std::collections::HashMap<String, String>>,
-    pub timeout: Option<u64>,
-    pub abort_token: Option<CancellationToken>,
-    pub on_stdout: Option<Arc<dyn Fn(&str) + Send + Sync>>,
-    pub on_stderr: Option<Arc<dyn Fn(&str) + Send + Sync>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ShellExecResult {
-    pub stdout: String,
-    pub stderr: String,
-    pub exit_code: i32,
-}
+pub use elph_exec::{ShellExecOptions, ShellExecResult};
 
 /// Shell execution capability used by the harness.
 pub trait Shell: Send + Sync {

@@ -12,6 +12,7 @@ mod labels;
 mod prompt;
 mod session_prefs;
 mod shell;
+mod shell_submit;
 mod slash_handler;
 mod slash_palette;
 mod status_dialog;
@@ -84,7 +85,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     }
 
     let cwd = paths.project_dir().clone();
-    let env = LocalExecutionEnv::new(&cwd);
+    let execution_env = Arc::new(LocalExecutionEnv::new(&cwd));
+    let env = execution_env.clone();
     let bootstrap_resources = load_resources(&paths, &cwd, &env).await;
     let prompt_templates = bootstrap_resources.resources.prompt_templates.clone();
     let skills = bootstrap_resources.resources.skills.clone();
@@ -142,6 +144,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         prompt_templates: prompt_templates,
         skills: skills,
         cwd: cwd,
+        execution_env: execution_env,
     ))
     .render_loop()
     .fullscreen()

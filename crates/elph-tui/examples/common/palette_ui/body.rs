@@ -14,12 +14,8 @@ pub struct PaletteCardBodyProps {
     pub screen_height: u16,
 }
 
-fn row_prefix(selected: bool) -> &'static str {
-    if selected { "› " } else { "  " }
-}
-
 fn palette_row(chrome: &PaletteCardChrome, name: &str, description: &str, selected: bool) -> AnyElement<'static> {
-    let prefix = row_prefix(selected);
+    let prefix = elph_tui::list_selection_row_prefix(selected);
     let name_color = if selected {
         chrome.name_active_color
     } else {

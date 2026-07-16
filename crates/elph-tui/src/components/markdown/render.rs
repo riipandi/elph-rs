@@ -120,7 +120,7 @@ fn render_rule_line(width: u16, theme: &MarkdownTheme, margin_bottom: u16) -> An
         View(width: width, margin_bottom: margin_bottom, flex_shrink: 0f32) {
             Text(
                 content: markdown_horizontal_rule_text(width),
-                color: theme.blockquote,
+                color: theme.horizontal_rule,
                 wrap: TextWrap::NoWrap,
             )
         }

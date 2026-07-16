@@ -41,6 +41,9 @@ pub struct TextareaProps {
     pub force_palette_sync: Option<Ref<bool>>,
     /// Parent sets `true` to clear the live buffer (e.g. Ctrl+C while idle).
     pub force_clear: Option<Ref<bool>>,
+    /// When enabled, `/`, `!`, and `!!` are shown in the prefix column instead of the buffer.
+    pub prefix_config: Option<PromptPrefixConfig>,
+    pub input_prefix_kind: Option<Ref<InputPrefixKind>>,
     pub scrollbar_style: Option<ScrollbarStyle>,
     pub theme: Option<UiTheme>,
     /// When true, plain `Enter` calls [`Self::on_submit`] (Shift+Enter / Ctrl+J still insert newlines).
@@ -52,4 +55,5 @@ pub struct TextareaProps {
 
 use crate::components::scroll_bar::ScrollbarStyle;
 use crate::components::theme::UiTheme;
+use crate::input_prefix::{InputPrefixKind, PromptPrefixConfig};
 use iocraft::prelude::*;

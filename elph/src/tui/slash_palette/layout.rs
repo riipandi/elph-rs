@@ -1,18 +1,33 @@
 //! Layout helpers — anchor the palette above the editor without covering it.
 
+use elph_tui::components::UiTheme;
 use elph_tui::layout_textarea;
+use elph_tui::{PREFIX_COLUMN_WIDTH, PromptPrefixConfig};
 
 /// Gap between palette bottom edge and editor top edge (terminal rows).
-pub const PALETTE_EDITOR_GAP: u16 = 1;
+pub const PALETTE_EDITOR_GAP: u16 = 0;
 
 /// Editor max height — kept in sync with [`super::super::editor`].
 pub fn editor_max_height(screen_height: u16) -> u16 {
     (screen_height / 4).clamp(4, 12)
 }
 
+fn prompt_textarea_width(screen_width: u16) -> u16 {
+    let theme = UiTheme::default();
+    let prefix_cols = if PromptPrefixConfig::default().enabled {
+        PREFIX_COLUMN_WIDTH
+    } else {
+        0
+    };
+    theme
+        .shell_editor_inner_width(screen_width)
+        .saturating_sub(prefix_cols)
+        .max(1)
+}
+
 /// Visible editor block height in rows (border + textarea viewport).
 pub fn editor_chrome_height(draft: &str, screen_width: u16, screen_height: u16) -> u16 {
-    let textarea_width = screen_width.saturating_sub(2);
+    let textarea_width = prompt_textarea_width(screen_width);
     let max_height = Some(editor_max_height(screen_height));
     let cursor = draft.len();
     let layout = layout_textarea(draft, cursor, textarea_width, 1, max_height);

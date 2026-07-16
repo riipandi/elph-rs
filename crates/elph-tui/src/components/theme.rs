@@ -1,6 +1,7 @@
 //! Shared visual tokens for elph-tui components (Pi dark–aligned).
 
 use crate::color::rgb;
+use crate::input_prefix::LIST_SELECTION_MARKER;
 use iocraft::hooks::UseContext;
 use iocraft::prelude::*;
 
@@ -71,7 +72,7 @@ impl Default for UiTheme {
     }
 }
 
-/// Marker column width (`›` + gap) for list rows.
+/// Marker column width (`❯` + gap) for list rows.
 pub const LIST_MARKER_COL: u16 = 2;
 
 /// Horizontal chrome consumed by a single-line border plus inner inset.
@@ -265,7 +266,7 @@ impl UiTheme {
 
 /// Marker column for a selected list row.
 pub fn list_marker(selected: bool) -> &'static str {
-    if selected { "›" } else { " " }
+    if selected { LIST_SELECTION_MARKER } else { " " }
 }
 
 /// Name style for one list row.
@@ -295,7 +296,7 @@ pub fn dialog_row_surface(theme: UiTheme, selected: bool) -> Color {
     }
 }
 
-/// Marker color for inline dialog lists (`›` beside the active choice).
+/// Marker color for inline dialog lists (`❯` beside the active choice).
 pub fn dialog_marker_color(theme: UiTheme, selected: bool) -> Color {
     if selected { theme.warning } else { theme.text_hint }
 }
@@ -353,7 +354,7 @@ mod tests {
 
     #[test]
     fn markers_differ_for_selection() {
-        assert_eq!(list_marker(true), "›");
+        assert_eq!(list_marker(true), LIST_SELECTION_MARKER);
         assert_eq!(list_marker(false), " ");
     }
 

@@ -3,6 +3,7 @@
 //! Palette aligned with Pi `dark` theme and the
 //! [256-color xterm reference](https://www.ditig.com/256-colors-cheat-sheet).
 
+use elph_tui::InputPrefixKind;
 use iocraft::prelude::Color;
 
 /// Pi `darkGray` / muted chrome — near xterm 239 Grey30 (`#4e4e4e`).
@@ -63,6 +64,30 @@ pub const TOOL_FAILED_FG: Color = Color::Rgb { r: 204, g: 102, b: 102 };
 pub const EDITOR_TEXT_FOCUSED: Color = Color::Grey;
 pub const EDITOR_TEXT_DIMMED: Color = Color::DarkGrey;
 pub const EDITOR_CURSOR: Color = Color::White;
+
+pub const PROMPT_PREFIX_FG: Color = Color::White;
+pub const PROMPT_BORDER_DEFAULT: Color = BORDER_MUTED;
+pub const PROMPT_BORDER_SHELL: Color = Color::Rgb { r: 34, g: 197, b: 94 };
+
+/// Border color for the prompt editor from input prefix kind.
+pub fn prompt_border_color(kind: InputPrefixKind, has_focus: bool) -> Color {
+    let base = match kind {
+        InputPrefixKind::ShellWithContext | InputPrefixKind::ShellNoContext => PROMPT_BORDER_SHELL,
+        InputPrefixKind::Default | InputPrefixKind::Slash => PROMPT_BORDER_DEFAULT,
+    };
+    if has_focus { base } else { dim_border_color(base) }
+}
+
+fn dim_border_color(color: Color) -> Color {
+    match color {
+        Color::Rgb { r, g, b } => Color::Rgb {
+            r: ((r as u16 * 7) / 10) as u8,
+            g: ((g as u16 * 7) / 10) as u8,
+            b: ((b as u16 * 7) / 10) as u8,
+        },
+        other => other,
+    }
+}
 /// Transcript panel top border when the scroll region has focus.
 pub const TRANSCRIPT_BORDER_FOCUSED: Color = Color::Rgb { r: 120, g: 120, b: 120 };
 

@@ -188,6 +188,9 @@ pub use datastore::{ensure_database, ensure_databases, ensure_databases_once};
 pub use elph_ai::{OnPayloadCallback, OnResponseCallback};
 pub use elph_core::logger::{LogRotation, LoggingOptions};
 pub use elph_core::{ensure_dirs, write_file_if_missing, write_json_file, write_private_file};
+pub use elph_exec::{ExecError, ExecErrorCode, ShellConfig, exec_shell_command, resolve_shell};
+#[cfg(unix)]
+pub use elph_exec::{PtySize, open_pty};
 pub use goals::create_goal_tools;
 pub use goals::{Goal, GoalRuntime, GoalStatus, GoalStore};
 pub use messages::CustomMessageContent;

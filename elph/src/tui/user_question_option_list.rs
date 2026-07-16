@@ -2,19 +2,16 @@
 
 use elph_tui::components::DialogUserInputContent;
 use elph_tui::components::theme::{UiTheme, dialog_option_desc_style, dialog_option_name_style, dialog_row_surface};
+use elph_tui::list_selection_row_prefix;
 use elph_tui::types::SelectOption;
 use elph_tui::utils::wrap_text;
 use iocraft::prelude::*;
 
-/// Selection marker width (`> ` or `  `).
+/// Selection marker width (`❯ ` or `  `).
 pub const ROW_PREFIX_CHARS: usize = 2;
 
 /// Continuation-line indent matching [`ROW_PREFIX_CHARS`].
 const ROW_CONTINUATION_INDENT: &str = "  ";
-
-fn row_prefix(selected: bool) -> &'static str {
-    if selected { "> " } else { "  " }
-}
 
 fn content_inner_width(list_width: u16) -> usize {
     list_width.saturating_sub(ROW_PREFIX_CHARS as u16).max(1) as usize
@@ -178,7 +175,7 @@ pub fn UserQuestionOptionList(
             .enumerate()
             .map(|(i, opt)| {
                 let selected_row = i == index;
-                let prefix = row_prefix(selected_row);
+                let prefix = list_selection_row_prefix(selected_row);
                 let (name_color, name_weight) = dialog_option_name_style(theme, selected_row);
                 let hint_color = dialog_option_desc_style(theme, selected_row);
                 let inline_input = custom_input_active && custom_row_index == Some(i);

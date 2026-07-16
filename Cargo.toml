@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/elph-agent", "crates/elph-ai", "crates/elph-core", "crates/elph-tui", "elph"]
+members = ["crates/elph-agent", "crates/elph-ai", "crates/elph-core", "crates/elph-exec", "crates/elph-tui", "elph"]
 exclude = ["extensions/say-hello", "crates/elph-swarm"]
 
 [workspace.package]
@@ -33,6 +33,7 @@ crossterm = { version = "0.29.0", default-features = false, features = ["bracket
 elph-agent = { path = "crates/elph-agent", version = "0.0.27" }
 elph-ai = { path = "crates/elph-ai", version = "0.0.26" }
 elph-core = { path = "crates/elph-core", version = "0.0.15" }
+elph-exec = { path = "crates/elph-exec", version = "0.0.1" }
 elph-tui = { path = "crates/elph-tui", version = "0.0.26" }
 embed_anything = { version = "0.7.1", default-features = true }
 eventsource-stream = "0.2.3"
@@ -84,6 +85,7 @@ rmcp = { version = "2.2.0", features = [
   "reqwest",
 ] }
 rustc-hash = { version = "2.1.3", features = ["std"] }
+rustix = { version = "1", features = ["pty", "termios", "process", "fs"] }
 rustls = { version = "0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
 schemars = "1.2.1"
 serde = { version = "1.0.228", default-features = false, features = ["derive", "std"] }

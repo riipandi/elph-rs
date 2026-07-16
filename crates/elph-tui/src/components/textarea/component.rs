@@ -9,6 +9,8 @@ use super::layout::{layout_cursor_for_viewport, layout_metrics_from_wrapped, lay
 use super::state::TextareaState;
 use crate::components::scroll_bar::VerticalScrollbar;
 use crate::components::theme::resolve_ui_theme;
+use crate::input_prefix::{InputPrefixKind, PromptPrefixConfig, absorb_inline_triggers};
+use crate::input_prefix::{backspace_trigger_kind, try_consume_trigger};
 use crate::text_input_layout::WrappedTextLayout;
 use crate::text_input_layout::overlay_editor_wrap_width;
 use crate::text_input_layout::update_scroll_offset;
@@ -103,6 +105,77 @@ fn resolve_textarea_layout(
 ///
 /// While focused, an empty external draft is normal — we no longer mirror every keystroke into
 /// parent state for performance. Clearing the editor on empty external would wipe live input.
+fn prefix_config_enabled(config: Option<PromptPrefixConfig>) -> bool {
+    config.is_some_and(|config| config.enabled)
+}
+
+fn try_prefix_terminal_event(
+    event: TerminalEvent,
+    config: Option<PromptPrefixConfig>,
+    input_prefix_kind: Option<Ref<InputPrefixKind>>,
+    body: &str,
+) -> Option<TextareaInputResult> {
+    if !prefix_config_enabled(config) {
+        return None;
+    }
+    let TerminalEvent::Key(KeyEvent {
+        code, kind, modifiers, ..
+    }) = event
+    else {
+        return None;
+    };
+    if kind == KeyEventKind::Release || !modifiers.is_empty() {
+        return None;
+    }
+    let mut kind_ref = input_prefix_kind?;
+    let config = config?;
+    match code {
+        KeyCode::Char(ch) => try_consume_trigger(kind_ref.get(), body, ch, config.enabled).map(|next| {
+            kind_ref.set(next);
+            TextareaInputResult::Consumed
+        }),
+        KeyCode::Backspace => backspace_trigger_kind(kind_ref.get(), body, config.enabled).map(|next| {
+            kind_ref.set(next);
+            TextareaInputResult::Consumed
+        }),
+        _ => None,
+    }
+}
+
+fn sync_prefix_draft(
+    config: Option<PromptPrefixConfig>,
+    input_prefix_kind: Option<Ref<InputPrefixKind>>,
+    editor: &mut Ref<TextareaState>,
+    value: &mut State<String>,
+    live_draft: Option<Ref<String>>,
+) -> bool {
+    let Some(config) = config.filter(|config| config.enabled) else {
+        return false;
+    };
+    let Some(mut kind_ref) = input_prefix_kind else {
+        return false;
+    };
+    let mut ed = editor.write();
+    let text = ed.text.clone();
+    let (next_kind, next_body) = absorb_inline_triggers(kind_ref.get(), &text, &config);
+    let mut changed = false;
+    if next_kind != kind_ref.get() {
+        kind_ref.set(next_kind);
+        changed = true;
+    }
+    if next_body != text {
+        ed.sync_external(&next_body);
+        changed = true;
+    }
+    if changed {
+        if let Some(mut live) = live_draft {
+            live.set(next_body.clone());
+        }
+        value.set(next_body);
+    }
+    changed
+}
+
 fn sync_editor_from_parent(ed: &mut TextareaState, external: &str, has_focus: bool) {
     if has_focus {
         if TextareaState::should_sync_focused_external(&ed.text, external) {
@@ -123,6 +196,8 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
     let force_palette_sync = props.force_palette_sync;
     let force_clear = props.force_clear;
     let live_draft = props.live_draft;
+    let prefix_config = props.prefix_config;
+    let input_prefix_kind = props.input_prefix_kind;
     let has_focus = props.has_focus;
     let min_height = props.min_height.max(1);
     let show_border = props.show_border.unwrap_or(true);
@@ -148,6 +223,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
             ed.clear_after_submit();
             if let Some(mut signal) = force_clear {
                 signal.set(false);
+            }
+            if let Some(mut kind) = input_prefix_kind {
+                kind.set(InputPrefixKind::Default);
             }
             if let Some(mut live) = live_draft {
                 live.set(String::new());
@@ -247,6 +325,14 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
 
             let mut esc = pending_esc.get();
             let text_before = editor.read().text.clone();
+            if let Some(result) =
+                try_prefix_terminal_event(event.clone(), prefix_config, input_prefix_kind, &text_before)
+            {
+                if result == TextareaInputResult::Consumed {
+                    generation.set(generation.get().wrapping_add(1));
+                }
+                return;
+            }
             let result = {
                 let mut ed = editor.write();
                 let mut burst = paste_burst.write();
@@ -285,6 +371,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                     ed.clear_after_submit();
                     sync_live_draft("");
                     value.set(String::new());
+                    if let Some(mut kind) = input_prefix_kind {
+                        kind.set(InputPrefixKind::Default);
+                    }
                     layout_cache.set(None);
                     viewport_cache.set(None);
                     generation.set(generation.get().wrapping_add(1));
@@ -294,6 +383,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                         let text = editor.read().text.clone();
                         sync_live_draft(&text);
                         value.set(text);
+                    }
+                    if sync_prefix_draft(prefix_config, input_prefix_kind, &mut editor, &mut value, live_draft) {
+                        viewport_cache.set(None);
                     }
                     if let Some(mut suppress) = suppress_enter_newline {
                         suppress.set(false);

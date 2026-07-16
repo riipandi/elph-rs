@@ -4,10 +4,15 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use elph_agent::{PromptTemplate, Skill};
+use elph_agent::{LocalExecutionEnv, PromptTemplate, Skill};
 use elph_tui::rgb;
+use elph_tui::{
+    InputPrefixKind, PromptPrefixConfig, absorb_inline_triggers, compose_palette_draft, resolve_submit_draft,
+    try_consume_trigger,
+};
 use iocraft::prelude::*;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio_util::sync::CancellationToken;
 
 use crate::agent::slash_commands_for_palette;
 use crate::agent::{AgentUiEvent, CodingAgentSession, ToolApprovalChoice};
@@ -20,7 +25,8 @@ use crate::types::{is_force_quit_command, is_quit_command};
 use crate::tui::activity::TurnTokenTracker;
 use crate::tui::activity::{
     accumulate_session_elapsed, activity_label_for_event, format_quit_canceled_notice,
-    format_quit_while_busy_transcript, format_turn_canceled_notice, format_turn_complete_notice,
+    format_quit_while_busy_transcript, format_shell_canceled_notice, format_turn_canceled_notice,
+    format_turn_complete_notice, user_shell_activity_label,
 };
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
 use crate::tui::chrome::{ChromeStats, Header};
@@ -30,6 +36,9 @@ use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
 
 use crate::tui::prompt::PromptChrome;
 use crate::tui::session_prefs::persist_session_prefs;
+use crate::tui::shell_submit::{
+    UserShellEvent, bash_args_summary, format_shell_agent_context, next_user_shell_tool_id, spawn_user_shell,
+};
 use crate::tui::slash_handler::{SlashContext, SlashOutcome};
 use crate::tui::slash_handler::{handle_slash_submit, overlay_deferred_message};
 use crate::tui::slash_palette::SlashPaletteKeyAction;
@@ -103,6 +112,7 @@ pub struct MainShellProps {
     pub prompt_templates: Vec<PromptTemplate>,
     pub skills: Vec<Skill>,
     pub cwd: PathBuf,
+    pub execution_env: Arc<LocalExecutionEnv>,
 }
 
 impl Default for MainShellProps {
@@ -126,6 +136,7 @@ impl Default for MainShellProps {
             prompt_templates: Vec::new(),
             skills: Vec::new(),
             cwd: PathBuf::new(),
+            execution_env: Arc::new(LocalExecutionEnv::new(".")),
         }
     }
 }
@@ -141,13 +152,15 @@ struct BusyActivation<'a> {
     last_activity_label: &'a mut Ref<String>,
 }
 
-fn mark_busy(ctx: &mut BusyActivation<'_>, steer: bool) {
+fn mark_busy(ctx: &mut BusyActivation<'_>, steer: bool, activity_label: Option<&str>) {
     let now = Instant::now();
-    let label = if steer {
-        "Steering".to_string()
-    } else {
-        "Thinking".to_string()
-    };
+    let label = activity_label.map(str::to_string).unwrap_or_else(|| {
+        if steer {
+            "Steering".to_string()
+        } else {
+            "Thinking".to_string()
+        }
+    });
     ctx.busy.set(true);
     ctx.busy_started_at.set(Some(now));
     ctx.activity_started_at.set(Some(now));
@@ -276,6 +289,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut thinking_level = hooks.use_state(|| props.initial_thinking_level);
     let mut draft = hooks.use_state(String::new);
     let mut live_draft = hooks.use_ref(String::new);
+    let mut input_prefix_kind = hooks.use_ref(InputPrefixKind::default);
     let bootstrap_notice = props.bootstrap_notice.clone();
     let mut messages = hooks.use_state(move || {
         bootstrap_notice
@@ -325,6 +339,16 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let agent_session_for_palette = agent_session.clone();
     let extension_host_for_palette = extension_host.clone();
     let ui_events = props.ui_events.clone();
+    let execution_env = props.execution_env.clone();
+    struct UserShellChannel {
+        tx: UnboundedSender<UserShellEvent>,
+        rx: UnboundedReceiver<UserShellEvent>,
+    }
+    let mut user_shell_channel = hooks.use_ref(|| {
+        let (tx, rx) = unbounded_channel();
+        UserShellChannel { tx, rx }
+    });
+    let mut user_shell_abort = hooks.use_ref(|| None::<CancellationToken>);
     let paths = hooks.use_state(|| Paths::resolve().expect("resolve elph paths"));
     let mut skills_count = hooks.use_state(|| 0usize);
     let mut chrome_refresh_pending = hooks.use_state(|| true);
@@ -453,6 +477,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 last_activity_label: &mut last_activity_label,
                             },
                             false,
+                            None,
                         );
                     }
                     if let AgentUiEvent::RunCompleted { elapsed_secs } = &event {
@@ -526,6 +551,82 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             }
 
+            while let Ok(event) = user_shell_channel.write().rx.try_recv() {
+                match event {
+                    UserShellEvent::ToolUpdate { id, chunk } => {
+                        let mut msgs = messages.write();
+                        if event_applier
+                            .write()
+                            .apply(&mut msgs, AgentUiEvent::ToolUpdate { id, output: chunk })
+                        {
+                            transcript_changed = true;
+                        }
+                    }
+                    UserShellEvent::ToolEnd {
+                        id,
+                        exit_code,
+                        output,
+                        cancelled,
+                        with_context,
+                        command,
+                    } => {
+                        let is_error = !cancelled && exit_code != Some(0);
+                        {
+                            let mut msgs = messages.write();
+                            if event_applier.write().apply(
+                                &mut msgs,
+                                AgentUiEvent::ToolEnd {
+                                    id,
+                                    is_error,
+                                    output: output.clone(),
+                                },
+                            ) {
+                                transcript_changed = true;
+                            }
+                        }
+                        let shell_elapsed = busy_started_at
+                            .read()
+                            .as_ref()
+                            .map(|started| format_elapsed_secs(*started))
+                            .unwrap_or(activity_elapsed_secs.get());
+                        user_shell_abort.set(None);
+                        turn_cancel_requested.set(false);
+                        busy.set(false);
+                        busy_started_at.set(None);
+                        activity_started_at.set(None);
+                        activity_elapsed_secs.set(0.0);
+                        activity_label.set(String::new());
+                        if cancelled {
+                            idle_status_notice.set(Some(IdleStatusNotice {
+                                text: format_shell_canceled_notice(shell_elapsed),
+                                since: Instant::now(),
+                            }));
+                        }
+                        if with_context
+                            && !cancelled
+                            && let Some(session) = agent_session_for_loop.as_ref()
+                        {
+                            let context = format_shell_agent_context(&command, &output);
+                            TurnDispatcher::spawn_turn(Arc::clone(session), context, false);
+                            mark_busy(
+                                &mut BusyActivation {
+                                    busy: &mut busy,
+                                    busy_started_at: &mut busy_started_at,
+                                    activity_started_at: &mut activity_started_at,
+                                    elapsed_secs: &mut elapsed_secs,
+                                    activity_elapsed_secs: &mut activity_elapsed_secs,
+                                    spinner_tick: &mut spinner_tick,
+                                    activity_label: &mut activity_label,
+                                    last_activity_label: &mut last_activity_label,
+                                },
+                                false,
+                                None,
+                            );
+                        }
+                    }
+                }
+            }
+
             if transcript_changed {
                 transcript_pending.set(true);
             }
@@ -568,6 +669,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             last_activity_label: &mut last_activity_label,
                         },
                         false,
+                        None,
                     );
                     begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
                     if let Some(session) = agent_session_for_loop.as_ref() {
@@ -997,7 +1099,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             }
 
-            let draft_text = live_draft.read().clone();
+            let prefix_config = PromptPrefixConfig::default();
+            let draft_body = live_draft.read().clone();
+            let draft_text = compose_palette_draft(input_prefix_kind.get(), &draft_body);
             let palette_snapshot = build_snapshot(&draft_text, &slash_commands.read(), screen_height);
             if !status_dialog_open
                 && let Some(action) = resolve_snapshot_key_action(
@@ -1013,8 +1117,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         text: completed,
                         suppress_enter_newline: suppress_enter,
                     } => {
-                        draft.set(completed.clone());
-                        live_draft.set(completed);
+                        let (kind, body) = absorb_inline_triggers(input_prefix_kind.get(), &completed, &prefix_config);
+                        input_prefix_kind.set(kind);
+                        draft.set(body.clone());
+                        live_draft.set(body);
                         suppress_enter_newline.set(suppress_enter);
                         force_palette_sync.set(true);
                         slash_palette_query.write().clear();
@@ -1026,6 +1132,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     SlashPaletteKeyAction::Dismiss => {
                         draft.set(String::new());
                         live_draft.set(String::new());
+                        input_prefix_kind.set(InputPrefixKind::Default);
                         slash_palette_index.set(0);
                         suppress_enter_newline.set(true);
                     }
@@ -1038,10 +1145,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 && let Some(ch) = prompt_focus_char(code, modifiers)
             {
                 shell_focus.set(ShellFocus::Prompt);
-                let mut text = live_draft.read().clone();
-                text.push(ch);
-                draft.set(text.clone());
-                live_draft.set(text);
+                let body = live_draft.read().clone();
+                if let Some(next_kind) = try_consume_trigger(input_prefix_kind.get(), &body, ch, prefix_config.enabled)
+                {
+                    input_prefix_kind.set(next_kind);
+                } else {
+                    let mut text = body;
+                    text.push(ch);
+                    let (kind, normalized) = absorb_inline_triggers(input_prefix_kind.get(), &text, &prefix_config);
+                    input_prefix_kind.set(kind);
+                    draft.set(normalized.clone());
+                    live_draft.set(normalized);
+                }
                 suppress_enter_newline.set(false);
                 return;
             }
@@ -1108,9 +1223,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     shell_focus.set(ShellFocus::Prompt);
                     question_answer.set(String::new());
                     question_input_focus.set(QuestionInputFocus::Choices);
+                    if let Some(token) = user_shell_abort.read().clone() {
+                        token.cancel();
+                    }
                     if let Some(session) = agent_session.as_ref() {
                         TurnDispatcher::spawn_abort(Arc::clone(session));
-                    } else {
+                    } else if user_shell_abort.read().is_none() {
                         let canceled_elapsed = busy_started_at
                             .read()
                             .as_ref()
@@ -1191,7 +1309,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         )
     });
     let status_dialog = build_status_dialog_kind(pending_tool_approval.read().as_ref());
-    let draft_for_palette = live_draft.read().clone();
+    let draft_for_palette = compose_palette_draft(input_prefix_kind.get(), &live_draft.read());
     let slash_palette_snapshot = build_snapshot(&draft_for_palette, &slash_commands.read(), screen_height);
     slash_palette_active.set(slash_palette_snapshot.visible);
     {
@@ -1428,6 +1546,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 supports_images: supports_images,
                 draft: Some(draft),
                 live_draft: Some(live_draft),
+                input_prefix_kind: Some(input_prefix_kind),
                 suppress_enter_newline: Some(suppress_enter_newline),
                 slash_palette_active: Some(slash_palette_active),
                 force_palette_sync: Some(force_palette_sync),
@@ -1465,10 +1584,83 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             return;
                         }
 
-                        let is_slash = text.trim_start().starts_with('/');
+                        let (prefix_kind, body) =
+                            resolve_submit_draft(input_prefix_kind.get(), &text, &PromptPrefixConfig::default());
+                        if body.trim().is_empty() {
+                            push_transcript_message(
+                                &mut messages,
+                                &mut messages_revision,
+                                TranscriptMessage::text("Empty command.", TranscriptStyle::Meta),
+                            );
+                            draft.set(String::new());
+                            live_draft.set(String::new());
+                            suppress_enter_newline.set(true);
+                            return;
+                        }
+
+                        if matches!(
+                            prefix_kind,
+                            InputPrefixKind::ShellWithContext | InputPrefixKind::ShellNoContext
+                        ) {
+                            let with_context = prefix_kind == InputPrefixKind::ShellWithContext;
+                            let mut submitted = TranscriptMessage::text(body.clone(), TranscriptStyle::User);
+                            submitted.submitted_at = Some(chrono::Utc::now());
+                            push_transcript_message(&mut messages, &mut messages_revision, submitted);
+
+                            let tool_id = next_user_shell_tool_id();
+                            {
+                                let mut msgs = messages.write();
+                                if event_applier.write().apply(
+                                    &mut msgs,
+                                    AgentUiEvent::ToolStart {
+                                        id: tool_id.clone(),
+                                        name: "bash".into(),
+                                        args_summary: bash_args_summary(&body),
+                                    },
+                                ) {
+                                    messages_revision.set(messages_revision.get().wrapping_add(1));
+                                }
+                            }
+                            let shell_activity = user_shell_activity_label(&body);
+                            mark_busy(
+                                &mut BusyActivation {
+                                    busy: &mut busy,
+                                    busy_started_at: &mut busy_started_at,
+                                    activity_started_at: &mut activity_started_at,
+                                    elapsed_secs: &mut elapsed_secs,
+                                    activity_elapsed_secs: &mut activity_elapsed_secs,
+                                    spinner_tick: &mut spinner_tick,
+                                    activity_label: &mut activity_label,
+                                    last_activity_label: &mut last_activity_label,
+                                },
+                                false,
+                                Some(&shell_activity),
+                            );
+                            let abort_token = CancellationToken::new();
+                            user_shell_abort.set(Some(abort_token.clone()));
+                            spawn_user_shell(
+                                Arc::clone(&execution_env),
+                                tool_id,
+                                body,
+                                with_context,
+                                abort_token,
+                                user_shell_channel.read().tx.clone(),
+                            );
+                            draft.set(String::new());
+                            live_draft.set(String::new());
+                            suppress_enter_newline.set(true);
+                            return;
+                        }
+
+                        let slash_input = if prefix_kind == InputPrefixKind::Slash {
+                            format!("/{body}")
+                        } else {
+                            body.clone()
+                        };
+                        let is_slash = prefix_kind == InputPrefixKind::Slash;
                         let mut submitted = TranscriptMessage::text(
-                            text.clone(),
-                            TranscriptStyle::for_user_submit(&text),
+                            body.clone(),
+                            TranscriptStyle::for_user_submit(&slash_input),
                         );
                         if submitted.style.is_user_input_card() {
                             submitted.submitted_at = Some(chrono::Utc::now());
@@ -1481,7 +1673,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         let loaded_skills = skills.read().clone();
                         let paths_snapshot = paths.read().clone();
                         let outcome = handle_slash_submit(SlashContext {
-                            input: &text,
+                            input: &slash_input,
                             extensions: Some(&ext_registry),
                             prompt_templates: Some(&templates),
                             skills: Some(&loaded_skills),
@@ -1547,13 +1739,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                             last_activity_label: &mut last_activity_label,
                                         },
                                         false,
+                                        None,
                                     );
                                     begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
                                 }
                             }
                             SlashOutcome::SpawnAgentTurn => {
                                 if busy.get() {
-                                    prompt_queue.write().push(text);
+                                    prompt_queue.write().push(body.clone());
                                 } else if let Some(session) = agent_session.as_ref() {
                                     chrome_refresh_pending.set(true);
                                     idle_status_notice.set(None);
@@ -1570,9 +1763,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                             last_activity_label: &mut last_activity_label,
                                         },
                                         false,
+                                        None,
                                     );
                                     begin_turn_token_tracking(&mut turn_token_tracker, &chrome_stats.read());
-                                    TurnDispatcher::spawn_turn(Arc::clone(session), text, false);
+                                    TurnDispatcher::spawn_turn(Arc::clone(session), body.clone(), false);
                                 } else {
                                     push_transcript_message(
                                         &mut messages,

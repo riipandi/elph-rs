@@ -37,38 +37,7 @@ impl std::fmt::Display for FileError {
 
 impl std::error::Error for FileError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutionErrorCode {
-    Aborted,
-    Timeout,
-    ShellUnavailable,
-    SpawnError,
-    CallbackError,
-    Unknown,
-}
-
-#[derive(Debug, Clone)]
-pub struct ExecutionError {
-    pub code: ExecutionErrorCode,
-    pub message: String,
-}
-
-impl ExecutionError {
-    pub fn new(code: ExecutionErrorCode, message: impl Into<String>) -> Self {
-        Self {
-            code,
-            message: message.into(),
-        }
-    }
-}
-
-impl std::fmt::Display for ExecutionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl std::error::Error for ExecutionError {}
+pub use elph_exec::{ExecError as ExecutionError, ExecErrorCode as ExecutionErrorCode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompactionErrorCode {

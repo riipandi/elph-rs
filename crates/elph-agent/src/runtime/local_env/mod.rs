@@ -7,12 +7,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use tokio::fs;
-use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::harness::types::CreateDirOptions;
-use crate::agent::harness::types::ExecutionError;
-use crate::agent::harness::types::ExecutionErrorCode;
 use crate::agent::harness::types::FileError;
 use crate::agent::harness::types::FileErrorCode;
 use crate::agent::harness::types::FileInfo;
@@ -20,9 +17,6 @@ use crate::agent::harness::types::FileKind;
 use crate::agent::harness::types::FileSystem;
 use crate::agent::harness::types::Result;
 use crate::agent::harness::types::{err, ok};
-
-const MAX_TIMEOUT_MS: u64 = 2_147_483_647;
-const MAX_TIMEOUT_SECONDS: u64 = MAX_TIMEOUT_MS / 1000;
 
 /// Local filesystem execution environment for tests and local tooling.
 pub struct LocalExecutionEnv {
@@ -143,91 +137,5 @@ impl LocalExecutionEnv {
             size: metadata.len(),
             mtime_ms,
         })
-    }
-
-    fn resolve_timeout_ms(timeout: Option<u64>) -> Result<Option<u64>, ExecutionError> {
-        let Some(timeout) = timeout else {
-            return ok(None);
-        };
-        if timeout == 0 {
-            return err(ExecutionError::new(
-                ExecutionErrorCode::Timeout,
-                "Invalid timeout: must be a finite number of seconds",
-            ));
-        }
-        let timeout_ms = timeout.saturating_mul(1000);
-        if timeout_ms > MAX_TIMEOUT_MS {
-            return err(ExecutionError::new(
-                ExecutionErrorCode::Timeout,
-                format!("Invalid timeout: maximum is {MAX_TIMEOUT_SECONDS} seconds"),
-            ));
-        }
-        ok(Some(timeout_ms))
-    }
-
-    async fn path_exists(path: &Path) -> bool {
-        fs::metadata(path).await.is_ok()
-    }
-
-    async fn find_bash_on_path() -> Option<PathBuf> {
-        let output = Command::new("which").arg("bash").output().await.ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let first = stdout.lines().next()?.trim();
-        if first.is_empty() {
-            return None;
-        }
-        let path = PathBuf::from(first);
-        if Self::path_exists(&path).await {
-            Some(path)
-        } else {
-            None
-        }
-    }
-
-    fn invoke_output_callback(
-        callback: &std::sync::Arc<dyn Fn(&str) + Send + Sync>,
-        chunk: &str,
-    ) -> Option<ExecutionError> {
-        let chunk = chunk.to_string();
-        let callback = std::sync::Arc::clone(callback);
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            callback(&chunk);
-        })) {
-            Ok(()) => None,
-            Err(payload) => {
-                let message = if let Some(message) = payload.downcast_ref::<&str>() {
-                    (*message).to_string()
-                } else if let Some(message) = payload.downcast_ref::<String>() {
-                    message.clone()
-                } else {
-                    "callback failed".to_string()
-                };
-                Some(ExecutionError::new(ExecutionErrorCode::CallbackError, message))
-            }
-        }
-    }
-
-    async fn get_shell_config(&self) -> Result<(PathBuf, Vec<String>), ExecutionError> {
-        if let Some(shell_path) = &self.shell_path {
-            if Self::path_exists(shell_path).await {
-                return ok((shell_path.clone(), vec!["-c".to_string()]));
-            }
-            return err(ExecutionError::new(
-                ExecutionErrorCode::ShellUnavailable,
-                format!("Custom shell path not found: {}", shell_path.display()),
-            ));
-        }
-
-        let bash = PathBuf::from("/bin/bash");
-        if Self::path_exists(&bash).await {
-            return ok((bash, vec!["-c".to_string()]));
-        }
-        if let Some(path) = Self::find_bash_on_path().await {
-            return ok((path, vec!["-c".to_string()]));
-        }
-        ok((PathBuf::from("/bin/sh"), vec!["-c".to_string()]))
     }
 }

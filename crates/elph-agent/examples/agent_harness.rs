@@ -36,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
                 abort_token: None,
                 on_stdout: None,
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await;

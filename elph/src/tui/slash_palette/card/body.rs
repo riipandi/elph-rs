@@ -7,6 +7,7 @@ use super::super::model::{list_viewport_cap, palette_window_start};
 use super::super::row_layout::CMD_DESC_GAP_COLS;
 use super::super::row_layout::{visible_terminal_rows, wrap_palette_description};
 use super::chrome::PaletteCardChrome;
+use elph_tui::list_selection_row_prefix;
 
 #[derive(Clone, Default, Props)]
 pub struct PaletteCardBodyProps {
@@ -16,12 +17,8 @@ pub struct PaletteCardBodyProps {
     pub screen_height: u16,
 }
 
-fn row_prefix(selected: bool) -> &'static str {
-    if selected { "› " } else { "  " }
-}
-
 fn palette_row(chrome: &PaletteCardChrome, name: &str, description: &str, selected: bool) -> AnyElement<'static> {
-    let prefix = row_prefix(selected);
+    let prefix = list_selection_row_prefix(selected);
     let name_color = if selected {
         chrome.name_active_color
     } else {

@@ -611,7 +611,12 @@ async fn harness_abort_clears_queues_preserves_next_turn() {
                 loop {
                     let cancelled = signal.as_ref().is_some_and(|token| token.is_cancelled());
                     *aborted_signal.lock() = Some(cancelled);
-                    if cancelled || release.load(Ordering::SeqCst) {
+                    if cancelled {
+                        return faux_assistant_message(vec![faux_text("aborted-ish")], None);
+                    }
+                    if release.load(Ordering::SeqCst) {
+                        let cancelled = signal.as_ref().is_some_and(|token| token.is_cancelled());
+                        *aborted_signal.lock() = Some(cancelled);
                         return faux_assistant_message(vec![faux_text("aborted-ish")], None);
                     }
                     std::thread::sleep(Duration::from_millis(1));
@@ -647,18 +652,31 @@ async fn harness_abort_clears_queues_preserves_next_turn() {
 
     let harness_for_prompt = harness.clone();
     let first_prompt = tokio::spawn(async move { harness_for_prompt.prompt("first", None).await });
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while aborted_signal.lock().is_none() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("faux factory should start");
     harness.steer("steer", None).await.expect("steer");
     harness.follow_up("follow", None).await.expect("follow up");
     harness.next_turn("next", None).await.expect("next turn");
     let abort_result = harness.abort().await.expect("abort");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !aborted_signal.lock().unwrap_or(false) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("faux factory should observe abort");
     release.store(true, Ordering::SeqCst);
     let _ = first_prompt.await.expect("join first prompt");
     harness.prompt("second", None).await.expect("second prompt");
 
     assert_eq!(abort_result.cleared_steer.len(), 1);
     assert_eq!(abort_result.cleared_follow_up.len(), 1);
-    assert!(aborted_signal.lock().unwrap_or(false));
+    assert_eq!(*aborted_signal.lock(), Some(true));
     let updates = queue_updates.lock().await;
     assert!(updates.contains(&(0, 0, 1)));
     assert_eq!(

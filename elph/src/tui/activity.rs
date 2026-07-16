@@ -136,6 +136,16 @@ pub fn format_turn_canceled_notice(elapsed_secs: f64) -> String {
     format!("Turn canceled · {}", format_duration_secs(elapsed_secs))
 }
 
+/// Idle status notice shown briefly after the user cancels a `!` / `!!` shell command.
+pub fn format_shell_canceled_notice(elapsed_secs: f64) -> String {
+    format!("Command canceled · {}", format_duration_secs(elapsed_secs))
+}
+
+/// StatusRow label while a user shell command (`!` / `!!`) is running.
+pub fn user_shell_activity_label(command: &str) -> String {
+    format!("Running Bash({})", truncate_status(command.trim(), 28))
+}
+
 /// Transcript notice when quit is requested while a turn is still running.
 pub fn format_quit_while_busy_transcript() -> String {
     "Agent is still responding. Press y to quit (cancels the turn), n to keep waiting, or repeat /exit, :q, or Ctrl+D to confirm."
@@ -369,6 +379,16 @@ mod tests {
     #[test]
     fn format_turn_canceled_notice_includes_elapsed() {
         assert_eq!(format_turn_canceled_notice(2.1), "Turn canceled · 2.1s");
+    }
+
+    #[test]
+    fn format_shell_canceled_notice_includes_elapsed() {
+        assert_eq!(format_shell_canceled_notice(1.5), "Command canceled · 1.5s");
+    }
+
+    #[test]
+    fn user_shell_activity_label_describes_running_command() {
+        assert_eq!(user_shell_activity_label("cargo test"), "Running Bash(cargo test)");
     }
 
     #[test]

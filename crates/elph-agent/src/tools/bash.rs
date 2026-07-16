@@ -1,5 +1,7 @@
 //! Bash tool — elph coding-agent tools.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use elph_ai::Tool;
@@ -7,18 +9,19 @@ use serde_json::Value;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::harness::types::{FileSystem, Shell, ShellExecOptions};
-use crate::agent::harness::utils::shell_output::finalize_shell_capture;
+use crate::agent::harness::types::FileSystem;
+use crate::agent::harness::types::Result as HarnessResult;
+use crate::agent::harness::utils::shell_output::{ShellCaptureOptions, execute_shell_with_capture};
 use crate::agent::harness::utils::truncate::{DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES};
 use crate::runtime::local_env::LocalExecutionEnv;
 use crate::tools::common::{check_aborted, resolve_path};
-use crate::tools::simple_tool;
-use crate::types::{AgentTool, AgentToolResult};
+use crate::types::{AgentTool, AgentToolResult, ToolExecuteFn, ToolResultContent, ToolUpdateCallback};
+use elph_ai::TextContent;
 
 pub fn create_bash_tool(env: Arc<LocalExecutionEnv>) -> AgentTool {
     let env_for_tool = env.clone();
-    simple_tool(
-        Tool {
+    AgentTool {
+        tool: Tool {
             name: "bash".into(),
             description: format!(
                 "Execute a bash command in the current working directory. Output truncated to last {DEFAULT_MAX_LINES} lines or {}/KB.",
@@ -33,10 +36,18 @@ pub fn create_bash_tool(env: Arc<LocalExecutionEnv>) -> AgentTool {
                 "required": ["command"]
             }),
         },
-        "bash",
-        move |_, args| {
-            let env = env_for_tool.clone();
-            Box::pin(async move { execute_bash(env, args, None).await })
+        label: "bash".into(),
+        execution_mode: None,
+        prepare_arguments: None,
+        execute: bash_execute_fn(env_for_tool),
+    }
+}
+
+fn bash_execute_fn(env: Arc<LocalExecutionEnv>) -> ToolExecuteFn {
+    Arc::new(
+        move |_id, args, signal, on_update| -> Pin<Box<dyn Future<Output = anyhow::Result<AgentToolResult>> + Send>> {
+            let env = env.clone();
+            Box::pin(async move { execute_bash(env, args, signal, on_update).await })
         },
     )
 }
@@ -45,6 +56,7 @@ async fn execute_bash(
     env: Arc<LocalExecutionEnv>,
     args: Value,
     signal: Option<CancellationToken>,
+    on_update: Option<ToolUpdateCallback>,
 ) -> anyhow::Result<AgentToolResult> {
     check_aborted(signal.as_ref())?;
     let command = args
@@ -55,47 +67,104 @@ async fn execute_bash(
 
     let cwd = env.cwd().to_string();
     let _ = resolve_path(&env, ".", signal.as_ref()).await?;
-    let result = env
-        .exec(
-            command,
-            Some(ShellExecOptions {
-                cwd: Some(cwd),
-                env: None,
-                timeout,
-                abort_token: signal,
-                on_stdout: None,
-                on_stderr: None,
-            }),
-        )
-        .await;
 
-    let result = match result {
-        crate::agent::harness::types::Result::Ok(result) => result,
-        crate::agent::harness::types::Result::Err(error) => return Err(anyhow::anyhow!("{}", error.message)),
+    let on_progress = on_update.map(|callback| {
+        Arc::new(move |chunk: &str| {
+            callback(AgentToolResult {
+                content: vec![ToolResultContent::Text(TextContent::new(chunk))],
+                details: json!({ "streaming": true }),
+                added_tool_names: None,
+                terminate: None,
+            });
+        }) as Arc<dyn Fn(&str) + Send + Sync>
+    });
+
+    let capture = match execute_shell_with_capture(
+        env.as_ref(),
+        command,
+        Some(ShellCaptureOptions {
+            cwd: Some(cwd),
+            env: None,
+            timeout,
+            abort_token: signal,
+            on_progress,
+        }),
+    )
+    .await
+    {
+        HarnessResult::Ok(capture) => capture,
+        HarnessResult::Err(error) => return Err(anyhow::anyhow!("{}", error.message)),
     };
 
-    let mut combined = result.stdout;
-    if !result.stderr.is_empty() {
-        if !combined.is_empty() {
-            combined.push('\n');
-        }
-        combined.push_str(&result.stderr);
-    }
-    let capture = finalize_shell_capture(&combined, None);
     let mut text = capture.output;
-    if let Some(code) = Some(result.exit_code)
+    if let Some(code) = capture.exit_code
         && code != 0
     {
         text.push_str(&format!("\n\n[exit code: {code}]"));
     }
     if capture.truncated {
-        text.push_str("\n\n[output truncated]");
+        if let Some(path) = &capture.full_output_path {
+            text.push_str(&format!("\n\n[Output truncated. Full output: {path}]"));
+        } else {
+            text.push_str("\n\n[output truncated]");
+        }
     }
 
     Ok(AgentToolResult {
-        content: vec![crate::types::ToolResultContent::Text(elph_ai::TextContent::new(text))],
-        details: json!({ "exitCode": result.exit_code, "truncated": capture.truncated }),
+        content: vec![ToolResultContent::Text(TextContent::new(text))],
+        details: json!({
+            "exitCode": capture.exit_code,
+            "truncated": capture.truncated,
+            "cancelled": capture.cancelled,
+            "fullOutputPath": capture.full_output_path,
+        }),
         added_tool_names: None,
         terminate: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use super::*;
+    use crate::runtime::local_env::LocalExecutionEnv;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn bash_tool_streams_output_before_completion() {
+        let temp = TempDir::new().expect("temp dir");
+        let env = Arc::new(LocalExecutionEnv::new(temp.path().to_path_buf()));
+        let saw_early = Arc::new(AtomicBool::new(false));
+        let saw_early_capture = saw_early.clone();
+        let on_update: ToolUpdateCallback = Arc::new(move |partial| {
+            let text = partial
+                .content
+                .iter()
+                .filter_map(|block| match block {
+                    ToolResultContent::Text(text) => Some(text.text.as_str()),
+                    _ => None,
+                })
+                .collect::<String>();
+            if text.contains("early") {
+                saw_early_capture.store(true, Ordering::SeqCst);
+            }
+        });
+
+        let result = execute_bash(
+            env,
+            json!({ "command": "printf early; sleep 0.2; printf late", "timeout": 5 }),
+            None,
+            Some(on_update),
+        )
+        .await
+        .expect("bash execution");
+
+        assert!(saw_early.load(Ordering::SeqCst));
+        let text = match &result.content[0] {
+            ToolResultContent::Text(text) => text.text.as_str(),
+            _ => panic!("expected text result"),
+        };
+        assert!(text.contains("late"));
+    }
 }

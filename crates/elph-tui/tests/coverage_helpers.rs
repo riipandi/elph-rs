@@ -69,7 +69,7 @@ fn delete_blank_line_above_content_line() {
 
 #[test]
 fn select_helpers_cover_row_and_key_paths() {
-    assert_eq!(select_row_prefix(true), "›");
+    assert_eq!(select_row_prefix(true), elph_tui::LIST_SELECTION_MARKER);
     assert_eq!(select_row_prefix(false), " ");
     let theme = elph_tui::components::UiTheme::default();
     assert_eq!(select_row_colors(theme, true), (theme.text_primary, Weight::Bold));

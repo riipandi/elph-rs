@@ -25,25 +25,8 @@ pub struct ShellCaptureResult {
     pub full_output_path: Option<String>,
 }
 
-/// Remove control characters and invalid Unicode from shell output.
-pub fn sanitize_binary_output(value: &str) -> String {
-    value
-        .chars()
-        .filter(|ch| {
-            let code = *ch as u32;
-            if code == 0x09 || code == 0x0a || code == 0x0d {
-                return true;
-            }
-            if code <= 0x1f {
-                return false;
-            }
-            if (0xfff9..=0xfffb).contains(&code) {
-                return false;
-            }
-            true
-        })
-        .collect()
-}
+pub use elph_exec::ShellOutputCallback;
+pub use elph_exec::sanitize_binary_output;
 
 /// Sanitize and truncate captured shell output from the tail.
 pub fn finalize_shell_capture(output: &str, options: Option<TruncationOptions>) -> ShellCaptureResult {
@@ -79,12 +62,14 @@ fn merge_shell_output(stdout: &str, stderr: &str) -> String {
 }
 
 /// Options for shell capture — mirrors elph-agent.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ShellCaptureOptions {
     pub cwd: Option<String>,
     pub env: Option<std::collections::HashMap<String, String>>,
     pub timeout: Option<u64>,
     pub abort_token: Option<CancellationToken>,
+    /// Invoked with each sanitized stdout/stderr chunk as it arrives (PTY streaming).
+    pub on_progress: Option<ShellOutputCallback>,
 }
 
 /// Execute a shell command and capture output with truncation and optional spill-to-disk.
@@ -105,11 +90,15 @@ pub async fn execute_shell_with_capture<E: ExecutionEnv>(
         let output_bytes = output_bytes.clone();
         let total_bytes = total_bytes.clone();
         let capture_error = capture_error.clone();
+        let on_progress = options.on_progress.clone();
         Arc::new(move |chunk: &str| {
             if capture_error.lock().expect("lock").is_some() {
                 return;
             }
             let text = sanitize_binary_output(chunk).replace('\r', "");
+            if text.is_empty() {
+                return;
+            }
             *total_bytes.lock().expect("lock") += text.len();
             let mut chunks = output_chunks.lock().expect("lock");
             chunks.push(text.clone());
@@ -118,6 +107,9 @@ pub async fn execute_shell_with_capture<E: ExecutionEnv>(
             while *bytes > max_output_bytes && chunks.len() > 1 {
                 let removed = chunks.remove(0);
                 *bytes -= removed.len();
+            }
+            if let Some(progress) = on_progress.as_ref() {
+                progress(&text);
             }
         })
     };
@@ -132,6 +124,7 @@ pub async fn execute_shell_with_capture<E: ExecutionEnv>(
                 abort_token: options.abort_token.clone(),
                 on_stdout: Some(on_chunk.clone()),
                 on_stderr: Some(on_chunk),
+                ..Default::default()
             }),
         )
         .await;

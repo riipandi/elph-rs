@@ -325,6 +325,7 @@ async fn executes_commands_in_cwd_with_env_overrides() {
                 abort_token: None,
                 on_stdout: None,
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await,
@@ -358,6 +359,7 @@ async fn streams_stdout_and_stderr_chunks() {
                 on_stderr: Some(std::sync::Arc::new(move |chunk| {
                     stderr_capture.lock().push_str(chunk);
                 })),
+                ..Default::default()
             }),
         )
         .await,
@@ -367,6 +369,36 @@ async fn streams_stdout_and_stderr_chunks() {
     assert!(result.stderr.contains("err"));
     assert!(stdout.lock().contains("out"));
     assert!(stderr.lock().contains("err"));
+}
+
+#[tokio::test]
+async fn streams_chunks_before_command_finishes() {
+    let (_temp, env) = env_in_temp();
+    let seen = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen_capture = seen.clone();
+
+    let result = get_or_throw(
+        env.exec(
+            "printf early; sleep 0.2; printf late",
+            Some(ShellExecOptions {
+                cwd: None,
+                env: None,
+                timeout: Some(5),
+                abort_token: None,
+                on_stdout: Some(std::sync::Arc::new(move |chunk| {
+                    if chunk.contains("early") {
+                        seen_capture.store(true, std::sync::atomic::Ordering::SeqCst);
+                    }
+                })),
+                on_stderr: None,
+                ..Default::default()
+            }),
+        )
+        .await,
+    );
+
+    assert!(seen.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(result.stdout.contains("late"));
 }
 
 #[tokio::test]
@@ -391,6 +423,7 @@ async fn returns_timeout_errors_for_commands_exceeding_timeout() {
                 abort_token: None,
                 on_stdout: None,
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await;
@@ -415,6 +448,7 @@ async fn returns_callback_errors_from_exec_stream_handlers() {
                     panic!("callback failed");
                 })),
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await;
@@ -460,6 +494,7 @@ async fn returns_aborted_result_for_aborted_commands() {
             abort_token: Some(token.clone()),
             on_stdout: None,
             on_stderr: None,
+            ..Default::default()
         }),
     );
     token.cancel();

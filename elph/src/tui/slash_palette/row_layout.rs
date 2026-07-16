@@ -3,7 +3,7 @@
 use elph_tui::types::SelectOption;
 use elph_tui::utils::wrap_text;
 
-/// Selection marker width (`› ` or `  `).
+/// Selection marker width (`❯ ` or `  `).
 pub const ROW_PREFIX_CHARS: usize = 2;
 
 /// Minimum gap between the command column and description column.
@@ -31,7 +31,7 @@ pub fn palette_list_width(screen_width: u16) -> u16 {
     screen_width.saturating_sub(3).max(20)
 }
 
-/// Width of one rendered command label (`› /name` or `  /name`).
+/// Width of one rendered command label (`❯ /name` or `  /name`).
 pub fn palette_command_label_width(name: &str) -> usize {
     ROW_PREFIX_CHARS.saturating_add(name.chars().count())
 }

@@ -1,5 +1,6 @@
 //! Editor + footer column (bottom chrome).
 
+use elph_tui::InputPrefixKind;
 use iocraft::prelude::*;
 
 use crate::tui::labels::GitFooterInfo;
@@ -24,6 +25,7 @@ pub struct PromptChromeProps {
     pub supports_images: bool,
     pub draft: Option<State<String>>,
     pub live_draft: Option<Ref<String>>,
+    pub input_prefix_kind: Option<Ref<InputPrefixKind>>,
     pub suppress_enter_newline: Option<Ref<bool>>,
     pub slash_palette_active: Option<Ref<bool>>,
     pub force_palette_sync: Option<Ref<bool>>,
@@ -69,6 +71,7 @@ pub fn PromptChrome(props: &mut PromptChromeProps) -> impl Into<AnyElement<'stat
                     screen_height: props.screen_height,
                     agent_mode: props.agent_mode,
                     has_focus: props.has_focus,
+                    input_prefix_kind: props.input_prefix_kind,
                     draft: props.draft,
                     live_draft: props.live_draft,
                     suppress_enter_newline: props.suppress_enter_newline,

@@ -3,6 +3,7 @@
 use super::types::ThinkingLevel;
 use elph_tui::prelude::*;
 use elph_tui::slash_palette::{PaletteSnapshot, palette_anchor_bottom};
+use elph_tui::{PREFIX_COLUMN_WIDTH, PromptPrefixConfig, detect_input_prefix, prefix_symbol};
 
 use crate::common::palette_ui::SlashCommandPalette;
 
@@ -13,6 +14,29 @@ fn editor_max_height(screen_height: u16) -> u16 {
 fn mode_label_color(mode: DialogAgentMode) -> Color {
     let (r, g, b) = mode.accent_rgb();
     rgb(r, g, b)
+}
+
+fn prompt_border_color(kind: elph_tui::InputPrefixKind, has_focus: bool) -> Color {
+    let base = match kind {
+        elph_tui::InputPrefixKind::ShellWithContext | elph_tui::InputPrefixKind::ShellNoContext => rgb(34, 197, 94),
+        elph_tui::InputPrefixKind::Default | elph_tui::InputPrefixKind::Slash => {
+            if has_focus {
+                rgb(80, 80, 80)
+            } else {
+                rgb(56, 56, 56)
+            }
+        }
+    };
+    if has_focus {
+        base
+    } else {
+        match base {
+            Color::Rgb { r, g, b } => {
+                rgb((r as u16 * 7 / 10) as u8, (g as u16 * 7 / 10) as u8, (b as u16 * 7 / 10) as u8)
+            }
+            other => other,
+        }
+    }
 }
 
 #[derive(Default, Props)]
@@ -36,9 +60,19 @@ fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
     let theme = UiTheme::default();
     let label_color = mode_label_color(props.agent_mode);
     let has_focus = props.has_focus;
-    let border_color = theme.input_border_color(has_focus);
+    let prefix_config = PromptPrefixConfig::default();
+    let draft_text = props
+        .live_draft
+        .as_ref()
+        .map(|live| live.read().clone())
+        .or_else(|| props.draft.as_ref().map(|draft| draft.read().clone()))
+        .unwrap_or_default();
+    let prefix_kind = detect_input_prefix(&draft_text, &prefix_config);
+    let border_color = prompt_border_color(prefix_kind, has_focus);
     let inset = theme.shell_zone_padding();
     let inner_width = theme.shell_editor_inner_width(props.screen_width);
+    let textarea_width = inner_width.saturating_sub(PREFIX_COLUMN_WIDTH).max(1);
+    let prefix_label = format!("{} ", prefix_symbol(prefix_kind, &prefix_config));
 
     element! {
         View(
@@ -51,8 +85,19 @@ fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
             padding_left: inset,
             padding_right: inset,
         ) {
-            Textarea(
+            View(
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::FlexStart,
                 width: inner_width,
+            ) {
+                Text(
+                    content: prefix_label,
+                    color: Color::White,
+                    weight: Weight::Bold,
+                    wrap: TextWrap::NoWrap,
+                )
+                Textarea(
+                    width: textarea_width,
                 min_height: 1u16,
                 max_height: Some(editor_max_height(props.screen_height)),
                 show_border: Some(false),
@@ -70,7 +115,8 @@ fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
                     props.on_escape.take()
                 },
                 theme: Some(theme),
-            )
+                )
+            }
             View(
                 position: Position::Absolute,
                 right: inset,

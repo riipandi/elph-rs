@@ -3,7 +3,7 @@
 use crate::layout_textarea;
 
 /// Gap between palette bottom edge and editor top edge (terminal rows).
-pub const PALETTE_EDITOR_GAP: u16 = 1;
+pub const PALETTE_EDITOR_GAP: u16 = 0;
 
 /// Editor max height — kept in sync with chat shell prompt.
 pub fn editor_max_height(screen_height: u16) -> u16 {

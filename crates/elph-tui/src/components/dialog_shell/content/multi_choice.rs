@@ -8,16 +8,13 @@ use crate::components::select::{
 use crate::components::theme::{
     UiTheme, dialog_option_desc_style, dialog_option_name_style, dialog_row_surface, list_marker, resolve_ui_theme,
 };
+use crate::input_prefix::list_selection_row_prefix;
 use crate::types::SelectOption;
 use crate::utils::wrap_text;
 use iocraft::prelude::*;
 
-/// `> [ ] ` / `  [ ] ` prefix before the option name.
+/// `❯ [ ] ` / `  [ ] ` prefix before the option name.
 const INLINE_ROW_PREFIX_CHARS: usize = 6;
-
-fn inline_row_prefix(focused: bool) -> &'static str {
-    if focused { "> " } else { "  " }
-}
 
 const INLINE_LABEL_CONTINUATION: &str = "      ";
 
@@ -294,8 +291,12 @@ pub fn DialogMultiChoiceContent(
 
             if inline_description {
                 let row_height = inline_row_counts(&props.options, props.width, show_description)[i] as u16;
-                let label_text =
-                    inline_format_label_lines(inline_row_prefix(row_focused), box_glyph, &opt.name, props.width);
+                let label_text = inline_format_label_lines(
+                    list_selection_row_prefix(row_focused),
+                    box_glyph,
+                    &opt.name,
+                    props.width,
+                );
                 let show_hint = show_desc && !opt.description.trim().is_empty();
                 let hint_text = inline_format_hint_lines(&opt.description, props.width);
                 let row_surface = multi_choice_row_surface(theme, row_focused);

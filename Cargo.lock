@@ -2853,6 +2853,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -2867,6 +2868,7 @@ dependencies = [
  "crossbeam-channel",
  "elph-ai",
  "elph-core",
+ "elph-exec",
  "elph-tui",
  "fastrace",
  "fastrace-reqwest",
@@ -2969,6 +2971,17 @@ dependencies = [
  "time",
  "tokio",
  "turso",
+]
+
+[[package]]
+name = "elph-exec"
+version = "0.0.1"
+dependencies = [
+ "log",
+ "rustix 1.1.4",
+ "tempfile",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

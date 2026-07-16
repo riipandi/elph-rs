@@ -173,6 +173,7 @@ enum TranscriptStyle {
     #[expect(dead_code)]
     Error,
     Meta,
+    #[expect(dead_code)]
     ToolRunning,
     ToolSuccess,
     ToolFailed,
@@ -425,7 +426,6 @@ fn tool_call_card(screen_width: u16, message: &TranscriptMessage, margin_bottom:
     let output = tool.output.trim().to_string();
     let status = tool_process_status(style);
     let text_color = style.text_color();
-    let inner_width = screen_width.saturating_sub(3 + COLORED_CARD_PAD_H * 2).max(8);
     element! {
         View(
             width: screen_width - 3,

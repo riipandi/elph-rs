@@ -245,7 +245,60 @@ impl<'a> ParserState<'a> {
 
     fn finish(mut self) -> MarkdownDocument {
         self.flush_spans();
+        attach_orphan_url_lines_to_list_items(&mut self.lines);
         MarkdownDocument { lines: self.lines }.normalize()
+    }
+}
+
+fn line_plain_text(line: &MarkdownLine) -> String {
+    line.spans.iter().map(|span| span.text.as_str()).collect()
+}
+
+fn is_url_only_line(text: &str) -> bool {
+    let trimmed = text.trim();
+    url::Url::parse(trimmed).is_ok()
+}
+
+/// LLM bibliographies often place bare URLs on the next line after a list entry.
+fn attach_orphan_url_lines_to_list_items(lines: &mut [MarkdownLine]) {
+    let theme = MarkdownTheme::default();
+    let mut index = 0usize;
+    while index < lines.len() {
+        let line = &lines[index];
+        if !matches!(line.kind, MarkdownLineKind::Paragraph | MarkdownLineKind::Continuation) {
+            index += 1;
+            continue;
+        }
+        let text = line_plain_text(line);
+        if !is_url_only_line(&text) {
+            index += 1;
+            continue;
+        }
+        let Some(previous) = lines.get(index.saturating_sub(1)) else {
+            index += 1;
+            continue;
+        };
+        if previous.kind != MarkdownLineKind::ListItem {
+            index += 1;
+            continue;
+        }
+
+        let url = text.trim();
+        let mut spans = vec![StyledSpan::plain("    ", theme.body)];
+        spans.extend(spans_with_links(
+            url,
+            theme.body,
+            iocraft::prelude::Weight::Normal,
+            false,
+            theme.link,
+        ));
+        lines[index] = MarkdownLine {
+            kind: MarkdownLineKind::ListItem,
+            spans,
+            code_background: false,
+            table: None,
+        };
+        index += 1;
     }
 }
 
@@ -312,10 +365,13 @@ pub fn parse_markdown_document_with_theme(source: &str, theme: &MarkdownTheme) -
                     state.reset_block();
                     if state.in_list_item {
                         state.current_line_kind = MarkdownLineKind::ListItem;
-                        if state
-                            .lines
-                            .last()
-                            .is_some_and(|line| line.kind == MarkdownLineKind::ListItem)
+                        // Hanging indent only for continuation paragraphs within the same item,
+                        // not the first paragraph of a newly opened list item.
+                        if !state.pending_item_marker
+                            && state
+                                .lines
+                                .last()
+                                .is_some_and(|line| line.kind == MarkdownLineKind::ListItem)
                         {
                             state.push_text(&state.list_hanging_indent(), false);
                         }
@@ -693,5 +749,58 @@ mod tests {
         assert_eq!(matrix.rows.len(), 2);
         assert_eq!(matrix.rows[0], vec!["Name", "Status"]);
         assert_eq!(matrix.rows[1], vec!["Ada", "✅"]);
+    }
+
+    #[test]
+    fn ordered_list_second_item_does_not_inherit_hanging_indent() {
+        let doc = parse_markdown_document(
+            "1. Deployn - PostgreSQL vs. MariaDB vs. SQLite: A Performance Test (2025)\nhttps://deployn.de/en/blog/db-performance/\n\n2. OpenSourceForU - Choosing Between PostgreSQL, MariaDB, and SQlite (2023)\nhttps://www.opensourceforu.com/2023/08/choosing-between-postgresql-mariadb-and-sqlite/",
+        );
+        let second = doc
+            .lines
+            .iter()
+            .map(|line| line.spans.iter().map(|s| s.text.as_str()).collect::<String>())
+            .find(|text| text.starts_with("2."))
+            .expect("second ordered list item");
+        assert!(
+            second.starts_with("2. OpenSourceForU"),
+            "unexpected second item prefix: {second:?}"
+        );
+        assert!(
+            !second.contains("2.     "),
+            "hanging indent leaked into new list item: {second:?}"
+        );
+    }
+
+    #[test]
+    fn orphan_url_after_list_item_becomes_indented_list_continuation() {
+        let doc = parse_markdown_document(
+            "1. Deployn - PostgreSQL vs. MariaDB vs. SQLite: A Performance Test (2025)\n\nhttps://deployn.de/en/blog/db-performance/\n\n2. OpenSourceForU - Choosing Between PostgreSQL, MariaDB, and SQlite (2023)",
+        );
+        let url_line = doc
+            .lines
+            .iter()
+            .find(|line| line_plain_text(line).contains("deployn.de"))
+            .expect("url line");
+        assert_eq!(url_line.kind, MarkdownLineKind::ListItem);
+        let text = line_plain_text(url_line);
+        assert!(text.starts_with("    https://deployn.de"), "url line: {text:?}");
+    }
+
+    #[test]
+    fn list_item_continuation_paragraph_uses_hanging_indent() {
+        let doc = parse_markdown_document("1. Title line\n\n   Continuation paragraph");
+        let lines: Vec<String> = doc
+            .lines
+            .iter()
+            .map(|line| line.spans.iter().map(|s| s.text.as_str()).collect())
+            .collect();
+        assert_eq!(lines.len(), 2, "lines: {lines:?}");
+        assert!(lines[0].starts_with("1. Title line"), "first: {:?}", lines[0]);
+        assert!(
+            lines[1].starts_with("    Continuation paragraph"),
+            "continuation: {:?}",
+            lines[1]
+        );
     }
 }
