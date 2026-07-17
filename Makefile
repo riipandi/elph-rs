@@ -1,24 +1,17 @@
 .DEFAULT_GOAL := help
 
-ELPH_BIN     := elph
-ECLAW_BIN    := eclaw
-OWLY_BIN     := owly
-CARGO        := $$(which cargo)
-CROSS        := $$(which cross)
+ELPH_BIN   := elph
+CARGO      := $$(which cargo)
+CROSS      := $$(which cross)
+UNAME_S    := $(shell uname -s)
+
+_ELPH_PKGS   := elph elph-core elph-agent elph-ai
 ELPH_VERSION  := $(shell grep '^version' elph/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
-ECLAW_VERSION := $(shell grep '^version' eclaw/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
-OWLY_VERSION  := $(shell grep '^version' owly/Cargo.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
-BUILD_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
-APP_BINS     := $(ELPH_BIN) $(ECLAW_BIN) $(OWLY_BIN)
-INSTALL_DIR  := $(HOME)/.local/bin
-BUILD_DIR    := ./target/release
-APP          ?=
-
-_ELPH_PKGS   := elph elph-core elph-agent elph-ai elph-tui
-_ECLAW_PKGS  := eclaw elph-core elph-agent elph-ai
-_OWLY_PKGS   := owly elph-agent elph-ai elph-tui
-
-UNAME_S := $(shell uname -s)
+BUILD_HASH    := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
+APP_BINS      := $(ELPH_BIN)
+INSTALL_DIR   := $(HOME)/.local/bin
+BUILD_DIR     := ./target/release
+APP           ?= elph
 
 # ─── Compiler cache ───────────────────────────────────────────────────────────
 # Use sccache when installed; otherwise leave RUSTC_WRAPPER unset (normal rustc).
@@ -40,22 +33,22 @@ _RESIDUAL_ := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 $(foreach a,$(_RESIDUAL_),$(eval .PHONY: $a))
 $(foreach a,$(_RESIDUAL_),$(eval $a: ; @true))
 
-.PHONY: build build-elph build-eclaw build-owly run watch test
-.PHONY: test-elph test-eclaw test-owly check-elph check-eclaw check-owly
-.PHONY: lint lint-elph lint-eclaw lint-owly fmt clean check coverage help stats generate-models prepare
+.PHONY: build build-elph run watch test test-elph test-elph-tui check-elph check-elph-tui lint lint-elph lint-elph-tui build-elph-tui-examples fmt clean check coverage help stats generate-models prepare
 .PHONY: cross cross-pull release release-linux release-macos release-windows
-.PHONY: bump bump-elph bump-eclaw bump-owly bump-libs publish publish-dry-run version
+.PHONY: bump bump-elph bump-libs publish publish-dry-run version
 
 # ─── Build ──────────────────────────────────────────────────────────────────
 
 check: ## Check code compiles (fast, no codegen)
 	@$(CARGO) check --workspace 2>&1
-	@$(CARGO) bloat --release -n 50
+# 	@$(CARGO) bloat --release -n 50
 
-build: ## Build all application binaries (elph + eclaw + owly)
-	@echo "Building elph v$(ELPH_VERSION), eclaw v$(ECLAW_VERSION), owly v$(OWLY_VERSION) ($(BUILD_HASH)) ($$RUSTC_WRAPPER)"
+build: build-elph ## Build elph release binary
+
+build-elph: ## Build elph binary
+	@echo "Building $(ELPH_BIN) v$(ELPH_VERSION) ($(BUILD_HASH)) ($$RUSTC_WRAPPER)"
 	@_start=$$(python3 -c "import time; print(int(time.time()*1000))"); \
-	$(CARGO) build --release 2>&1; \
+	$(CARGO) build --release --bin $(ELPH_BIN) 2>&1; \
 	_end=$$(python3 -c "import time; print(int(time.time()*1000))"); \
 	_elapsed=$$(( _end - _start )); \
 	echo ""; \
@@ -75,19 +68,7 @@ build: ## Build all application binaries (elph + eclaw + owly)
 	done; \
 	printf "Build time: %d.%03ds\n" $$(( _elapsed / 1000 )) $$(( _elapsed % 1000 ))
 
-build-elph: ## Build elph binary
-	@echo "Building $(ELPH_BIN) v$(ELPH_VERSION) ($(BUILD_HASH)) ($$RUSTC_WRAPPER)"
-	@$(CARGO) build --release --bin $(ELPH_BIN) 2>&1
-
-build-eclaw: ## Build eclaw binary
-	@echo "Building $(ECLAW_BIN) v$(ECLAW_VERSION) ($(BUILD_HASH)) ($$RUSTC_WRAPPER)"
-	@$(CARGO) build --release --bin $(ECLAW_BIN) 2>&1
-
-build-owly: ## Build owly binary
-	@echo "Building $(OWLY_BIN) v$(OWLY_VERSION) ($(BUILD_HASH)) ($$RUSTC_WRAPPER)"
-	@$(CARGO) build --release --bin $(OWLY_BIN) 2>&1
-
-install: build ## Install elph-next, eclaw-next, and owly to $INSTALL_DIR
+install: build ## Install elph-next to $INSTALL_DIR
 	@mkdir -p $(INSTALL_DIR) && echo
 	@for bin in $(APP_BINS); do \
 	  cp "$(BUILD_DIR)/$$bin" "$(INSTALL_DIR)/$$bin-next"; \
@@ -95,33 +76,33 @@ install: build ## Install elph-next, eclaw-next, and owly to $INSTALL_DIR
 	done
 
 run: ## Run elph coding agent
-	@$(CARGO) run --bin $(ELPH_BIN) $(or $(_RESIDUAL_),$(ARGS))
+	@_args='$(or $(_RESIDUAL_),$(ARGS))'; \
+	if [ -n "$$_args" ]; then \
+		$(CARGO) run -q -p $(ELPH_BIN) -- $$_args; \
+	else \
+		$(CARGO) run -q -p $(ELPH_BIN); \
+	fi
 
-run-owly: ## Run owly documentation agent
-	@$(CARGO) run --bin $(OWLY_BIN) $(or $(_RESIDUAL_),$(ARGS))
-watch: ## Run eclaw with hot reload (requires watchexec)
-	@-$(CARGO) watch -c -- cargo run --bin $(ECLAW_BIN) $(or $(_RESIDUAL_),$(ARGS)) 2>&1
+watch: ## Run elph with hot reload (requires watchexec)
+	@-$(CARGO) watch -c -- cargo run --bin $(ELPH_BIN) $(or $(_RESIDUAL_),$(ARGS)) 2>&1
 
 test: ## Run all workspace tests
 	@$(CARGO) nextest run --no-fail-fast $(or $(_RESIDUAL_),$(ARGS))
 
 test-elph: ## Run tests for elph and its workspace deps
-	@$(CARGO) nextest run --no-fail-fast -p elph -p elph-core -p elph-agent -p elph-ai -p elph-tui $(ARGS)
+	@$(CARGO) nextest run --no-fail-fast -p elph-ai -p elph-agent -p elph-core -p elph $(ARGS)
 
-test-eclaw: ## Run tests for eclaw and its workspace deps
-	@$(CARGO) nextest run --no-fail-fast -p eclaw -p elph-core -p elph-agent -p elph-ai $(ARGS)
-
-test-owly: ## Run tests for owly and its workspace deps
-	@$(CARGO) nextest run --no-fail-fast -p owly -p elph-agent -p elph-ai -p elph-tui $(ARGS)
+test-elph-tui: ## Run elph-tui tests
+	@$(CARGO) nextest run --no-fail-fast -p elph-tui $(ARGS)
 
 check-elph: ## Check elph and its workspace deps compile
-	@$(CARGO) check -p elph -p elph-core -p elph-agent -p elph-ai -p elph-tui 2>&1
+	@$(CARGO) check -p elph-ai -p elph-agent -p elph-core -p elph 2>&1
 
-check-eclaw: ## Check eclaw and its workspace deps compile
-	@$(CARGO) check -p eclaw -p elph-core -p elph-agent -p elph-ai 2>&1
+check-elph-tui: ## Check elph-tui compiles (lib, tests, examples)
+	@$(CARGO) check -p elph-tui --all-targets 2>&1
 
-check-owly: ## Check owly and its workspace deps compile
-	@$(CARGO) check -p owly -p elph-agent -p elph-ai -p elph-tui 2>&1
+build-elph-tui-examples: ## Build all elph-tui examples
+	@$(CARGO) build -p elph-tui --examples 2>&1
 
 generate-models: ## Regenerate elph-ai model catalogs from catalog source (ELPH_AI_CATALOG_DIR, ARGS=--skip-scripts)
 	@test -f "$(ELPH_AI_CATALOG_DIR)/scripts/generate-models.ts" || { \
@@ -142,44 +123,42 @@ generate-models: ## Regenerate elph-ai model catalogs from catalog source (ELPH_
 cross-pull: ## Pull ghcr.io/cross-rs images into local Docker cache
 	@./scripts/cross-pull-images.sh
 
-cross: ## Build one platform (CROSS_TARGET=<triple>; APP=elph|eclaw|owly; CROSS_QUIET=1 / CROSS_VERBOSE=1)
+cross: ## Build one platform (CROSS_TARGET=<triple>; APP=elph; CROSS_QUIET=1 / CROSS_VERBOSE=1)
 	@test -n "$(CROSS_TARGET)" || { echo "Usage: make cross CROSS_TARGET=<triple>" >&2; exit 1; }
 	@APP="$(APP)" ./scripts/cross-build.sh $(CROSS_TARGET) $(APP)
 
 release: ## Build release (host-aware: cargo native, cross remote)
 	@./scripts/cross-release.sh
 
-release-linux: ## Build Linux release (glibc + musl, x86_64 + arm64; APP=elph|eclaw|owly)
+release-linux: ## Build Linux release (glibc + musl, x86_64 + arm64; APP=elph)
 	@APP="$(APP)" ./scripts/cross-platform.sh linux
 
-release-macos: ## Build macOS release (x86_64 + arm64; APP=elph|eclaw|owly)
+release-macos: ## Build macOS release (x86_64 + arm64; APP=elph)
 	@APP="$(APP)" ./scripts/cross-platform.sh macos
 
-release-windows: ## Build Windows release (x86_64 + arm64; APP=elph|eclaw|owly)
+release-windows: ## Build Windows release (x86_64 + arm64; APP=elph)
 	@APP="$(APP)" ./scripts/cross-platform.sh windows
 
 # ─── Code Quality ───────────────────────────────────────────────────────────
 
-lint: ## Run clippy linter
-	@$(CARGO) clippy --workspace --all-targets -- -D warnings
+lint: lint-elph ## Run clippy linter
 
 lint-elph: ## Run clippy for elph and its workspace deps
-	@$(CARGO) clippy -p elph -p elph-core -p elph-agent -p elph-ai -p elph-tui --all-targets -- -D warnings
+	@$(CARGO) clippy -p elph -p elph-core -p elph-agent -p elph-ai --all-targets -- -D warnings
 
-lint-eclaw: ## Run clippy for eclaw and its workspace deps
-	@$(CARGO) clippy -p eclaw -p elph-core -p elph-agent -p elph-ai --all-targets -- -D warnings
-
-lint-owly: ## Run clippy for owly and its workspace deps
-	@$(CARGO) clippy -p owly -p elph-agent -p elph-ai -p elph-tui --all-targets -- -D warnings
+lint-elph-tui: ## Run clippy for elph-tui
+	@$(CARGO) clippy -p elph-tui --all-targets -- -D warnings
 
 fmt: ## Format all code
 	@$(CARGO) fmt --all -- --style-edition 2024
+	@bunx --silent oxfmt crates/elph-ai/models/
+	@bunx --silent oxfmt openwiki/ schemas/
 
-coverage: ## Run tests with coverage (requires tarpaulin)
-	@$(CARGO) tarpaulin --workspace 2>&1
+coverage: ## Run tests with coverage (requires cargo-llvm-cov)
+	@$(CARGO) llvm-cov nextest --no-cfg-coverage 2>&1
 
 stats: ## Show sccache stats and code line count
-	@tokei .
+	@tokei . -e "*.json" -e "*.md"
 	@if [ -n "$(SCCACHE_BIN)" ]; then \
 	  echo ""; \
 	  printf '\033[33msccache stats:\033[0m\n'; \
@@ -196,7 +175,7 @@ prepare: ## Install required toolchain
 	@command -v cargo-binstall >/dev/null 2>&1 || $(CARGO) install cargo-binstall --locked
 	@command -v cargo-bloat >/dev/null 2>&1 || $(CARGO) binstall --locked -y cargo-bloat
 	@command -v cargo-nextest >/dev/null 2>&1 || $(CARGO) binstall --locked -y cargo-nextest
-	@command -v cargo-tarpaulin >/dev/null 2>&1 || $(CARGO) binstall --locked -y cargo-tarpaulin
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || $(CARGO) binstall --locked -y cargo-llvm-cov
 	@command -v watchexec >/dev/null 2>&1 || $(CARGO) binstall --locked -y watchexec-cli
 	@command -v rapidhash >/dev/null 2>&1 || $(CARGO) install --locked -y rapidhash
 	@command -v sccache >/dev/null 2>&1 || $(CARGO) binstall --locked -y sccache
@@ -222,18 +201,13 @@ version: ## Compare app versions with latest GitHub releases (APP=, TAG=)
 
 # Independent version streams:
 #   bump-elph  — elph/Cargo.toml
-#   bump-eclaw — eclaw/Cargo.toml
-#   bump-owly  — owly/Cargo.toml
 #   bump-libs  — crates/elph-{core,agent,ai,tui,swarm} (+ workspace pins)
-#   bump       — bump-libs + bump-elph + bump-eclaw + bump-owly
+#   bump       — bump-libs + bump-elph
 #
 # Usage (level is required):
 #   make bump       patch|minor|major
 #   make bump-elph  patch|minor|major
-#   make bump-eclaw patch|minor|major
-#   make bump-owly  patch|minor|major
 #   make bump-libs  patch|minor|major
-
 
 ifeq ($(UNAME_S),Darwin)
   SED_INPLACE := sed -i ''
@@ -244,7 +218,7 @@ endif
 _BUMP_LEVEL := $(firstword $(_RESIDUAL_))
 _BUMP_PY    := python3 -c "import sys;m,M,p=sys.argv[1].split('.');l=sys.argv[2];print(f'{m}.{M}.{int(p)+1}' if l=='patch' else f'{m}.{int(M)+1}.0' if l=='minor' else f'{int(m)+1}.0.0')"
 
-_LIBS := elph-core elph-ai elph-agent elph-swarm elph-tui
+_LIBS := elph-core elph-ai elph-agent elph-swarm
 
 define _require_bump_level
 	@case "$(1)" in patch|minor|major) ;; *) \
@@ -273,18 +247,6 @@ bump-elph: ## Bump elph app version (patch|minor|major required)
 	$(call _bump_manifest,elph/Cargo.toml,$(_BUMP_LEVEL))
 	@echo "Done."
 
-bump-eclaw: ## Bump eclaw app version (patch|minor|major required)
-	$(call _require_bump_level,$(_BUMP_LEVEL),bump-eclaw)
-	@echo "bump-eclaw ($(_BUMP_LEVEL))..."
-	$(call _bump_manifest,eclaw/Cargo.toml,$(_BUMP_LEVEL))
-	@echo "Done."
-
-bump-owly: ## Bump owly app version (patch|minor|major required)
-	$(call _require_bump_level,$(_BUMP_LEVEL),bump-owly)
-	@echo "bump-owly ($(_BUMP_LEVEL))..."
-	$(call _bump_manifest,owly/Cargo.toml,$(_BUMP_LEVEL))
-	@echo "Done."
-
 bump-libs: ## Bump all library crates independently (patch|minor|major required)
 	$(call _require_bump_level,$(_BUMP_LEVEL),bump-libs)
 	@echo "bump-libs ($(_BUMP_LEVEL))..."
@@ -296,13 +258,11 @@ bump-libs: ## Bump all library crates independently (patch|minor|major required)
 	done
 	@echo "Done."
 
-bump: ## Bump all libs and apps independently (patch|minor|major required)
+bump: ## Bump all libs and elph (patch|minor|major required)
 	$(call _require_bump_level,$(_BUMP_LEVEL),bump)
 	@echo "bump ($(_BUMP_LEVEL))..."
 	@$(MAKE) --no-print-directory bump-libs $(_BUMP_LEVEL)
 	@$(MAKE) --no-print-directory bump-elph $(_BUMP_LEVEL)
-	@$(MAKE) --no-print-directory bump-eclaw $(_BUMP_LEVEL)
-	@$(MAKE) --no-print-directory bump-owly $(_BUMP_LEVEL)
 	@echo "Done."
 
 _bump_lib:

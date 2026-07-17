@@ -11,12 +11,14 @@
 //! cargo run -p elph-ai --example basic -- --stream --show-thinking
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
-use std::time::Duration;
+use std::io::Write;
+use std::io::stderr;
 
+use elph_ai::Context;
 use elph_ai::{AssistantContentBlock, AssistantMessageEvent, Message, StopReason, UserContent};
-use elph_ai::{Context, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_ai::{builtin_models, get_builtin_model};
+use elph_tui::CliSpinner;
+use elph_tui::progress_spinner;
 
 // Override via env: ELPH_PROVIDER=opencode ELPH_MODEL=big-pickle
 const PROVIDER: &str = "opencode";
@@ -58,10 +60,7 @@ async fn main() -> anyhow::Result<()> {
     setup.finish_and_clear();
 
     if let Some(auth) = &auth {
-        println!(
-            "Auth:     configured via {}",
-            auth.source.as_deref().unwrap_or("unknown")
-        );
+        println!("Auth:     configured via {}", auth.source.as_deref().unwrap_or("unknown"));
     } else {
         anyhow::bail!("{provider} is not configured (missing {api_key_var})");
     }
@@ -98,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run_streaming(
     events: &mut elph_ai::EventStreamIterator,
-    progress: &ProgressBar,
+    progress: &CliSpinner,
     show_thinking: bool,
 ) -> anyhow::Result<()> {
     print!("Assistant: ");
@@ -143,10 +142,7 @@ async fn run_streaming(
             AssistantMessageEvent::Error { error, .. } => {
                 progress.finish_and_clear();
                 println!();
-                anyhow::bail!(
-                    "stream error: {}",
-                    error.error_message.unwrap_or_else(|| "unknown".into())
-                );
+                anyhow::bail!("stream error: {}", error.error_message.unwrap_or_else(|| "unknown".into()));
             }
             _ => {}
         }
@@ -159,7 +155,7 @@ async fn run_streaming(
     Ok(())
 }
 
-async fn run_buffered(events: &mut elph_ai::EventStreamIterator, progress: &ProgressBar) -> anyhow::Result<()> {
+async fn run_buffered(events: &mut elph_ai::EventStreamIterator, progress: &CliSpinner) -> anyhow::Result<()> {
     let mut final_message = None;
     let mut stop_reason = StopReason::Stop;
 
@@ -171,10 +167,7 @@ async fn run_buffered(events: &mut elph_ai::EventStreamIterator, progress: &Prog
             }
             AssistantMessageEvent::Error { error, .. } => {
                 progress.finish_and_clear();
-                anyhow::bail!(
-                    "stream error: {}",
-                    error.error_message.unwrap_or_else(|| "unknown".into())
-                );
+                anyhow::bail!("stream error: {}", error.error_message.unwrap_or_else(|| "unknown".into()));
             }
             _ => {}
         }
@@ -231,30 +224,6 @@ fn print_help() {
            cargo run -p elph-ai --example basic -- --stream\n\
            cargo run -p elph-ai --example basic -- --stream --show-thinking"
     );
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !progress_enabled() {
-        eprintln!("{message}");
-        return ProgressBar::hidden();
-    }
-
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid spinner template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
-}
-
-fn progress_enabled() -> bool {
-    if std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return false;
-    }
-    stderr().is_terminal()
 }
 
 fn stdout() -> impl Write {

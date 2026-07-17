@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use parking_lot::Mutex;
 
 use elph_ai::api::faux::RegisterFauxProviderOptions;
-use elph_ai::{FauxProviderHandle, Model, Models, SimpleStreamOptions, builtin_models, create_models, faux_provider};
+use elph_ai::{FauxProviderHandle, Model, Models, SimpleStreamOptions};
+use elph_ai::{builtin_models, create_models, faux_provider};
 
 pub fn faux_stream_fn(faux: &FauxProviderHandle) -> elph_agent::StreamFn {
     let provider = faux.provider.clone();
@@ -62,6 +63,7 @@ pub fn base_loop_config(model: Model, stream_fn: elph_agent::StreamFn) -> elph_a
         before_tool_call: None,
         after_tool_call: None,
         stream_fn: Some(stream_fn),
+        prompt_encoding: Default::default(),
     }
 }
 
@@ -141,12 +143,12 @@ pub fn hanging_until_abort_stream_fn(model: &Model) -> elph_agent::StreamFn {
 }
 
 pub fn capture_events() -> (
-    elph_agent::agent_loop::AgentEventCallback,
+    elph_agent::runtime::AgentEventCallback,
     Arc<tokio::sync::Mutex<Vec<elph_agent::AgentEvent>>>,
 ) {
     let events = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let events_capture = events.clone();
-    let emit: elph_agent::agent_loop::AgentEventCallback = Arc::new(move |event| {
+    let emit: elph_agent::runtime::AgentEventCallback = Arc::new(move |event| {
         let events_capture = events_capture.clone();
         Box::pin(async move {
             events_capture.lock().await.push(event);

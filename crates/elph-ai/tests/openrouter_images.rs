@@ -1,9 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use axum::{Json, Router, routing::post};
+use axum::routing::post;
+use axum::{Json, Router};
 use elph_ai::api::OpenRouterImagesApi;
 use elph_ai::types::{ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ModelCost, ProviderImages, StopReason};
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
@@ -60,6 +62,8 @@ fn text_and_image_model(base_url: &str) -> ImagesModel {
             output: 0.03,
             cache_read: 0.0,
             cache_write: 0.0,
+
+            tiers: None,
         },
         headers: Some([("HTTP-Referer".to_string(), "https://example.com".to_string())].into()),
     }
@@ -79,6 +83,8 @@ fn image_only_model(base_url: &str) -> ImagesModel {
             output: 0.03,
             cache_read: 0.0,
             cache_write: 0.0,
+
+            tiers: None,
         },
         headers: None,
     }

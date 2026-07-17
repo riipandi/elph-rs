@@ -14,7 +14,8 @@ use anyhow::Context;
 use parking_lot::Mutex;
 use tokio::sync::mpsc;
 
-use crate::agent::{AgentUiEvent, CodingAgentSession, CreateSessionOptions, create_coding_session_with_events};
+use crate::agent::create_coding_session_with_events;
+use crate::agent::{AgentUiEvent, CodingAgentSession, CreateSessionOptions};
 use crate::platform::{Paths, Settings};
 
 struct AcpSessionState {
@@ -106,6 +107,8 @@ async fn create_acp_session(state: &Arc<Mutex<AcpAgentState>>, cwd: &PathBuf) ->
         resume_id: None,
         provider_override: None,
         model_override: None,
+        preloaded_resources: None,
+        defer_mcp_load: false,
     })
     .await?;
 

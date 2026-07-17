@@ -9,17 +9,26 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::env::{LocalExecutionEnv, basename_env_path, dirname_env_path, relative_env_path};
-use crate::harness::types::{
-    FileErrorCode, FileInfo, FileKind, FileSystem, Result, Skill, SkillLoadOptions, SkillValidationSettings,
-};
+use crate::agent::harness::types::FileErrorCode;
+use crate::agent::harness::types::FileInfo;
+use crate::agent::harness::types::FileKind;
+use crate::agent::harness::types::FileSystem;
+use crate::agent::harness::types::Result;
+use crate::agent::harness::types::Skill;
+use crate::agent::harness::types::SkillLoadOptions;
+use crate::agent::harness::types::SkillValidationSettings;
+use crate::runtime::env::{basename_env_path, dirname_env_path, relative_env_path};
+use crate::runtime::local_env::LocalExecutionEnv;
 
-pub use types::{
-    LoadSkillsResult, LoadSourcedSkillsResult, SkillDiagnostic, SkillDiagnosticCode, SourcedSkill,
-    SourcedSkillDiagnostic,
-};
+pub use types::LoadSkillsResult;
+pub use types::LoadSourcedSkillsResult;
+pub use types::SkillDiagnostic;
+pub use types::SkillDiagnosticCode;
+pub use types::SourcedSkill;
+pub use types::SourcedSkillDiagnostic;
 
-use ignore::{IgnoreMatcher, add_ignore_rules};
+use ignore::IgnoreMatcher;
+use ignore::add_ignore_rules;
 use parse::{parse_frontmatter, validate_compatibility, validate_description, validate_name};
 
 #[derive(Debug, Default, Deserialize)]
@@ -33,6 +42,8 @@ struct SkillFrontmatter {
     metadata: Option<HashMap<String, Value>>,
     #[serde(rename = "allowed-tools")]
     allowed_tools: Option<String>,
+    #[serde(rename = "argument-hint")]
+    argument_hint: Option<String>,
 }
 
 fn diagnostic(
@@ -349,6 +360,7 @@ async fn load_skill_from_file(
             compatibility: parsed.frontmatter.compatibility,
             metadata: parsed.frontmatter.metadata,
             allowed_tools,
+            argument_hint: parsed.frontmatter.argument_hint,
         }),
         diagnostics,
     }
@@ -367,11 +379,7 @@ async fn resolve_kind(
         if let Result::Err(error) = canonical_path
             && error.code != FileErrorCode::NotFound
         {
-            diagnostics.push(diagnostic(
-                SkillDiagnosticCode::FileInfoFailed,
-                error.message,
-                &info.path,
-            ));
+            diagnostics.push(diagnostic(SkillDiagnosticCode::FileInfoFailed, error.message, &info.path));
         }
         return None;
     };
@@ -380,11 +388,7 @@ async fn resolve_kind(
         if let Result::Err(error) = target
             && error.code != FileErrorCode::NotFound
         {
-            diagnostics.push(diagnostic(
-                SkillDiagnosticCode::FileInfoFailed,
-                error.message,
-                &info.path,
-            ));
+            diagnostics.push(diagnostic(SkillDiagnosticCode::FileInfoFailed, error.message, &info.path));
         }
         return None;
     };

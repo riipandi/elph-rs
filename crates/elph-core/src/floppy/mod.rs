@@ -24,19 +24,32 @@ mod types;
 mod util;
 
 pub use builder::FloppyBuilder;
-pub use embed::{DEFAULT_EMBED_MODEL, FastEmbedOptions, create_fastembed};
-#[cfg(feature = "fastembed")]
+#[cfg(feature = "embed")]
+pub use embed::ResolvedEmbeddingModel;
+pub use embed::create_embedder;
+pub use embed::{DEFAULT_EMBED_MODEL, EmbedOptions};
+#[cfg(feature = "embed")]
 pub use embed::{embedding_dims, resolve_embedding_model};
-pub use migrations::{FloppyMigration, LAST_VERSION, MIGRATIONS, V1_NAME, V1_UP, V2_NAME, V2_UP, V3_NAME, V3_UP};
-pub use paths::{DB_FILE_NAME, DEFAULT_DATA_DIR, FloppyPaths};
-pub use store::{EmbedFn, MemoryStore, noop_embedder};
+pub use migrations::FloppyMigration;
+pub use migrations::{LAST_VERSION, MIGRATIONS, V1_NAME, V1_UP, V2_NAME, V2_UP, V3_NAME, V3_UP};
+pub use paths::FloppyPaths;
+pub use paths::{DB_FILE_NAME, DEFAULT_DATA_DIR};
+pub use store::noop_embedder;
+pub use store::{EmbedFn, MemoryStore};
 pub use types::{
     CategoryCount, ContradictResult, DecayResult, EmbeddingStatus, EndTaskWithDecayResult, FloppyConfig, Memory,
+};
+pub use types::{
     MemoryCategory, MemoryRecord, MemoryReportInput, MemoryReportType, MemoryStats, ReportCorrectionInput,
+};
+pub use types::{
     ReportUserInput, SelfReportEntry, StartTaskResult, StoreStatus, TaskBaseline, TaskCreatedMemory, TaskEndInput,
+};
+pub use types::{
     TaskRecord, TaskRetrieval, TaskStatus, TimelineEvent, TimelineEventKind, TopMemory, UserInputSource, VectorType,
 };
-pub use util::{DEFAULT_EMBEDDING_DIMS, VALID_EMBEDDING_BYTES, category_str};
+pub use util::category_str;
+pub use util::{DEFAULT_EMBEDDING_DIMS, VALID_EMBEDDING_BYTES};
 
 pub fn create_memory_store(config: FloppyConfig, embed: EmbedFn) -> MemoryStore {
     MemoryStore::new(config, embed)

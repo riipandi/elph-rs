@@ -1,19 +1,44 @@
 //! Core agent types — elph-agent module.
+//!
+//! Global enums live here; domain-specific types have been distributed:
+//! - loop config types → `crate::runtime::loop_config`
+//! - message types → `crate::messages::types`
+//! - tool types → `crate::tools::types`
 
-mod enums;
-mod loop_config;
-mod messages;
-mod tools;
+pub mod enums;
 
 pub use enums::{AgentThinkingLevel, QueueMode, ToolExecutionMode};
-pub use loop_config::{
-    AfterToolCallContext, AfterToolCallFn, AfterToolCallResult, AgentContext, AgentEvent, AgentLoopConfig,
-    AgentLoopTurnUpdate, AgentState, BeforeToolCallContext, BeforeToolCallFn, BeforeToolCallResult, ConvertToLlmFn,
-    GetApiKeyFn, GetQueuedMessagesFn, PrepareNextTurnContext, PrepareNextTurnFn, PrepareNextTurnLegacyFn,
-    ShouldStopAfterTurnContext, ShouldStopAfterTurnFn, StreamFn, TransformContextFn,
-};
-pub use messages::{
-    AgentMessage, CustomAgentMessage, assistant_message_to_agent, extract_tool_calls, llm_message_to_agent,
-    tool_result_to_agent,
-};
-pub use tools::{AgentTool, AgentToolCall, AgentToolResult, ToolExecuteFn, ToolResultContent, ToolUpdateCallback};
+
+// Re-export from domain modules for backward compatibility.
+pub use crate::messages::types::assistant_message_to_agent;
+pub use crate::messages::types::extract_tool_calls;
+pub use crate::messages::types::llm_message_to_agent;
+pub use crate::messages::types::tool_result_to_agent;
+pub use crate::messages::types::{AgentMessage, CustomAgentMessage};
+pub use crate::runtime::loop_config::AfterToolCallContext;
+pub use crate::runtime::loop_config::AfterToolCallFn;
+pub use crate::runtime::loop_config::AfterToolCallResult;
+pub use crate::runtime::loop_config::AgentContext;
+pub use crate::runtime::loop_config::AgentEvent;
+pub use crate::runtime::loop_config::AgentLoopConfig;
+pub use crate::runtime::loop_config::AgentLoopTurnUpdate;
+pub use crate::runtime::loop_config::AgentState;
+pub use crate::runtime::loop_config::BeforeToolCallContext;
+pub use crate::runtime::loop_config::BeforeToolCallFn;
+pub use crate::runtime::loop_config::BeforeToolCallResult;
+pub use crate::runtime::loop_config::ConvertToLlmFn;
+pub use crate::runtime::loop_config::GetApiKeyFn;
+pub use crate::runtime::loop_config::GetQueuedMessagesFn;
+pub use crate::runtime::loop_config::PrepareNextTurnContext;
+pub use crate::runtime::loop_config::PrepareNextTurnFn;
+pub use crate::runtime::loop_config::PrepareNextTurnLegacyFn;
+pub use crate::runtime::loop_config::ShouldStopAfterTurnContext;
+pub use crate::runtime::loop_config::ShouldStopAfterTurnFn;
+pub use crate::runtime::loop_config::StreamFn;
+pub use crate::runtime::loop_config::TransformContextFn;
+pub use crate::tools::types::AgentTool;
+pub use crate::tools::types::AgentToolCall;
+pub use crate::tools::types::AgentToolResult;
+pub use crate::tools::types::ToolExecuteFn;
+pub use crate::tools::types::ToolResultContent;
+pub use crate::tools::types::ToolUpdateCallback;

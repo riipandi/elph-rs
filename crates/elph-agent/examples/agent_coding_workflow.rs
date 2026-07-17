@@ -10,16 +10,17 @@
 //! cargo run -p elph-agent --example agent_coding_workflow -- --task "Add error handling to src/main.rs"
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use parking_lot::Mutex;
-use std::time::Duration;
 
-use elph_agent::{Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_coding_tools};
-use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_agent::create_edit_tools;
+use elph_agent::{Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState};
+use elph_ai::{Message, StopReason};
+use elph_ai::{builtin_models, get_builtin_model};
+use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";
 const MODEL_ID: &str = "big-pickle";
@@ -83,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
     // ── Create execution environment ──
     let cwd = std::env::current_dir()?;
     let env = Arc::new(LocalExecutionEnv::new(&cwd));
-    let agent_tools = create_coding_tools(env);
+    let agent_tools = create_edit_tools(env);
 
     // ── Build agent with coding-focused system prompt ──
     let agent = Agent::new(AgentOptions {
@@ -145,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
                             }
                             let count = tool_calls.fetch_add(1, Ordering::SeqCst) + 1;
                             let log_entry = match tool_name.as_str() {
-                                "read" => {
+                                "read_file" => {
                                     let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("?");
                                     format!("[{count}] READ {path}")
                                 }
@@ -153,11 +154,11 @@ async fn main() -> anyhow::Result<()> {
                                     let cmd = args.get("command").and_then(|c| c.as_str()).unwrap_or("?");
                                     format!("[{count}] BASH {cmd}")
                                 }
-                                "edit" => {
+                                "edit_file" => {
                                     let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("?");
                                     format!("[{count}] EDIT {path}")
                                 }
-                                "write" => {
+                                "write_file" => {
                                     let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("?");
                                     format!("[{count}] WRITE {path}")
                                 }
@@ -256,21 +257,6 @@ fn print_help() {
            cargo run -p elph-agent --example agent_coding_workflow\n\
            cargo run -p elph-agent --example agent_coding_workflow -- --task \"Fix the bug in main.rs\""
     );
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !stderr().is_terminal() || std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return ProgressBar::hidden();
-    }
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
 }
 
 fn print_usage(message: &elph_ai::AssistantMessage) {

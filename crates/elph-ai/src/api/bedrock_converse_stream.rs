@@ -1,30 +1,26 @@
 //! Amazon Bedrock Converse Stream API with bearer-token or SigV4 (AWS SDK) auth.
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use aws_config::BehaviorVersion;
 use aws_sdk_bedrockruntime::Client as BedrockClient;
-use aws_sdk_bedrockruntime::types::{
-    ContentBlock as BedrockContentBlock, ConversationRole, ConverseStreamOutput, Message as BedrockMessage,
-    SystemContentBlock,
-};
+use aws_sdk_bedrockruntime::types::{ContentBlock as BedrockContentBlock, ConversationRole, ConverseStreamOutput};
+use aws_sdk_bedrockruntime::types::{Message as BedrockMessage, SystemContentBlock};
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::bedrock_shared::{
-    BedrockThinkingOptions, append_cache_point_to_last_user_message, build_additional_model_request_fields,
-    build_bedrock_system_blocks, resolve_bedrock_runtime_config, resolve_cache_retention,
-};
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, invoke_on_response_from_reqwest,
-    is_request_aborted, merge_model_headers,
-};
+use crate::api::bedrock_shared::BedrockThinkingOptions;
+use crate::api::bedrock_shared::resolve_cache_retention;
+use crate::api::bedrock_shared::{append_cache_point_to_last_user_message, build_additional_model_request_fields};
+use crate::api::bedrock_shared::{build_bedrock_system_blocks, resolve_bedrock_runtime_config};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
 use crate::api::simple_options::{adjust_max_tokens_for_thinking, build_base_options, clamp_max_tokens_to_context};
 use crate::api::transform_messages::transform_messages;
 use crate::models::calculate_cost;
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message, Model,
-    ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, UserContent,
-};
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message};
+use crate::types::{Model, ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, UserContent};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::json_parse::parse_streaming_json;
 use crate::utils::provider_env::get_provider_env_value;
@@ -146,9 +142,11 @@ async fn run_bedrock(
         crate::api::common::finish_stream_error(stream, output, crate::api::common::request_aborted_error(), true);
         return Ok(());
     }
+    // Prefer explicit Bedrock bearer, then generic stream apiKey, then env token.
     let bearer = options
         .bearer_token
         .clone()
+        .or_else(|| options.base.api_key.clone())
         .or_else(|| get_provider_env_value("AWS_BEARER_TOKEN_BEDROCK", options.base.env.as_ref()));
 
     let ambient_profile = std::env::var("AWS_PROFILE").ok();
@@ -512,9 +510,7 @@ fn process_bedrock_sse_event(
             let block_idx = output.content.len();
             output
                 .content
-                .push(AssistantContentBlock::Thinking(crate::types::ThinkingContent::new(
-                    text,
-                )));
+                .push(AssistantContentBlock::Thinking(crate::types::ThinkingContent::new(text)));
             stream.push(AssistantMessageEvent::ThinkingStart {
                 content_index: block_idx,
                 partial: output.clone(),
@@ -680,9 +676,7 @@ fn json_to_bedrock_message(value: &Value) -> Option<BedrockMessage> {
                 return Some(BedrockContentBlock::ToolResult(
                     aws_sdk_bedrockruntime::types::ToolResultBlock::builder()
                         .tool_use_id(id)
-                        .content(aws_sdk_bedrockruntime::types::ToolResultContentBlock::Text(
-                            text.to_string(),
-                        ))
+                        .content(aws_sdk_bedrockruntime::types::ToolResultContentBlock::Text(text.to_string()))
                         .build()
                         .ok()?,
                 ));

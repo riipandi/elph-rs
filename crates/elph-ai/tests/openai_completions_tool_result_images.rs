@@ -19,6 +19,7 @@ fn groups_tool_result_images_into_follow_up_user_message() {
                     mime_type: "image/png".to_string(),
                 }],
                 details: None,
+                added_tool_names: None,
                 is_error: false,
                 timestamp: 0,
             },
@@ -35,10 +36,7 @@ fn groups_tool_result_images_into_follow_up_user_message() {
         .iter()
         .find(|m| m.get("role") == Some(&json!("tool")))
         .expect("tool result");
-    assert_eq!(
-        tool_msg.get("content").and_then(|v| v.as_str()),
-        Some("(see attached image)")
-    );
+    assert_eq!(tool_msg.get("content").and_then(|v| v.as_str()), Some("(see attached image)"));
 
     let image_user = messages
         .iter()

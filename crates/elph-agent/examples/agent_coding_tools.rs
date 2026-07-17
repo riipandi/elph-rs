@@ -1,4 +1,4 @@
-//! Live coding tools demo — read, bash, edit, write, grep, find, ls with real API.
+//! Live coding tools demo — read_file, bash, edit_file, write_file, grep, find_path, list_dir with real API.
 //!
 //! Uses OpenCode big-pickle to perform actual file operations.
 //! The agent reads files, runs commands, edits code, and writes new files.
@@ -11,17 +11,15 @@
 //! cargo run -p elph-agent --example agent_coding_tools -- --task "List all .rs files in src/"
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
-use elph_agent::{
-    Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState, create_all_tools, create_coding_tools,
-    create_read_only_tools,
-};
-use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_agent::{Agent, AgentEvent, AgentOptions, LocalExecutionEnv, PartialAgentState};
+use elph_agent::{create_all_tools, create_edit_tools, create_search_tools};
+use elph_ai::{Message, StopReason};
+use elph_ai::{builtin_models, get_builtin_model};
+use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";
 const MODEL_ID: &str = "big-pickle";
@@ -65,10 +63,7 @@ async fn main() -> anyhow::Result<()> {
     setup.finish_and_clear();
 
     if let Some(auth) = &auth {
-        println!(
-            "Auth:     configured via {}",
-            auth.source.as_deref().unwrap_or("unknown")
-        );
+        println!("Auth:     configured via {}", auth.source.as_deref().unwrap_or("unknown"));
     } else {
         anyhow::bail!("OpenCode Zen is not configured (missing OPENCODE_API_KEY?)");
     }
@@ -87,20 +82,24 @@ async fn main() -> anyhow::Result<()> {
     // ── Select tools based on --tools flag ──
     let agent_tools = match args.tools.as_str() {
         "read-only" => {
-            println!("Using read-only tools: read, grep, find, ls");
-            create_read_only_tools(env.clone())
+            println!("Using search tools: read_file, grep, find_path, list_dir");
+            create_search_tools(env.clone())
         }
         "coding" => {
-            println!("Using coding tools: read, bash, edit, write");
-            create_coding_tools(env.clone())
+            println!("Using edit tools: edit_file, write_file, bash, create_dir, copy_path, delete_path, move_path");
+            create_edit_tools(env.clone())
         }
         "all" => {
-            println!("Using all tools: read, bash, edit, write, grep, find, ls");
+            println!(
+                "Using all tools: read_file, bash, edit_file, write_file, grep, find_path, list_dir, web_search, web_fetch"
+            );
             create_all_tools(env.clone())
         }
         _ => {
-            println!("Using coding tools (default): read, bash, edit, write");
-            create_coding_tools(env.clone())
+            println!(
+                "Using edit tools (default): edit_file, write_file, bash, create_dir, copy_path, delete_path, move_path"
+            );
+            create_edit_tools(env.clone())
         }
     };
 
@@ -233,30 +232,6 @@ fn print_help() {
            cargo run -p elph-agent --example agent_coding_tools -- --task \"Read src/lib.rs\"\n\
            cargo run -p elph-agent --example agent_coding_tools -- --tools all"
     );
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !progress_enabled() {
-        eprintln!("{message}");
-        return ProgressBar::hidden();
-    }
-
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid spinner template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
-}
-
-fn progress_enabled() -> bool {
-    if std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return false;
-    }
-    stderr().is_terminal()
 }
 
 fn print_usage(message: &elph_ai::AssistantMessage) {

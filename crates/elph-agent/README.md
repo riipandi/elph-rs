@@ -1,6 +1,7 @@
 # elph-agent
 
-Stateful agent runtime with tool execution, event streaming, and session-backed orchestration. Built on [`elph-ai`](../elph-ai) and ported from [@earendil-works/pi-agent](https://github.com/earendil-works/pi/tree/main/packages/agent).
+Stateful agent runtime with tool execution, event streaming, and session-backed orchestration.
+Built on [`elph-ai`](../elph-ai) and ported from [@earendil-works/pi-agent](https://github.com/earendil-works/pi/tree/main/packages/agent).
 
 ## Installation
 
@@ -53,6 +54,29 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+## MCP tools
+
+With the `mcp` feature (default), load remote MCP servers and expose them as agent tools:
+
+```rust
+use elph_agent::{McpConfig, McpServerConfig, McpToolRegistry};
+use std::sync::Arc;
+
+let mut config = McpConfig::default();
+config.servers.insert(
+    "fs".into(),
+    McpServerConfig::stdio("npx", vec![
+        "-y".into(),
+        "@modelcontextprotocol/server-filesystem".into(),
+        "/tmp".into(),
+    ]),
+);
+let registry = Arc::new(McpToolRegistry::load(config).await?);
+let mcp_tools = registry.create_agent_tools(); // names: mcp_fs__...
+```
+
+Supports **stdio** and **streamable HTTP**, connection pooling with reconnect, and fail-open discovery. Details: [docs/mcp.md](./docs/mcp.md).
 
 For deterministic tests, use the `faux` provider from `elph-ai`:
 
@@ -147,7 +171,7 @@ In parallel mode, tool completion events follow tool completion order, but persi
 
 The mode can be set globally via `tool_execution` in `AgentOptions`, or per-tool via `execution_mode` on `AgentTool`. If any tool call in a batch targets a tool with `execution_mode: Sequential`, the entire batch executes sequentially regardless of the global setting.
 
-The `before_tool_call` hook runs after `tool_execution_start` and validated argument parsing. It can block execution. The `after_tool_call` hook runs after tool execution finishes and before `tool_execution_end` and final tool result message events are emitted.
+The `before_tool_call` hook runs after `tool_execution_start` and validated argument parsing. It can block execution. The `after_tool_call` hook runs after tool execution finishes and before TOON prompt encoding (when enabled), `tool_execution_end`, and final tool result message events are emitted.
 
 Tools can also return `terminate: true` to hint that the automatic follow-up LLM call should be skipped. The loop only stops early when every finalized tool result in that batch sets `terminate: true`. Mixed batches continue normally.
 
@@ -201,9 +225,7 @@ The last message in context must be `user` or `toolResult` (not `assistant`).
 ## Agent Options
 
 ```rust
-use elph_agent::{
-    Agent, AgentOptions, PartialAgentState, QueueMode, ToolExecutionMode,
-};
+use elph_agent::{Agent, AgentOptions, PartialAgentState, QueueMode, ToolExecutionMode};
 
 let agent = Agent::new(AgentOptions {
     // Initial state
@@ -241,6 +263,13 @@ let agent = Agent::new(AgentOptions {
     // Tool execution mode
     tool_execution: ToolExecutionMode::Parallel,
 
+    // Optional TOON encoding for tool results (default: Off, or ELPH_PROMPT_ENCODING)
+    prompt_encoding: Some(PromptEncodingConfig {
+        mode: PromptEncodingMode::Toon,
+        min_bytes: 2048,
+        ..PromptEncodingConfig::default()
+    }),
+
     // Preflight each tool call after args are validated
     before_tool_call: Some(before_tool_call_fn),
     after_tool_call: Some(after_tool_call_fn),
@@ -251,6 +280,24 @@ let agent = Agent::new(AgentOptions {
     ..Default::default()
 });
 ```
+
+## TOON prompt encoding
+
+Optional [TOON](https://github.com/toon-format/toon) encoding compresses structured JSON in **model-visible** tool results (and can be used manually in user prompts via `encode_value`). Enabled through `AgentOptions.prompt_encoding` or `ELPH_PROMPT_ENCODING` (`off` | `toon` | `auto`).
+
+```rust
+use elph_agent::{PromptEncodingConfig, PromptEncodingMode};
+
+let agent = Agent::new(AgentOptions {
+    prompt_encoding: Some(PromptEncodingConfig {
+        mode: PromptEncodingMode::Auto,
+        ..PromptEncodingConfig::default()
+    }),
+    ..Default::default()
+});
+```
+
+Encoding runs after `after_tool_call`, before tool results are sent to the LLM. MCP `structured_content` is supported. Details: [docs/prompt-encoding.md](./docs/prompt-encoding.md).
 
 ## Agent State
 
@@ -409,50 +456,59 @@ let read_file_tool = simple_tool(
 );
 ```
 
-Built-in tools are grouped by capability:
+Built-in tools are optional Cargo features. Enable `builtin-tools` for the full catalog, or pick groups (`tools-edit-tools`, `tools-search`, `tools-web`, `tools-collaboration`). See [docs/tools.md](./docs/tools.md).
 
-| Helper                      | Tools                            |
-| --------------------------- | -------------------------------- |
-| `create_coding_tools`       | `read`, `bash`, `edit`, `write`  |
-| `create_read_only_tools`    | `read`, `grep`, `find`, `ls`     |
-| `create_all_tools`          | all seven filesystem tools above |
-| `create_web_tools`          | `web_search`, `web_fetch`        |
-| `create_all_tools_with_web` | filesystem tools + web tools     |
+| Helper / builder            | Tools                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| `BuiltinToolsBuilder::all`  | all enabled built-in tools (incl. `list_available_tools`)                                |
+| `create_edit_tools`         | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `create_search_tools`       | `read_file`, `grep`, `find_path`, `list_dir`                                             |
+| `create_all_tools`          | all filesystem tools above                                                               |
+| `create_web_tools`          | `web_search`, `web_fetch`                                                                |
+| `create_all_tools_with_web` | filesystem tools + web tools                                                             |
 
 ```rust
-use elph_agent::{LocalExecutionEnv, create_all_tools, create_web_tools, create_all_tools_with_web};
+use elph_agent::{BuiltinToolsBuilder, LocalExecutionEnv};
 use std::sync::Arc;
 
 let env = Arc::new(LocalExecutionEnv::new(cwd));
-let coding = create_all_tools(env.clone());
-let web = create_web_tools(); // no ExecutionEnv required
-let all = create_all_tools_with_web(env);
+let tools = BuiltinToolsBuilder::all(env).build();
 ```
 
 `grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `ls` uses [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool. `read`, `write`, `edit`, and `bash` use `ExecutionEnv` directly.
 
-`web_search` and `web_fetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
+`websearch` and `webfetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
 
 ```rust
 use elph_agent::create_web_tools;
 
 let tools = create_web_tools();
-// web_search: query the web (DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, SerpAPI)
-// web_fetch:    fetch a public URL as plain text
+// websearch: query the web (DuckDuckGo, Brave, Exa, FireCrawl, Jina, Perplexity, Tavily, SerpAPI)
+// webfetch:    fetch a public URL as plain text
 ```
 
 Set provider API keys via environment variables (`BRAVE_SEARCH_API_KEY`, `EXA_API_KEY`, `TAVILY_API_KEY`, etc.). DuckDuckGo, Jina, and FireCrawl work without keys. See [docs/tools.md](./docs/tools.md) for the full engine ranking table and parameters.
 
 ### Cargo features
 
-| Feature   | Default | Description                                           |
-| --------- | ------- | ----------------------------------------------------- |
-| `obscura` | yes     | Embed Obscura for browser-based search/fetch fallback |
-
-Disable Obscura for faster builds when browser fallback is not needed:
+| Feature               | Default | Description                                                                              |
+| --------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `builtin-tools`       | no      | All built-in tool groups (enabled by `elph` binary)                                      |
+| `tools-edit-tools`    | no      | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `tools-search`        | no      | `read_file`, `grep`, `find_path`, `list_dir`                                             |
+| `tools-web`           | no      | `web_search`, `web_fetch`                                                                |
+| `tools-collaboration` | no      | `spawn_agent`, `send_message`, …                                                         |
+| `mcp`                 | yes     | MCP client                                                                               |
+| `extensions`          | yes     | WASM extension host                                                                      |
+| `obscura`             | no      | Obscura browser fallback for web tools                                                   |
+| `tracing`             | no      | `fastrace` instrumentation                                                               |
 
 ```bash
+# Minimal agent runtime (no built-in tools, no MCP)
 cargo build -p elph-agent --no-default-features
+
+# Full coding agent stack (as used by elph)
+cargo build -p elph-agent --features "mcp,extensions,builtin-tools"
 ```
 
 The first build with `obscura` compiles V8 from source and can take a long time.
@@ -507,7 +563,8 @@ let agent = Agent::new(AgentOptions {
 For direct control without the `Agent` class:
 
 ```rust
-use elph_agent::{agent_loop, agent_loop_continue, AgentContext, AgentLoopConfig, default_convert_to_llm_fn};
+use elph_agent::{AgentContext, AgentLoopConfig};
+use elph_agent::{agent_loop, agent_loop_continue, default_convert_to_llm_fn};
 
 let context = AgentContext {
     system_prompt: "You are helpful.".into(),
@@ -540,10 +597,9 @@ These low-level streams are observational. They preserve event order, but they d
 `AgentHarness` is the session-backed orchestration layer above the low-level agent loop. It owns session persistence, runtime configuration, resource resolution, compaction, tree navigation, and extension hooks.
 
 ```rust
-use elph_agent::{
-    AgentHarness, AgentHarnessOptions, AgentHarnessResources, AgentThinkingLevel,
-    InMemorySessionStorage, LocalExecutionEnv, QueueMode, Session, SystemPrompt, echo_tool,
-};
+use elph_agent::{AgentHarness, AgentHarnessOptions, AgentHarnessResources, AgentThinkingLevel};
+use elph_agent::{InMemorySessionStorage, LocalExecutionEnv, QueueMode, Session, SystemPrompt};
+use elph_agent::echo_tool;
 use elph_ai::{Models, builtin_models};
 use std::sync::Arc;
 
@@ -576,7 +632,7 @@ See [docs/agent-harness.md](./docs/agent-harness.md) for lifecycle, phases, save
 
 ## Elph Application Integration
 
-Beyond the agent runtime, `elph-agent` provides shared application scaffolding used by Elph binaries (`elph`, `eclaw`):
+Beyond the agent runtime, `elph-agent` provides shared application scaffolding used by the `elph` binary and other crates that depend on it:
 
 ### AgentBuilder
 
@@ -609,8 +665,32 @@ ensure_databases(&[DatabaseSpec {
 | Backend                  | Use case                                |
 | ------------------------ | --------------------------------------- |
 | `InMemorySessionStorage` | Tests, ephemeral sessions               |
-| `JsonlSessionStorage`    | File-backed append-only sessions        |
+| `JsonSessionStorage`     | File-backed append-only sessions        |
 | `TursoSessionStorage`    | Durable local sessions with SQL queries |
+
+### Prompt module (`prompt/`)
+
+All prompt constants, filesystem slash-command templates, built-in formatters, and TOON encoding live under `elph-agent/src/prompt/`:
+
+| Submodule             | Purpose                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `prompt/builtin/`     | Static runtime prompts — plan mode, compaction summarization, auto session naming                                   |
+| `prompt/encoding/`    | TOON fence encoding for structured prompt payloads (`PromptEncodingConfig`, `encode_value`, `apply_to_tool_result`) |
+| `prompt/external/`    | Load `.md` slash-command templates from disk (`load_prompt_templates`)                                              |
+| `prompt/invoke`       | Argument parsing and `$1` / `$ARGUMENTS` substitution for template invocation                                       |
+| `prompt/session_name` | `generate_session_name()` — LLM-generated conversation titles                                                       |
+
+```rust
+use elph_agent::{generate_session_name, load_prompt_templates};
+
+// Auto title from transcript (e.g. after first chat turn)
+if let Some(title) = generate_session_name(&messages, &models, &model).await {
+    println!("Session: {title}");
+}
+
+// Filesystem templates
+let templates = load_prompt_templates(&env, &search_paths).await;
+```
 
 ### Skills and Prompt Templates
 
@@ -665,18 +745,51 @@ Your skill content here...
 
 ## Examples
 
-| Example                     | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `basic_agent`               | Minimal `Agent` loop with the faux provider    |
-| `agent_skills`              | Comprehensive skills demo with all spec fields |
-| `agent_skill_math`          | Math expert skill with real AI model call      |
-| `opencode_big_pickle_agent` | OpenCode Zen `big-pickle` through `Agent`      |
+| Example                   | Description                                                     |
+| ------------------------- | --------------------------------------------------------------- |
+| `basic_agent`             | OpenCode Zen `big-pickle` through `Agent`                       |
+| `agent_coding_tools`      | Live coding tools demo with real API (read_file, bash, etc.)    |
+| `agent_coding_workflow`   | Multi-step coding workflow with real API                        |
+| `agent_web_tools`         | Web search and fetch tools with real API                        |
+| `agent_search_tools`      | Read & Search tools demo (faux, no API key)                     |
+| `agent_filesystem_tools`  | Edit tools demo: create_dir, copy_path, delete_path, move_path  |
+| `agent_list_tools`        | list_available_tools introspection (faux, no API key)           |
+| `agent_collaboration`     | Collaboration mode policy and tool filtering                    |
+| `agent_subagent`          | Subagent spawn, message, followup, wait, list                   |
+| `agent_goals`             | Goal management tools                                           |
+| `agent_skills`            | Comprehensive skills demo with all spec fields                  |
+| `agent_skill_math`        | Math expert skill with real AI model call                       |
+| `agent_tools`             | Custom tools, steering, and follow-up (faux)                    |
+| `agent_harness`           | AgentHarness lifecycle demo                                     |
+| `toon_no_tools`           | TOON in user prompt (no tool calling)                           |
+| `toon_tool_call`          | TOON on custom tool JSON results                                |
+| `toon_mcp_deepwiki`       | TOON on DeepWiki MCP tool results                               |
+| `default_no_tools`        | Baseline (encoding off) — pair with `toon_no_tools`             |
+| `default_tool_call`       | Baseline (encoding off) — pair with `toon_tool_call`            |
+| `default_mcp_deepwiki`    | Baseline (encoding off) — pair with `toon_mcp_deepwiki`         |
 
 ```bash
+# Faux provider examples (no API key needed)
+cargo run -p elph-agent --features builtin-tools --example agent_search_tools
+cargo run -p elph-agent --features builtin-tools --example agent_filesystem_tools
+cargo run -p elph-agent --features builtin-tools --example agent_list_tools
+cargo run -p elph-agent --example agent_tools
+
+# Real API examples (requires OPENCODE_API_KEY)
+export OPENCODE_API_KEY="your-key"
+cargo run -p elph-agent --features builtin-tools --example agent_coding_tools
+cargo run -p elph-agent --features builtin-tools --example agent_web_tools
 cargo run -p elph-agent --example basic_agent
-cargo run -p elph-agent --example agent_skills
-cargo run -p elph-agent --example agent_skill_math
-cargo run -p elph-agent --example opencode_big_pickle_agent -- --prompt "Hello!"
+
+# TOON comparison
+cargo run -p elph-agent --example toon_tool_call
+cargo run -p elph-agent --example default_tool_call   # same prompt, compare tokens
+
+# MCP examples
+cargo run -p elph-agent --features mcp --example toon_mcp_deepwiki
+```
+
+TOON comparison examples print a **Comparison summary** (tokens in/out, prompt bytes). Use identical flags on paired `toon_*` and `default_*` runs. See [docs/prompt-encoding.md](./docs/prompt-encoding.md).
 
 For provider-level OpenCode streaming (without the agent loop), see `elph-ai` example `opencode_big_pickle`.
 
@@ -685,16 +798,17 @@ For provider-level OpenCode streaming (without the agent loop), see `elph-ai` ex
 | Document                                        | Description                                    |
 | ----------------------------------------------- | ---------------------------------------------- |
 | [tools.md](./docs/tools.md)                     | Built-in tools, web search/fetch, `fff-search` |
-| [skills.md](./docs/skills.md)                   | Skills loading, validation, formatting        |
+| [prompt-encoding.md](./docs/prompt-encoding.md) | TOON encoding for tool results and prompts     |
+| [skills.md](./docs/skills.md)                   | Skills loading, validation, formatting         |
+| [mcp.md](./docs/mcp.md)                         | MCP client, tool naming, DeepWiki              |
 | [agent-harness.md](./docs/agent-harness.md)     | Harness lifecycle, phases, save points         |
 | [hooks.md](./docs/hooks.md)                     | Hook design and mutation semantics             |
 | [models.md](./docs/models.md)                   | `elph_ai::Models` integration with harness     |
 | [durable-harness.md](./docs/durable-harness.md) | Semi-durable harness design (planned)          |
-| [observability.md](./docs/observability.md)     | Observability design notes (planned)           |
+| [observability.md](./docs/observability.md)     | Logging, fastrace spans, env vars, propagation |
 
 Full `elph-ai` provider architecture is documented in the [`elph-ai`](../elph-ai) crate.
 
 ## License
 
 Licensed under the [MIT License](https://www.tldrlegal.com/license/mit-license).
-```

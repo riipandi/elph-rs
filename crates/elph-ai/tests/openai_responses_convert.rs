@@ -26,6 +26,7 @@ fn hashes_foreign_copilot_tool_item_ids_to_fc_prefix() {
         api: "openai-responses".to_string(),
         provider: "github-copilot".to_string(),
         model: "gpt-5.5".to_string(),
+        diagnostics: None,
         usage: Usage::default(),
         stop_reason: StopReason::ToolUse,
         timestamp: 0,
@@ -46,6 +47,7 @@ fn hashes_foreign_copilot_tool_item_ids_to_fc_prefix() {
                 tool_name: "edit".to_string(),
                 content: vec![elph_ai::types::ContentBlock::Text { text: "ok".to_string() }],
                 details: None,
+                added_tool_names: None,
                 is_error: false,
                 timestamp: 1,
             },
@@ -62,10 +64,7 @@ fn hashes_foreign_copilot_tool_item_ids_to_fc_prefix() {
         .find(|item| item.get("type").and_then(|v| v.as_str()) == Some("function_call"))
         .expect("function_call");
     let expected_item_id = format!("fc_{}", short_hash(COPILOT_ITEM_ID));
-    assert_eq!(
-        tool_call.get("id").and_then(|v| v.as_str()),
-        Some(expected_item_id.as_str())
-    );
+    assert_eq!(tool_call.get("id").and_then(|v| v.as_str()), Some(expected_item_id.as_str()));
     assert!(expected_item_id.len() <= 64);
 }
 
@@ -84,6 +83,7 @@ fn preserves_native_openai_tool_call_ids() {
         api: model.api.clone(),
         provider: model.provider.clone(),
         model: model.id.clone(),
+        diagnostics: None,
         usage: Usage::default(),
         stop_reason: StopReason::ToolUse,
         timestamp: 0,

@@ -2,26 +2,24 @@
 
 use std::collections::HashSet;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::codex_transport::{
-    CodexTransport, CodexTransportOptions, collect_codex_events_detailed, update_codex_websocket_continuation,
-};
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, is_request_aborted, merge_model_headers,
-};
+use crate::api::codex_transport::{CodexTransport, CodexTransportOptions};
+use crate::api::codex_transport::{collect_codex_events_detailed, update_codex_websocket_continuation};
+use crate::api::common::merge_model_headers;
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error, is_request_aborted};
 use crate::api::openai_prompt_cache::clamp_openai_prompt_cache_key;
-use crate::api::openai_responses_shared::{
-    ConvertResponsesMessagesOptions, convert_responses_messages, convert_responses_tools, process_responses_stream,
-};
+use crate::api::openai_responses_shared::ConvertResponsesMessagesOptions;
+use crate::api::openai_responses_shared::process_responses_stream;
+use crate::api::openai_responses_shared::{convert_responses_messages, convert_responses_tools};
 use crate::api::simple_options::build_base_options;
 use crate::models::{clamp_thinking_level, thinking_level_to_str};
-use crate::types::{
-    AssistantMessage, AssistantMessageEvent, Context, Message, Model, ProviderStreams, SimpleStreamOptions, StopReason,
-    StreamOptions, Usage,
-};
+use crate::types::{AssistantMessage, AssistantMessageEvent, Context, Message, Model, ProviderStreams};
+use crate::types::{SimpleStreamOptions, StopReason, StreamOptions, Usage};
 use crate::utils::event_stream::AssistantMessageEventStream;
 
 const DEFAULT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api";
@@ -217,12 +215,20 @@ fn build_request_body(
     options: &OpenAICodexResponsesOptions,
     providers: &HashSet<String>,
 ) -> Result<Value> {
+    let supports_tool_search = model
+        .openai_responses_compat
+        .as_ref()
+        .and_then(|c| c.supports_tool_search)
+        .unwrap_or(false);
+    let (immediate_tools, deferred_map) =
+        crate::utils::deferred_tools::split_deferred_tools(context, supports_tool_search, None);
     let messages = convert_responses_messages(
         model,
         context,
         providers,
         Some(ConvertResponsesMessagesOptions {
             include_system_prompt: false,
+            deferred_tools: Some(deferred_map),
         }),
     );
     let mut body = json!({
@@ -237,10 +243,8 @@ fn build_request_body(
         "tool_choice": "auto",
         "parallel_tool_calls": true
     });
-    if let Some(tools) = &context.tools
-        && !tools.is_empty()
-    {
-        body["tools"] = json!(convert_responses_tools(tools, Some(false)));
+    if !immediate_tools.is_empty() {
+        body["tools"] = json!(convert_responses_tools(&immediate_tools, Some(false)));
     }
     if let Some(effort) = &options.reasoning_effort {
         body["reasoning"] = json!({
@@ -296,6 +300,7 @@ fn response_items_from_output(model: &Model, output: &AssistantMessage, provider
         providers,
         Some(ConvertResponsesMessagesOptions {
             include_system_prompt: false,
+            deferred_tools: None,
         }),
     )
     .into_iter()

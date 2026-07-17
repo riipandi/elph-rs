@@ -3,19 +3,17 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::auth::oauth::{
-    anthropic_oauth, github_copilot_oauth, hyper_api_base_url, hyper_oauth, hyper_user_agent, openai_codex_oauth,
-};
-use crate::auth::{AuthResolveInput, AuthResult, ModelAuth, ProviderAuth, env_api_key_auth};
+use crate::auth::env_api_key_auth;
+use crate::auth::oauth::openai_codex_oauth;
+use crate::auth::oauth::{anthropic_oauth, github_copilot_oauth, hyper_api_base_url, hyper_oauth, hyper_user_agent};
+use crate::auth::{AuthResolveInput, AuthResult, ModelAuth, ProviderAuth};
 use crate::models::catalog::*;
-use crate::models::{
-    CreateModelsOptions, CreateProviderOptions, MutableModels, Provider, ProviderApi, create_models, create_provider,
-};
-use crate::providers::adapter::{
-    anthropic_messages_api, azure_openai_responses_api, bedrock_converse_stream_api, google_generative_ai_api,
-    google_vertex_api, mistral_conversations_api, mixed_openai_apis, openai_codex_responses_api,
-    openai_completions_api, openai_responses_api,
-};
+use crate::models::{CreateModelsOptions, CreateProviderOptions, MutableModels, Provider, ProviderApi};
+use crate::models::{create_models, create_provider};
+use crate::providers::adapter::openai_responses_api;
+use crate::providers::adapter::{anthropic_messages_api, azure_openai_responses_api, bedrock_converse_stream_api};
+use crate::providers::adapter::{google_generative_ai_api, google_vertex_api, mistral_conversations_api};
+use crate::providers::adapter::{mixed_openai_apis, openai_codex_responses_api, openai_completions_api};
 use crate::providers::cloudflare_auth::{cloudflare_ai_gateway_auth, cloudflare_workers_ai_auth};
 
 macro_rules! simple_provider {

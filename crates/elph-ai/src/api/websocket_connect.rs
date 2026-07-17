@@ -4,7 +4,8 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 
-use anyhow::{Context as AnyhowContext, Result, anyhow, bail};
+use anyhow::{Context as AnyhowContext, Result};
+use anyhow::{anyhow, bail};
 use rustls::ClientConfig;
 use rustls::RootCertStore;
 use rustls::pki_types::ServerName;

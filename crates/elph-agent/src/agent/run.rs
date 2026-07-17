@@ -4,10 +4,11 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use elph_ai::{ImageContent, Message, SimpleStreamOptions, UserContent};
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent_loop::{run_agent_loop, run_agent_loop_continue};
+use crate::runtime::{run_agent_loop, run_agent_loop_continue};
 use crate::types::{AgentContext, AgentLoopConfig, AgentMessage, AgentThinkingLevel};
 
 use super::events::{now_ms, process_event};
@@ -191,10 +192,11 @@ impl Agent {
             before_tool_call: self.before_tool_call.clone(),
             after_tool_call: self.after_tool_call.clone(),
             stream_fn: Some(self.stream_fn.clone()),
+            prompt_encoding: self.prompt_encoding.clone(),
         }
     }
 
-    fn create_emit_callback(&self, token: CancellationToken) -> crate::agent_loop::AgentEventCallback {
+    fn create_emit_callback(&self, token: CancellationToken) -> crate::runtime::AgentEventCallback {
         let state = self.state.clone();
         let listeners = self.listeners.clone();
 

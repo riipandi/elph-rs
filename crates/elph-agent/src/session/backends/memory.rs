@@ -6,9 +6,12 @@ use tokio::sync::Mutex;
 
 use crate::session::id::{generate_entry_id, generate_session_id};
 use crate::session::storage_utils::{append_to_index, build_index, create_leaf_entry, find_entries, get_path_to_root};
-use crate::session::types::{
-    SessionError, SessionErrorCode, SessionIndex, SessionMetadata, SessionStorage, SessionTreeEntry,
-};
+use crate::session::types::SessionError;
+use crate::session::types::SessionErrorCode;
+use crate::session::types::SessionIndex;
+use crate::session::types::SessionMetadata;
+use crate::session::types::SessionStorage;
+use crate::session::types::SessionTreeEntry;
 
 #[derive(Clone)]
 pub struct InMemorySessionStorage {

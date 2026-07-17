@@ -1,10 +1,17 @@
 use std::fs;
 
-use elph_agent::{
-    AgentMessage, BranchSummaryOptions, EVENTS_FILE, InMemorySessionStorage, SUMMARY_FILE, Session,
-    SessionDirCreateOptions, SessionDirStorage, SessionStorage, SessionTreeEntry, TursoSessionStorage,
-};
-use elph_ai::{Message, UserContent, faux_assistant_message, faux_text};
+use elph_agent::AgentMessage;
+use elph_agent::BranchSummaryOptions;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::Session;
+use elph_agent::SessionDirCreateOptions;
+use elph_agent::SessionDirStorage;
+use elph_agent::SessionStorage;
+use elph_agent::SessionTreeEntry;
+use elph_agent::TursoSessionStorage;
+use elph_agent::{EVENTS_FILE, SUMMARY_FILE};
+use elph_ai::{Message, UserContent};
+use elph_ai::{faux_assistant_message, faux_text};
 use serde_json::json;
 
 fn user_message(text: &str) -> AgentMessage {
@@ -89,10 +96,7 @@ where
         .expect("compact");
     session.append_message(user_message("five")).await.expect("append");
     let context = session.build_context().await.expect("context");
-    assert_eq!(
-        context.messages.first().map(AgentMessage::role),
-        Some("compactionSummary")
-    );
+    assert_eq!(context.messages.first().map(AgentMessage::role), Some("compactionSummary"));
     assert_eq!(context.messages.len(), 4);
 
     let mut session = Session::new(create_storage().await);
@@ -236,10 +240,7 @@ async fn session_dir_file_layout_matches_multi_file_format() {
 
     let summary: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(session_dir.join(SUMMARY_FILE)).expect("summary")).expect("summary");
-    assert_eq!(
-        summary.get("info").and_then(|info| info.get("id")),
-        Some(&json!("session-1"))
-    );
+    assert_eq!(summary.get("info").and_then(|info| info.get("id")), Some(&json!("session-1")));
 
     let events: Vec<serde_json::Value> = fs::read_to_string(session_dir.join(EVENTS_FILE))
         .expect("events")

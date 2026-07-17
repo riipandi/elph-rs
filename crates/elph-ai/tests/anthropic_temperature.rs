@@ -1,7 +1,8 @@
 mod common;
 
 use common::{anthropic_model, sample_user_context};
-use elph_ai::api::anthropic_messages::{AnthropicOptions, build_anthropic_messages_params};
+use elph_ai::api::anthropic_messages::AnthropicOptions;
+use elph_ai::api::anthropic_messages::build_anthropic_messages_params;
 use elph_ai::get_builtin_model;
 use elph_ai::types::AnthropicMessagesCompat;
 

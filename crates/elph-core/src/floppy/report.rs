@@ -1,10 +1,8 @@
 use anyhow::Result;
 
 use super::store::MemoryStore;
-use super::types::{
-    ContradictResult, EndTaskWithDecayResult, MemoryCategory, MemoryReportInput, MemoryReportType,
-    ReportCorrectionInput, ReportUserInput, TaskEndInput,
-};
+use super::types::{ContradictResult, EndTaskWithDecayResult, MemoryCategory, MemoryReportInput, MemoryReportType};
+use super::types::{ReportCorrectionInput, ReportUserInput, TaskEndInput};
 
 impl MemoryStore {
     /// Unified memory report (correction, user input, or insight).
@@ -92,5 +90,24 @@ impl MemoryReportInput {
             tools_wasted: None,
             source: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn correction_input_builds_correctly() {
+        let input = MemoryReportInput::correction("learned something", "query failed", "bash worked");
+        assert_eq!(input.lesson, "learned something");
+        assert_eq!(input.what_failed, Some("query failed".into()));
+        assert_eq!(input.what_worked, Some("bash worked".into()));
+    }
+
+    #[test]
+    fn user_input_builds_correctly() {
+        let input = MemoryReportInput::user_input("hello", crate::floppy::types::UserInputSource::UserInput);
+        assert_eq!(input.lesson, "hello");
     }
 }

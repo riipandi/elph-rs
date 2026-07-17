@@ -2,24 +2,20 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key,
-    invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
 use crate::api::github_copilot_headers::{build_copilot_dynamic_headers, has_copilot_vision_input};
 use crate::api::openai_prompt_cache::clamp_openai_prompt_cache_key;
-use crate::api::openai_responses_shared::{
-    OpenAIResponsesStreamOptions, ResponsesStreamState, convert_responses_messages, convert_responses_tools,
-    process_responses_stream_event,
-};
+use crate::api::openai_responses_shared::process_responses_stream_event;
+use crate::api::openai_responses_shared::{OpenAIResponsesStreamOptions, ResponsesStreamState};
+use crate::api::openai_responses_shared::{convert_responses_messages, convert_responses_tools};
 use crate::api::simple_options::build_base_options;
 use crate::models::{clamp_thinking_level, thinking_level_to_str};
-use crate::types::{
-    AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams, SimpleStreamOptions, StopReason,
-    StreamOptions, Usage,
-};
+use crate::types::{AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams, SimpleStreamOptions};
+use crate::types::{StopReason, StreamOptions, Usage};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::provider_env::get_provider_env_value;
 
@@ -137,14 +133,7 @@ async fn run_openai_responses(
     };
     let mut responses_state = ResponsesStreamState::default();
     for_each_sse_json_event(response, &options.base.signal, |event| {
-        process_responses_stream_event(
-            &event,
-            &mut responses_state,
-            output,
-            stream,
-            model,
-            Some(&stream_options),
-        )
+        process_responses_stream_event(&event, &mut responses_state, output, stream, model, Some(&stream_options))
     })
     .await?;
 
@@ -180,7 +169,22 @@ fn build_params(
     options: &OpenAIResponsesOptions,
     providers: &HashSet<String>,
 ) -> Result<Value> {
-    let messages = convert_responses_messages(model, context, providers, None);
+    let supports_tool_search = model
+        .openai_responses_compat
+        .as_ref()
+        .and_then(|c| c.supports_tool_search)
+        .unwrap_or(false);
+    let (immediate_tools, deferred_map) =
+        crate::utils::deferred_tools::split_deferred_tools(context, supports_tool_search, None);
+    let messages = convert_responses_messages(
+        model,
+        context,
+        providers,
+        Some(crate::api::openai_responses_shared::ConvertResponsesMessagesOptions {
+            include_system_prompt: true,
+            deferred_tools: Some(deferred_map),
+        }),
+    );
     let cache_retention = resolve_cache_retention(&options.base);
     let mut params = json!({
         "model": model.id,
@@ -211,10 +215,8 @@ fn build_params(
     if let Some(temp) = options.base.temperature {
         params["temperature"] = json!(temp);
     }
-    if let Some(tools) = &context.tools
-        && !tools.is_empty()
-    {
-        params["tools"] = json!(convert_responses_tools(tools, None));
+    if !immediate_tools.is_empty() {
+        params["tools"] = json!(convert_responses_tools(&immediate_tools, None));
     }
     if model.reasoning
         && let Some(effort) = &options.reasoning_effort

@@ -11,12 +11,14 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use std::time::{SystemTime, UNIX_EPOCH};
-use turso::{Builder, Connection, Database, params};
+use turso::params;
+use turso::{Builder, Connection, Database};
 
 use super::migrations;
 use super::scoring::empty_baseline;
 use super::types::{FloppyConfig, TaskBaseline, VectorType};
-use super::util::{DEFAULT_EMBEDDING_DIMS, drain_rows, retrieval_sql};
+use super::util::DEFAULT_EMBEDDING_DIMS;
+use super::util::{drain_rows, retrieval_sql};
 
 pub type EmbedFuture = Pin<Box<dyn Future<Output = Result<Vec<f32>>> + Send>>;
 pub type EmbedFn = Arc<dyn Fn(&str) -> EmbedFuture + Send + Sync>;
@@ -57,11 +59,8 @@ pub(super) async fn touch_retrieved_memories(conn: &Connection, memory_ids: &[St
 
 pub(super) async fn batch_set_weights(conn: &Connection, updates: &[WeightUpdate]) -> Result<()> {
     for (id, weight) in updates {
-        conn.execute(
-            "UPDATE memories SET weight = ? WHERE id = ?",
-            params![weight, id.as_str()],
-        )
-        .await?;
+        conn.execute("UPDATE memories SET weight = ? WHERE id = ?", params![weight, id.as_str()])
+            .await?;
     }
     Ok(())
 }
@@ -71,7 +70,35 @@ pub(crate) fn now_secs() -> i64 {
 }
 
 pub(super) fn new_id() -> String {
-    tsid::create_tsid().to_string()
+    unique_kalid()
+}
+
+fn unique_kalid() -> String {
+    use std::cell::RefCell;
+    use std::thread;
+    use std::time::Duration;
+
+    thread_local! {
+        static LAST_KALID: RefCell<Option<String>> = const { RefCell::new(None) };
+    }
+
+    for _ in 0..100 {
+        let id = kalid::generate_kalid();
+        let duplicate = LAST_KALID.with(|cell| {
+            let mut last = cell.borrow_mut();
+            if last.as_deref() == Some(id.as_str()) {
+                true
+            } else {
+                *last = Some(id.clone());
+                false
+            }
+        });
+        if !duplicate {
+            return id;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    kalid::generate_kalid()
 }
 
 /// Remove retrieval rows whose memory was deleted (prevents unbounded table growth).

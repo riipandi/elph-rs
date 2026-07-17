@@ -15,6 +15,7 @@ mod run;
 mod server;
 mod session;
 mod stats;
+mod tools;
 mod update;
 pub mod version;
 mod worktree;
@@ -39,6 +40,7 @@ pub use run::RunArgs;
 pub use server::ServerArgs;
 pub use session::SessionArgs;
 pub use stats::StatsArgs;
+pub use tools::ToolsArgs;
 pub use update::UpdateArgs;
 pub use worktree::WorktreeArgs;
 
@@ -95,20 +97,22 @@ pub enum Commands {
     Update(UpdateArgs),
     /// Print version information
     Version,
+    /// List available agent tools and their descriptions
+    Tools(ToolsArgs),
     /// Manage git worktrees
     Worktree(WorktreeArgs),
 }
 
 fn init_home() -> Result<crate::platform::Paths, ExitCode> {
     crate::platform::ensure_home_blocking(env!("CARGO_PKG_VERSION")).map_err(|err| {
-        tracing::error!(error = %err, "failed to initialize elph home");
+        help::cli_error(format!("failed to initialize elph home: {err}"));
         crate::platform::EXIT_ERROR
     })
 }
 
 fn init_datastore(paths: &crate::platform::Paths) -> Result<(), ExitCode> {
     crate::platform::ensure_datastore_blocking(paths).map_err(|err| {
-        tracing::error!(error = %err, "failed to initialize elph databases");
+        help::cli_error(format!("failed to initialize elph databases: {err}"));
         crate::platform::EXIT_ERROR
     })
 }
@@ -184,6 +188,7 @@ pub fn run(cli: &Cli) -> ExitCode {
         Commands::Stats(args) => stats::handle(args),
         Commands::Update(args) => update::handle(args),
         Commands::Version => version::handle(),
+        Commands::Tools(args) => tools::handle(args),
         Commands::Worktree(args) => worktree::handle(args),
     }
 }

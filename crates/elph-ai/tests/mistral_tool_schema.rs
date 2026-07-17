@@ -1,4 +1,5 @@
-use elph_ai::api::mistral_conversations::{MistralOptions, build_mistral_conversations_payload};
+use elph_ai::api::mistral_conversations::MistralOptions;
+use elph_ai::api::mistral_conversations::build_mistral_conversations_payload;
 use elph_ai::get_builtin_model;
 use elph_ai::types::{Context, Message, Tool, UserContent};
 use serde_json::json;
@@ -33,9 +34,6 @@ fn serializes_nested_tool_parameters_as_plain_json() {
     let parameters = &payload["tools"][0]["function"]["parameters"];
     assert_eq!(parameters["type"], "object");
     assert_eq!(parameters["properties"]["nested"]["type"], "object");
-    assert_eq!(
-        parameters["properties"]["nested"]["properties"]["value"]["type"],
-        "string"
-    );
+    assert_eq!(parameters["properties"]["nested"]["properties"]["value"]["type"], "string");
     assert!(parameters.as_object().unwrap().keys().all(|k| !k.starts_with('$')));
 }

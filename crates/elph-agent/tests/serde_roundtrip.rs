@@ -1,5 +1,7 @@
-use elph_agent::{AgentMessage, llm_message_to_agent};
-use elph_ai::{Message, UserContent, faux_assistant_message, faux_text};
+use elph_agent::AgentMessage;
+use elph_agent::llm_message_to_agent;
+use elph_ai::{Message, UserContent};
+use elph_ai::{faux_assistant_message, faux_text};
 
 #[test]
 fn agent_message_roundtrip_user() {

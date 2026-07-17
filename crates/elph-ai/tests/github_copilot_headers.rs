@@ -1,6 +1,5 @@
-use elph_ai::api::github_copilot_headers::{
-    build_copilot_dynamic_headers, has_copilot_vision_input, infer_copilot_initiator,
-};
+use elph_ai::api::github_copilot_headers::infer_copilot_initiator;
+use elph_ai::api::github_copilot_headers::{build_copilot_dynamic_headers, has_copilot_vision_input};
 use elph_ai::types::{ContentBlock, Message, UserContent};
 
 #[test]

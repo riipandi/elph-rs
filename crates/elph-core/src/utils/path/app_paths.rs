@@ -41,6 +41,13 @@ pub trait AppPaths {
         self.config_dir().join("mcp.json")
     }
 
+    /// Shared OAuth / credential store file (default `auth.json` under config dir).
+    ///
+    /// Host-agnostic: elph → `~/.elph/auth.json`, other apps join their own `config_dir`.
+    fn auth_store_path(&self) -> PathBuf {
+        self.config_dir().join("auth.json")
+    }
+
     fn skills_dir(&self) -> PathBuf {
         self.config_dir().join("skills")
     }
@@ -65,7 +72,7 @@ pub trait AppPaths {
         self.data_dir().join("vendor")
     }
 
-    /// Local ONNX embedding model cache (fastembed / Hugging Face downloads).
+    /// Local embedding model cache (embed_anything / Hugging Face downloads).
     fn models_dir(&self) -> PathBuf {
         self.data_dir().join("models")
     }

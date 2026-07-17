@@ -1,4 +1,5 @@
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use elph_agent::try_block_on;
 
 use super::format::{

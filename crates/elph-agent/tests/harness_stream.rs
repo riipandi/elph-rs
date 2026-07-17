@@ -6,15 +6,23 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 
-use elph_agent::harness::types::AgentHarnessStreamOptionsPatch;
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessEvent;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessOwnEvent;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentHarnessStreamOptions;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::Session;
+use elph_agent::SystemPrompt;
+use elph_agent::agent::harness::types::AgentHarnessStreamOptionsPatch;
 use elph_agent::runtime::try_block_on;
 use elph_agent::session::types::HasSessionId;
-use elph_agent::{
-    AgentHarness, AgentHarnessEvent, AgentHarnessOptions, AgentHarnessOwnEvent, AgentHarnessResources,
-    AgentHarnessStreamOptions, AgentThinkingLevel, InMemorySessionStorage, LocalExecutionEnv, Session, SystemPrompt,
-    simple_tool,
-};
-use elph_ai::{FauxResponseStep, StopReason, Tool, faux_assistant_message, faux_text, faux_tool_call};
+use elph_agent::simple_tool;
+use elph_ai::{FauxResponseStep, StopReason, Tool};
+use elph_ai::{faux_assistant_message, faux_text, faux_tool_call};
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -66,12 +74,10 @@ async fn harness_snapshots_stream_options_before_provider_request() {
 
     let captured = Arc::new(Mutex::new(None));
     let captured_clone = captured.clone();
-    faux.set_responses(vec![FauxResponseStep::Factory(Arc::new(
-        move |_context, options, _, _| {
-            *captured_clone.lock() = options.cloned();
-            faux_assistant_message(vec![faux_text("ok")], None)
-        },
-    ))]);
+    faux.set_responses(vec![FauxResponseStep::Factory(Arc::new(move |_context, options, _, _| {
+        *captured_clone.lock() = options.cloned();
+        faux_assistant_message(vec![faux_text("ok")], None)
+    }))]);
 
     let session = Session::new(InMemorySessionStorage::new(None).expect("session storage"));
     let session_id = session.metadata().await.session_id().to_string();
@@ -118,10 +124,7 @@ async fn harness_snapshots_stream_options_before_provider_request() {
             .and_then(|v| v.as_deref()),
         Some("base")
     );
-    assert_eq!(
-        options.metadata.as_ref().and_then(|m| m.get("base")),
-        Some(&json!(true))
-    );
+    assert_eq!(options.metadata.as_ref().and_then(|m| m.get("base")), Some(&json!(true)));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -214,12 +217,10 @@ async fn harness_chains_provider_request_patches_with_deletion() {
 
     let captured = Arc::new(Mutex::new(None));
     let captured_clone = captured.clone();
-    faux.set_responses(vec![FauxResponseStep::Factory(Arc::new(
-        move |_context, options, _, _| {
-            *captured_clone.lock() = options.cloned();
-            faux_assistant_message(vec![faux_text("ok")], None)
-        },
-    ))]);
+    faux.set_responses(vec![FauxResponseStep::Factory(Arc::new(move |_context, options, _, _| {
+        *captured_clone.lock() = options.cloned();
+        faux_assistant_message(vec![faux_text("ok")], None)
+    }))]);
 
     let harness = AgentHarness::new(AgentHarnessOptions {
         env,
@@ -591,10 +592,7 @@ async fn harness_after_provider_response_captures_status_and_headers() {
     let (status, headers) = captured.lock().clone().expect("response metadata");
     assert_eq!(status, 200);
     assert_eq!(headers.get("x-faux-provider").map(String::as_str), Some("ok"));
-    assert_eq!(
-        headers.get("content-type").map(String::as_str),
-        Some("text/event-stream")
-    );
+    assert_eq!(headers.get("content-type").map(String::as_str), Some("text/event-stream"));
 }
 
 #[tokio::test(flavor = "multi_thread")]

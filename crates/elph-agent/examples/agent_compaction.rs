@@ -6,11 +6,10 @@
 //! cargo run -p elph-agent --example agent_compaction
 //! ```
 
-use elph_agent::{
-    AgentMessage,
-    compaction::{CompactionSettings, estimate_context_tokens, should_compact},
-    llm_message_to_agent,
-};
+use elph_agent::AgentMessage;
+use elph_agent::compaction::CompactionSettings;
+use elph_agent::compaction::{estimate_context_tokens, should_compact};
+use elph_agent::llm_message_to_agent;
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -35,32 +34,31 @@ fn create_long_conversation(turns: usize) -> Vec<AgentMessage> {
             "Assistant response {i}: Rust is a systems programming language focused on \
              safety, speed, and concurrency. This is turn {i} of {turns}."
         );
-        messages.push(llm_message_to_agent(elph_ai::Message::Assistant(
-            elph_ai::AssistantMessage {
-                role: "assistant".into(),
-                content: vec![elph_ai::AssistantContentBlock::Text(elph_ai::TextContent::new(
-                    &response,
-                ))],
-                api: "faux".into(),
-                provider: "faux".into(),
-                model: "faux-1".into(),
-                response_model: None,
-                response_id: None,
-                usage: elph_ai::Usage {
-                    input: 100 + i as u64 * 50,
-                    output: 200 + i as u64 * 100,
-                    cache_read: 0,
-                    cache_write: 0,
-                    cache_write_1h: None,
-                    reasoning: None,
-                    total_tokens: 300 + i as u64 * 150,
-                    cost: elph_ai::UsageCost::default(),
-                },
-                stop_reason: elph_ai::StopReason::Stop,
-                error_message: None,
-                timestamp: now_ms(),
+        messages.push(llm_message_to_agent(elph_ai::Message::Assistant(elph_ai::AssistantMessage {
+            role: "assistant".into(),
+            content: vec![elph_ai::AssistantContentBlock::Text(elph_ai::TextContent::new(
+                &response,
+            ))],
+            api: "faux".into(),
+            provider: "faux".into(),
+            model: "faux-1".into(),
+            response_model: None,
+            response_id: None,
+            diagnostics: None,
+            usage: elph_ai::Usage {
+                input: 100 + i as u64 * 50,
+                output: 200 + i as u64 * 100,
+                cache_read: 0,
+                cache_write: 0,
+                cache_write_1h: None,
+                reasoning: None,
+                total_tokens: 300 + i as u64 * 150,
+                cost: elph_ai::UsageCost::default(),
             },
-        )));
+            stop_reason: elph_ai::StopReason::Stop,
+            error_message: None,
+            timestamp: now_ms(),
+        })));
     }
 
     messages

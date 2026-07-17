@@ -2,12 +2,19 @@
 
 use parking_lot::Mutex;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::types::{
-    CreateDirOptions, ExecutionErrorCode, FileErrorCode, FileKind, FileSystem, ReadTextLinesOptions, RemoveOptions,
-    Result, Shell, ShellExecOptions, get_or_throw,
-};
-use elph_agent::harness::utils::execute_shell_with_capture;
+use elph_agent::agent::harness::types::CreateDirOptions;
+use elph_agent::agent::harness::types::ExecutionErrorCode;
+use elph_agent::agent::harness::types::FileErrorCode;
+use elph_agent::agent::harness::types::FileKind;
+use elph_agent::agent::harness::types::FileSystem;
+use elph_agent::agent::harness::types::ReadTextLinesOptions;
+use elph_agent::agent::harness::types::RemoveOptions;
+use elph_agent::agent::harness::types::Result;
+use elph_agent::agent::harness::types::Shell;
+use elph_agent::agent::harness::types::ShellExecOptions;
+use elph_agent::agent::harness::types::get_or_throw;
+use elph_agent::agent::harness::utils::execute_shell_with_capture;
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_core::utils::lines::count_lines;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
@@ -29,15 +36,12 @@ async fn reads_writes_lists_and_removes_files() {
     get_or_throw(env.create_dir("nested/child", true).await);
     get_or_throw(env.write_file("nested/child/file.txt", "hel").await);
     get_or_throw(FileSystem::append_file(&env, "nested/child/file.txt", b"lo", None).await);
-    assert_eq!(
-        get_or_throw(env.read_text_file("nested/child/file.txt", None).await),
-        "hello"
-    );
+    assert_eq!(get_or_throw(env.read_text_file("nested/child/file.txt", None).await), "hello");
     assert_eq!(
         get_or_throw(
             env.read_text_lines(
                 "nested/child/file.txt",
-                Some(elph_agent::harness::types::ReadTextLinesOptions {
+                Some(elph_agent::agent::harness::types::ReadTextLinesOptions {
                     max_lines: Some(1),
                     abort_token: None,
                 }),
@@ -109,10 +113,7 @@ async fn appends_to_new_files_and_creates_parent_directories() {
     let (_temp, env) = env_in_temp();
     get_or_throw(FileSystem::append_file(&env, "new/nested/file.txt", b"a", None).await);
     get_or_throw(FileSystem::append_file(&env, "new/nested/file.txt", b"b", None).await);
-    assert_eq!(
-        get_or_throw(env.read_text_file("new/nested/file.txt", None).await),
-        "ab"
-    );
+    assert_eq!(get_or_throw(env.read_text_file("new/nested/file.txt", None).await), "ab");
 }
 
 #[tokio::test]
@@ -122,7 +123,7 @@ async fn creates_temporary_directories_and_files() {
     assert!(std::path::Path::new(&temp_dir).exists());
 
     let temp_file = get_or_throw(
-        env.create_temp_file(Some(elph_agent::harness::types::CreateTempFileOptions {
+        env.create_temp_file(Some(elph_agent::agent::harness::types::CreateTempFileOptions {
             prefix: "prefix-".to_string(),
             suffix: ".txt".to_string(),
             abort_token: None,
@@ -280,7 +281,7 @@ async fn returns_aborted_results_for_cancelled_file_operations() {
     let token = CancellationToken::new();
     token.cancel();
 
-    fn assert_aborted<T>(result: Result<T, elph_agent::harness::types::FileError>) {
+    fn assert_aborted<T>(result: Result<T, elph_agent::agent::harness::types::FileError>) {
         assert!(result.is_err());
         if let Result::Err(error) = result {
             assert_eq!(error.code, FileErrorCode::Aborted);
@@ -291,7 +292,7 @@ async fn returns_aborted_results_for_cancelled_file_operations() {
     assert_aborted(
         env.read_text_lines(
             "file.txt",
-            Some(elph_agent::harness::types::ReadTextLinesOptions {
+            Some(elph_agent::agent::harness::types::ReadTextLinesOptions {
                 max_lines: None,
                 abort_token: Some(token.clone()),
             }),
@@ -324,6 +325,7 @@ async fn executes_commands_in_cwd_with_env_overrides() {
                 abort_token: None,
                 on_stdout: None,
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await,
@@ -357,6 +359,7 @@ async fn streams_stdout_and_stderr_chunks() {
                 on_stderr: Some(std::sync::Arc::new(move |chunk| {
                     stderr_capture.lock().push_str(chunk);
                 })),
+                ..Default::default()
             }),
         )
         .await,
@@ -366,6 +369,36 @@ async fn streams_stdout_and_stderr_chunks() {
     assert!(result.stderr.contains("err"));
     assert!(stdout.lock().contains("out"));
     assert!(stderr.lock().contains("err"));
+}
+
+#[tokio::test]
+async fn streams_chunks_before_command_finishes() {
+    let (_temp, env) = env_in_temp();
+    let seen = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen_capture = seen.clone();
+
+    let result = get_or_throw(
+        env.exec(
+            "printf early; sleep 0.2; printf late",
+            Some(ShellExecOptions {
+                cwd: None,
+                env: None,
+                timeout: Some(5),
+                abort_token: None,
+                on_stdout: Some(std::sync::Arc::new(move |chunk| {
+                    if chunk.contains("early") {
+                        seen_capture.store(true, std::sync::atomic::Ordering::SeqCst);
+                    }
+                })),
+                on_stderr: None,
+                ..Default::default()
+            }),
+        )
+        .await,
+    );
+
+    assert!(seen.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(result.stdout.contains("late"));
 }
 
 #[tokio::test]
@@ -390,6 +423,7 @@ async fn returns_timeout_errors_for_commands_exceeding_timeout() {
                 abort_token: None,
                 on_stdout: None,
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await;
@@ -414,6 +448,7 @@ async fn returns_callback_errors_from_exec_stream_handlers() {
                     panic!("callback failed");
                 })),
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await;
@@ -459,6 +494,7 @@ async fn returns_aborted_result_for_aborted_commands() {
             abort_token: Some(token.clone()),
             on_stdout: None,
             on_stderr: None,
+            ..Default::default()
         }),
     );
     token.cancel();

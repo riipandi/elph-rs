@@ -1,9 +1,10 @@
 //! Select-list data for TUI slash-command overlays.
 
+use crate::types::SelectItem;
 use anyhow::{Context, Result};
 use elph_agent::{CustomMessageEntryBlock, CustomMessageEntryContent, SessionTreeEntry};
-use elph_ai::{AssistantContentBlock, Message, UserContent, get_builtin_model, get_builtin_providers};
-use elph_tui::SelectItem;
+use elph_ai::{AssistantContentBlock, Message, UserContent};
+use elph_ai::{get_builtin_model, get_builtin_providers};
 
 use super::session_manager::SessionManager;
 

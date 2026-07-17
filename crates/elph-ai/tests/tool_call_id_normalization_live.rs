@@ -3,10 +3,8 @@
 
 mod common;
 
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, SimpleStreamOptions, StopReason, StreamOptions,
-    Tool, ToolCall, Usage, UserContent,
-};
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, SimpleStreamOptions};
+use elph_ai::types::{StopReason, StreamOptions, Tool, ToolCall, Usage, UserContent};
 use elph_ai::{builtin_models, get_builtin_model};
 use serde_json::json;
 
@@ -48,6 +46,7 @@ fn build_prefilled_messages() -> Vec<Message> {
             api: "openai-responses".to_string(),
             provider: "github-copilot".to_string(),
             model: "gpt-5.2-codex".to_string(),
+            diagnostics: None,
             usage: Usage::default(),
             stop_reason: StopReason::ToolUse,
             timestamp: 0,
@@ -62,6 +61,7 @@ fn build_prefilled_messages() -> Vec<Message> {
                 text: "hello".to_string(),
             }],
             details: None,
+            added_tool_names: None,
             is_error: false,
             timestamp: 1,
         },

@@ -3,10 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, ProviderResponse, ProviderStreams,
-    SimpleStreamOptions, StopReason, StreamOptions, TextContent, ThinkingContent, ToolCall,
-};
+use crate::types::ToolCall;
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, Context, Model, ProviderResponse};
+use crate::types::{ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, TextContent, ThinkingContent};
 use crate::utils::event_stream::AssistantMessageEventStream;
 
 const DEFAULT_API: &str = "faux";
@@ -99,6 +98,8 @@ impl FauxCore {
                     output: 0.0,
                     cache_read: 0.0,
                     cache_write: 0.0,
+
+                    tiers: None,
                 },
                 context_window: d.context_window.unwrap_or(128_000),
                 max_tokens: d.max_tokens.unwrap_or(16_384),
@@ -270,6 +271,8 @@ pub fn faux_assistant_message(
             output: 0.0,
             cache_read: 0.0,
             cache_write: 0.0,
+
+            tiers: None,
         },
         context_window: 128_000,
         max_tokens: 16_384,

@@ -9,11 +9,9 @@
 
 use std::io::Write;
 
-use elph_ai::{
-    AssistantContentBlock, AssistantMessageEvent, ContentBlock, Context, FauxModelDefinition, FauxResponseStep,
-    Message, RegisterFauxProviderOptions, StopReason, Tool, UserContent, create_models, faux_assistant_message,
-    faux_provider, faux_text, faux_tool_call,
-};
+use elph_ai::{AssistantContentBlock, AssistantMessageEvent, ContentBlock, Context, FauxModelDefinition};
+use elph_ai::{FauxResponseStep, Message, RegisterFauxProviderOptions, StopReason, Tool, UserContent};
+use elph_ai::{create_models, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 
 #[tokio::main]
@@ -61,10 +59,7 @@ async fn main() -> anyhow::Result<()> {
             AssistantContentBlock::Thinking(t) => eprintln!("  Think: {}", t.thinking),
         }
     }
-    println!(
-        "  Stop: {:?}  Tokens: {}",
-        message.stop_reason, message.usage.total_tokens
-    );
+    println!("  Stop: {:?}  Tokens: {}", message.stop_reason, message.usage.total_tokens);
     println!();
 
     // ── Inject tool result ──
@@ -75,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
             text: "32°C, high humidity (78%)".into(),
         }],
         details: None,
+        added_tool_names: None,
         is_error: false,
         timestamp: timestamp(),
     });

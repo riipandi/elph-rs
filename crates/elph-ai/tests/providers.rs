@@ -3,11 +3,10 @@ mod common;
 use std::collections::HashMap;
 
 use common::fake_auth_context;
-use elph_ai::providers::{
-    amazon_bedrock_provider, anthropic_provider, builtin_models, builtin_providers, cloudflare_ai_gateway_provider,
-    cloudflare_workers_ai_provider, google_vertex_provider,
-};
-use elph_ai::{CreateModelsOptions, create_models, get_builtin_model};
+use elph_ai::CreateModelsOptions;
+use elph_ai::providers::{amazon_bedrock_provider, anthropic_provider, builtin_models, builtin_providers};
+use elph_ai::providers::{cloudflare_ai_gateway_provider, cloudflare_workers_ai_provider, google_vertex_provider};
+use elph_ai::{create_models, get_builtin_model};
 
 #[test]
 fn builtin_models_registers_every_builtin_provider() {
@@ -16,8 +15,14 @@ fn builtin_models_registers_every_builtin_provider() {
     assert_eq!(providers.len(), builtin_providers().len());
     assert!(providers.iter().any(|p| p.id == "anthropic"));
 
-    let anthropic = get_builtin_model("anthropic", "claude-3-5-sonnet-20241022").expect("model exists");
+    let anthropic = get_builtin_model("anthropic", "claude-sonnet-5").expect("model exists");
     assert_eq!(anthropic.api, "anthropic-messages");
+    assert!(
+        anthropic
+            .thinking_level_map
+            .as_ref()
+            .is_some_and(|m| m.contains_key("max"))
+    );
 
     let all = models.get_models(None);
     assert!(all.len() > 500);

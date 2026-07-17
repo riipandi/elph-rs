@@ -4,19 +4,25 @@ mod common;
 use std::sync::Arc;
 
 use common::{faux_stream_fn, new_faux, new_faux_with_options, user_agent_message};
-use elph_agent::{
-    Agent, AgentEvent, AgentMessage, AgentOptions, AgentThinkingLevel, AgentTool, PartialAgentState, ToolExecutionMode,
-    llm_message_to_agent, simple_tool,
-};
-use elph_agent::{
-    AgentHarness, AgentHarnessOptions, AgentHarnessResources, InMemorySessionStorage, LocalExecutionEnv, Session,
-    SystemPrompt,
-};
+use elph_agent::Agent;
+use elph_agent::AgentEvent;
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentMessage;
+use elph_agent::AgentOptions;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::AgentTool;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::PartialAgentState;
+use elph_agent::Session;
+use elph_agent::SystemPrompt;
+use elph_agent::ToolExecutionMode;
+use elph_agent::{llm_message_to_agent, simple_tool};
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
-use elph_ai::{
-    AssistantContentBlock, ContentBlock, FauxResponseStep, Message, StopReason, Tool, UserContent, builtin_models,
-    faux_assistant_message, faux_text, faux_thinking, faux_tool_call,
-};
+use elph_ai::{AssistantContentBlock, ContentBlock, FauxResponseStep, Message, StopReason, Tool, UserContent};
+use elph_ai::{builtin_models, faux_assistant_message, faux_text, faux_thinking, faux_tool_call};
 use serde_json::json;
 use tempfile::TempDir;
 use tokio::sync::Mutex;
@@ -406,10 +412,7 @@ async fn agent_emits_lifecycle_updates_while_streaming() {
 async fn agent_maintains_context_across_multiple_turns() {
     let (faux, _models) = new_faux();
     faux.set_responses(vec![
-        FauxResponseStep::Static(faux_assistant_message(
-            vec![faux_text("Nice to meet you, Alice.")],
-            None,
-        )),
+        FauxResponseStep::Static(faux_assistant_message(vec![faux_text("Nice to meet you, Alice.")], None)),
         FauxResponseStep::Factory(Arc::new(|context, _, _, _| {
             let has_alice = context.messages.iter().any(|message| match message {
                 Message::User { content, .. } => match content {
@@ -611,6 +614,7 @@ async fn agent_continue_from_tool_result_processes_results() {
                         text: "5 + 3 = 8".into(),
                     }],
                     details: None,
+                    added_tool_names: None,
                     is_error: false,
                     timestamp: 0,
                 }),

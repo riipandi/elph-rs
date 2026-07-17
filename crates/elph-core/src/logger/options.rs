@@ -34,6 +34,7 @@ pub struct LoggingOptions {
     pub max_files: Option<usize>,
     pub file_enabled: bool,
     pub console_enabled: bool,
+    pub trace_enabled: bool,
 }
 
 impl LoggingOptions {
@@ -55,6 +56,21 @@ impl LoggingOptions {
         std::env::var(&key).map(|value| value != "0").unwrap_or(true)
     }
 
+    pub fn trace_enabled(prefix: &str) -> bool {
+        let key = format!("{prefix}_TRACE");
+        Self::parse_trace_enabled(std::env::var(&key).ok().as_deref())
+    }
+
+    pub fn parse_trace_enabled(value: Option<&str>) -> bool {
+        match value.map(str::trim).filter(|value| !value.is_empty()) {
+            None => true,
+            Some(value) => {
+                let normalized = value.to_ascii_lowercase();
+                !matches!(normalized.as_str(), "0" | "false" | "no" | "off" | "disabled")
+            }
+        }
+    }
+
     pub fn resolve(env_prefix: &str, app_name: &'static str, logs_dir: Option<PathBuf>, console_enabled: bool) -> Self {
         let file_enabled = logs_dir.is_some() && Self::file_logging_enabled(env_prefix);
         Self {
@@ -65,6 +81,7 @@ impl LoggingOptions {
             max_files: Self::max_files_from_env(env_prefix),
             file_enabled,
             console_enabled,
+            trace_enabled: Self::trace_enabled(env_prefix),
         }
     }
 }
@@ -84,5 +101,56 @@ mod tests {
         assert_eq!(LogRotation::parse(Some("hourly")), LogRotation::Hourly);
         assert_eq!(LogRotation::parse(Some("weekly")), LogRotation::Weekly);
         assert_eq!(LogRotation::parse(Some("monthly")), LogRotation::Daily);
+    }
+
+    #[test]
+    fn trace_enabled_defaults_to_true() {
+        assert!(LoggingOptions::parse_trace_enabled(None));
+        assert!(LoggingOptions::parse_trace_enabled(Some("1")));
+        assert!(LoggingOptions::parse_trace_enabled(Some("true")));
+        assert!(LoggingOptions::parse_trace_enabled(Some("on")));
+    }
+
+    #[test]
+    fn trace_disabled_when_env_is_zero() {
+        for value in ["0", "false", "no", "off", "disabled", " FALSE "] {
+            assert!(
+                !LoggingOptions::parse_trace_enabled(Some(value)),
+                "expected disabled for {value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_trace_enabled_edge_cases() {
+        assert!(LoggingOptions::parse_trace_enabled(Some("")));
+        assert!(LoggingOptions::parse_trace_enabled(Some("  ")));
+        assert!(!LoggingOptions::parse_trace_enabled(Some("FALSE")));
+    }
+
+    #[test]
+    fn rotation_parse_unknown_defaults_daily() {
+        assert_eq!(LogRotation::parse(Some("unknown")), LogRotation::Daily);
+    }
+
+    #[test]
+    fn level_from_env_defaults_to_info() {
+        let level = LoggingOptions::level_from_env("NONEXISTENT_PREFIX_XYZ");
+        assert_eq!(level, "info");
+    }
+
+    #[test]
+    fn max_files_from_env_returns_none_for_missing() {
+        assert!(LoggingOptions::max_files_from_env("NONEXISTENT_PREFIX_XYZ").is_none());
+    }
+
+    #[test]
+    fn file_logging_enabled_defaults_to_true() {
+        assert!(LoggingOptions::file_logging_enabled("NONEXISTENT_PREFIX_XYZ"));
+    }
+
+    #[test]
+    fn trace_enabled_from_env_defaults_to_true() {
+        assert!(LoggingOptions::trace_enabled("NONEXISTENT_PREFIX_XYZ"));
     }
 }

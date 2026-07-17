@@ -33,6 +33,19 @@ pub struct Settings {
     pub auto_compact_limit: u8,
     #[serde(default = "default_footer_token_display")]
     pub footer_token_display: String,
+    /// Curated `provider/model_id` entries shown in the model picker Scoped tab.
+    #[serde(default)]
+    pub scoped_model_items: Vec<String>,
+    #[serde(default)]
+    pub file_picker: FilePickerSettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FilePickerSettings {
+    /// When true, `@` file search includes dotfiles and dot-directories.
+    #[serde(default = "default_false")]
+    pub show_hidden_files: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -60,10 +73,10 @@ pub struct DatabaseSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MemorySettings {
-    /// fastembed model name or Hugging Face alias (see `elph_core::floppy::resolve_embedding_model`).
+    /// Embedding model catalog name or Hugging Face repo id (see `elph_core::floppy::resolve_embedding_model`).
     #[serde(default = "default_embed_model")]
     pub embed_model: String,
-    /// Prefer quantized ONNX weights when a `*Q` variant exists (default: true).
+    /// Prefer quantized model weights when a `*Q` variant exists (default: true).
     #[serde(default = "default_embed_quantized")]
     pub embed_quantized: bool,
 }
@@ -88,8 +101,8 @@ impl Settings {
             sticky_scroll: true,
             prefered_response_language: default_response_language(),
             session: SessionSettings {
-                provider_id: None,
-                model_id: None,
+                provider_id: Some(default_provider_id()),
+                model_id: Some(default_model_id()),
                 agent_mode: default_agent_mode(),
                 thinking_level: default_thinking_level(),
             },
@@ -98,6 +111,8 @@ impl Settings {
             auto_compact_context: true,
             auto_compact_limit: default_compact_limit(),
             footer_token_display: default_footer_token_display(),
+            scoped_model_items: Vec::new(),
+            file_picker: FilePickerSettings::default(),
         }
     }
 
@@ -116,6 +131,11 @@ impl Settings {
         Self::ensure(paths)?;
         let raw = std::fs::read_to_string(paths.settings_path())?;
         Ok(serde_json::from_str(&raw)?)
+    }
+
+    /// Persist settings to disk.
+    pub fn save(paths: &Paths, settings: &Self) -> Result<()> {
+        write_json_file(&paths.settings_path(), settings)
     }
 }
 
@@ -137,6 +157,14 @@ fn default_theme() -> String {
 
 fn default_response_language() -> String {
     "inherit".to_string()
+}
+
+fn default_provider_id() -> String {
+    crate::agent::DEFAULT_PROVIDER.to_string()
+}
+
+fn default_model_id() -> String {
+    crate::agent::DEFAULT_MODEL_ID.to_string()
 }
 
 fn default_agent_mode() -> String {
@@ -175,16 +203,30 @@ mod tests {
         assert_eq!(settings, decoded);
         assert_eq!(decoded.memory.embed_model, "AllMiniLML6V2");
         assert!(decoded.memory.embed_quantized);
+        assert_eq!(decoded.session.provider_id.as_deref(), Some("opencode"));
+        assert_eq!(decoded.session.model_id.as_deref(), Some("big-pickle"));
+    }
+
+    #[test]
+    fn file_picker_settings_default_hidden_off() {
+        let settings = Settings::defaults();
+        assert!(!settings.file_picker.show_hidden_files);
+    }
+
+    #[test]
+    fn scoped_model_items_default_empty() {
+        let settings = Settings::defaults();
+        assert!(settings.scoped_model_items.is_empty());
+
+        let json = r#"{"theme":"auto"}"#;
+        let decoded: Settings = serde_json::from_str(json).expect("deserialize");
+        assert!(decoded.scoped_model_items.is_empty());
     }
 
     #[test]
     fn load_merges_missing_memory_section() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let paths = Paths::from_dirs(
-            tmp.path().to_path_buf(),
-            tmp.path().join("data"),
-            tmp.path().join("repo"),
-        );
+        let paths = Paths::from_dirs(tmp.path().to_path_buf(), tmp.path().join("data"), tmp.path().join("repo"));
         Settings::ensure(&paths).expect("ensure");
         let loaded = Settings::load(&paths).expect("load");
         assert_eq!(loaded.memory.embed_model, "AllMiniLML6V2");
@@ -193,11 +235,7 @@ mod tests {
     #[test]
     fn ensure_writes_only_when_missing() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let paths = Paths::from_dirs(
-            tmp.path().to_path_buf(),
-            tmp.path().join("data"),
-            tmp.path().join("repo"),
-        );
+        let paths = Paths::from_dirs(tmp.path().to_path_buf(), tmp.path().join("data"), tmp.path().join("repo"));
 
         Settings::ensure(&paths).expect("first ensure");
         assert!(paths.settings_path().exists());

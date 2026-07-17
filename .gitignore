@@ -12,7 +12,7 @@
 /[Tt]mp/
 /storage/
 /target/
-/vendor/
+# /vendor/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
@@ -28,6 +28,8 @@ coverage.*
 !.vscode/mcp.json
 !.vscode/tasks.json
 *.bak
+*.pid
+*~
 
 # SQLite
 *.sqlite*
@@ -74,3 +76,5 @@ docsite/public/
 !.agents/skills/
 extensions/**/target
 extensions/**/Cargo.lock
+/demo-*
+/demo/*

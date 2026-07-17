@@ -1,6 +1,7 @@
 //! Resource formatting tests.
 
-use elph_agent::{PromptTemplate, Skill, format_prompt_template_invocation, format_skill_invocation};
+use elph_agent::{PromptTemplate, Skill};
+use elph_agent::{format_prompt_template_invocation, format_skill_invocation};
 
 #[test]
 fn format_skill_invocation_includes_additional_instructions() {
@@ -14,6 +15,7 @@ fn format_skill_invocation_includes_additional_instructions() {
         compatibility: None,
         metadata: None,
         allowed_tools: Some(vec!["read".to_string(), "grep".to_string()]),
+        argument_hint: None,
     };
 
     assert_eq!(

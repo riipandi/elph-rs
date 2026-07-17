@@ -4,7 +4,8 @@ use anyhow::Result;
 use std::io::Write;
 use std::path::Path;
 
-use super::runtime::{CreateSessionOptions, create_coding_session};
+use super::runtime::CreateSessionOptions;
+use super::runtime::create_coding_session;
 use crate::platform::{Paths, Settings};
 
 pub struct RunModeOptions<'a> {
@@ -30,6 +31,8 @@ pub async fn run_non_interactive(options: RunModeOptions<'_>) -> Result<()> {
         resume_id: options.resume_id,
         provider_override: None,
         model_override: options.model,
+        preloaded_resources: None,
+        defer_mcp_load: false,
     })
     .await?;
 

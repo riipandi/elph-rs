@@ -8,8 +8,10 @@
 
 use std::sync::Arc;
 
-use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState, llm_message_to_agent};
-use elph_ai::{FauxResponseStep, UserContent, faux_assistant_message, faux_provider, faux_text};
+use elph_agent::llm_message_to_agent;
+use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
+use elph_ai::{FauxResponseStep, UserContent};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

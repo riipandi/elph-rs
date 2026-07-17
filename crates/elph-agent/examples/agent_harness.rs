@@ -10,13 +10,15 @@
 
 use std::sync::Arc;
 
-use elph_agent::{
-    LocalExecutionEnv, Skill, format_skills_for_system_prompt,
-    harness::types::{FileSystem, Result as HResult, Shell, ShellExecOptions},
-    harness::utils::{
-        TruncationOptions, execute_shell_with_capture, format_size, truncate_head, truncate_line, truncate_tail,
-    },
-};
+use elph_agent::agent::harness::types::{Result as HResult, ShellExecOptions, Skill};
+use elph_agent::agent::harness::utils::TruncationOptions;
+use elph_agent::agent::harness::utils::execute_shell_with_capture;
+use elph_agent::agent::harness::utils::format_size;
+use elph_agent::agent::harness::utils::truncate_head;
+use elph_agent::agent::harness::utils::truncate_line;
+use elph_agent::agent::harness::utils::truncate_tail;
+use elph_agent::format_skills_for_system_prompt;
+use elph_agent::{FileSystem, LocalExecutionEnv, Shell};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -34,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
                 abort_token: None,
                 on_stdout: None,
                 on_stderr: None,
+                ..Default::default()
             }),
         )
         .await;
@@ -90,10 +93,7 @@ async fn main() -> anyhow::Result<()> {
             max_bytes: None,
         },
     );
-    println!(
-        "Truncated head ({} lines):\n{}",
-        truncated.output_lines, truncated.content
-    );
+    println!("Truncated head ({} lines):\n{}", truncated.output_lines, truncated.content);
     println!("Truncated by: {:?}", truncated.truncated_by);
 
     let tail = truncate_tail(
@@ -127,6 +127,7 @@ async fn main() -> anyhow::Result<()> {
             compatibility: None,
             metadata: None,
             allowed_tools: None,
+            argument_hint: None,
         },
         Skill {
             name: "internal-tool".into(),
@@ -138,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
             compatibility: None,
             metadata: None,
             allowed_tools: None,
+            argument_hint: None,
         },
     ];
 

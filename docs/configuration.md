@@ -51,17 +51,25 @@ Default config: `~/.elph/` | Default data: `~/.local/share/elph/`
 
 ## Environment variables
 
-| Variable             | Effect                     |
-| -------------------- | -------------------------- |
-| `ELPH_HOME`          | Override `~/.elph`         |
-| `ELPH_DATA_DIR`      | Override data directory    |
-| `ELPH_PROJECT_DIR`   | Project root for `.elph/`  |
-| `ELPH_PROVIDERS_DIR` | Override `providers/`      |
-| `ELPH_PROMPTS_DIR`   | Override global `prompts/` |
-| `ELPH_SKILLS_DIR`    | Override global `skills/`  |
-| `ELPH_PROVIDER`      | Force provider id          |
-| `ELPH_MODEL`         | Force model id             |
-| `ELPH_QUIET`         | Suppress bootstrap output  |
+| Variable               | Effect                                                |
+| ---------------------- | ----------------------------------------------------- |
+| `ELPH_HOME`            | Override `~/.elph`                                    |
+| `ELPH_DATA_DIR`        | Override data directory                               |
+| `ELPH_PROJECT_DIR`     | Project root for `.elph/`                             |
+| `ELPH_PROVIDERS_DIR`   | Override `providers/`                                 |
+| `ELPH_PROMPTS_DIR`     | Override global `prompts/`                            |
+| `ELPH_SKILLS_DIR`      | Override global `skills/`                             |
+| `ELPH_PROVIDER`        | Force provider id                                     |
+| `ELPH_MODEL`           | Force model id                                        |
+| `ELPH_PROMPT_ENCODING` | Tool-result prompt encoding: `off`, `toon`, or `auto` |
+| `ELPH_PROMPT_ENCODING_MIN_BYTES` | Minimum JSON byte length before TOON encoding applies (default `2048`) |
+| `ELPH_PROMPT_ENCODING_DELIMITER` | General TOON delimiter: `comma`, `tab`, or `pipe` (default `comma`) |
+| `ELPH_PROMPT_ENCODING_TABULAR_DELIMITER` | Tabular TOON delimiter: `comma`, `tab`, or `pipe` (default `tab`) |
+| `ELPH_QUIET`           | Suppress bootstrap output                             |
+| `ELPH_TRACE`           | Distributed tracing (`fastrace`): default on; set `0`, `false`, `off`, or `no` to disable |
+| `ELPH_LOG_LEVEL`       | Log level: `trace`, `debug`, `info`, `warn`, `error` (default `info`) |
+| `ELPH_LOG_FILE`        | Rolling JSONL log file: default on; set `0` to disable |
+| `ELPH_LOG_ROTATION`    | Log rotation: `hourly`, `daily` (default), or `weekly` |
 
 Provider JSON may reference API keys via `env.VAR`, `$VAR`, `${VAR}`, `!shell-command`, or literals.
 
@@ -80,7 +88,7 @@ Settings and providers accept standard JSON and JSONC (`//`, `/* */`, trailing c
 
 ## `settings.json`
 
-Schema: [schemas/config-schema.json](../schemas/config-schema.json).
+Schema: [schemas/elph-schema.json](../schemas/elph-schema.json).
 
 ### Layered settings
 

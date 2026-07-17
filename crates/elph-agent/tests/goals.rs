@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use elph_agent::goals::{GoalStatus, GoalStore, create_goal_tools};
-use elph_agent::{AgentToolResult, Migration, ensure_database};
+use elph_agent::ensure_database;
+use elph_agent::goals::create_goal_tools;
+use elph_agent::goals::{GoalStatus, GoalStore};
+use elph_agent::{AgentToolResult, Migration};
 use serde_json::json;
 
 const GOALS_MIGRATIONS: &[Migration] = &[
@@ -20,10 +22,10 @@ const GOALS_MIGRATIONS: &[Migration] = &[
             wall_clock_budget_ms INTEGER NOT NULL DEFAULT 0,
             turn_budget INTEGER NOT NULL DEFAULT 0,
             token_budget INTEGER NOT NULL DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            completed_at DATETIME,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-        );
+        ) STRICT;
         CREATE INDEX IF NOT EXISTS idx_goals_session_id ON goals(session_id);
         CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);",
     },
@@ -119,7 +121,7 @@ async fn goal_tools_round_trip() {
     let session_id = "sess_tools".to_string();
     let tools = create_goal_tools(store, session_id);
 
-    let create = tools.iter().find(|t| t.name() == "CreateGoal").expect("CreateGoal");
+    let create = tools.iter().find(|t| t.name() == "create_goal").expect("create_goal");
     let create_result = (create.execute)(
         "tc1".into(),
         json!({
@@ -134,7 +136,7 @@ async fn goal_tools_round_trip() {
     let create_text = tool_text(create_result);
     assert!(create_text.contains("Refactor module"));
 
-    let update = tools.iter().find(|t| t.name() == "UpdateGoal").expect("UpdateGoal");
+    let update = tools.iter().find(|t| t.name() == "update_goal").expect("update_goal");
     let update_result = (update.execute)("tc4".into(), json!({ "status": "blocked" }), None, None)
         .await
         .expect("update goal");

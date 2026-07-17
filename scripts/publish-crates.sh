@@ -14,20 +14,17 @@ DRY_RUN="${DRY_RUN:-0}"
 PACKAGES=(
     elph-core
     elph-ai
+    elph-exec
     elph-agent
     elph-swarm
     elph-tui
     elph
-    eclaw
-    owly
 )
 
 pkg_manifest() {
     local pkg=$1
     case "$pkg" in
     elph) echo "elph/Cargo.toml" ;;
-    eclaw) echo "eclaw/Cargo.toml" ;;
-    owly) echo "owly/Cargo.toml" ;;
     *) echo "crates/${pkg}/Cargo.toml" ;;
     esac
 }

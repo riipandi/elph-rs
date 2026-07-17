@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 
 pub fn build_default_azure_base_url(resource_name: &str) -> String {
     format!("https://{resource_name}.openai.azure.com/openai/v1")

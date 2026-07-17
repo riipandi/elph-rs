@@ -7,21 +7,40 @@ use parking_lot::Mutex;
 use common::new_faux_with_options;
 use elph_agent::CompactionErrorCode;
 use elph_agent::build_session_context;
-use elph_agent::compaction::{
-    CompactionPreparation, CompactionSettings, DEFAULT_COMPACTION_SETTINGS, calculate_context_tokens, compact,
-    compute_file_lists, create_file_ops, estimate_context_tokens, estimate_tokens, extract_file_ops_from_message,
-    find_cut_point, find_turn_start_index, format_file_operations, generate_summary, get_last_assistant_usage,
-    prepare_compaction, serialize_conversation, should_compact,
-};
+use elph_agent::compaction::DEFAULT_COMPACTION_SETTINGS;
+use elph_agent::compaction::calculate_context_tokens;
+use elph_agent::compaction::compact;
+use elph_agent::compaction::compute_file_lists;
+use elph_agent::compaction::create_file_ops;
+use elph_agent::compaction::estimate_context_tokens;
+use elph_agent::compaction::estimate_tokens;
+use elph_agent::compaction::extract_file_ops_from_message;
+use elph_agent::compaction::find_cut_point;
+use elph_agent::compaction::find_turn_start_index;
+use elph_agent::compaction::format_file_operations;
+use elph_agent::compaction::generate_summary;
+use elph_agent::compaction::get_last_assistant_usage;
+use elph_agent::compaction::prepare_compaction;
+use elph_agent::compaction::serialize_conversation;
+use elph_agent::compaction::should_compact;
+use elph_agent::compaction::{CompactionPreparation, CompactionSettings};
 use elph_agent::session::SessionTreeEntry;
 use elph_agent::types::{AgentMessage, CustomAgentMessage};
+use elph_ai::AssistantContentBlock;
+use elph_ai::ContentBlock;
+use elph_ai::FauxResponseStep;
+use elph_ai::Message;
+use elph_ai::SimpleStreamOptions;
+use elph_ai::StopReason;
+use elph_ai::ThinkingLevel;
+use elph_ai::ToolCall;
+use elph_ai::Usage;
+use elph_ai::UserContent;
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
-use elph_ai::models::{CreateProviderOptions, ProviderApi, ProviderStreamsDyn, create_models, create_provider};
+use elph_ai::models::{CreateProviderOptions, ProviderApi, ProviderStreamsDyn};
+use elph_ai::models::{create_models, create_provider};
 use elph_ai::providers::adapter::faux_api;
-use elph_ai::{
-    AssistantContentBlock, ContentBlock, FauxResponseStep, Message, SimpleStreamOptions, StopReason, ThinkingLevel,
-    ToolCall, Usage, UserContent, faux_assistant_message, faux_text, faux_thinking,
-};
+use elph_ai::{faux_assistant_message, faux_text, faux_thinking};
 use serde_json::json;
 
 struct CapturingFauxStreams {
@@ -301,10 +320,7 @@ fn find_cut_point_uses_token_differences() {
     }
 
     let cut = find_cut_point(&entries, 0, entries.len(), 2500);
-    assert!(matches!(
-        entries[cut.first_kept_entry_index],
-        SessionTreeEntry::Message { .. }
-    ));
+    assert!(matches!(entries[cut.first_kept_entry_index], SessionTreeEntry::Message { .. }));
 }
 
 #[test]
@@ -359,11 +375,12 @@ fn find_cut_point_and_turn_start_edge_cases() {
         None,
         AgentMessage::Llm(Box::new(Message::ToolResult {
             tool_call_id: "call-1".to_string(),
-            tool_name: "read".to_string(),
+            tool_name: "read_file".to_string(),
             content: vec![ContentBlock::Text {
                 text: "tool output".to_string(),
             }],
             details: None,
+            added_tool_names: None,
             is_error: false,
             timestamp: 0,
         })),
@@ -400,7 +417,7 @@ fn estimate_tokens_across_supported_message_roles() {
     let assistant_with_thinking_and_tool = AgentMessage::Llm(Box::new(Message::Assistant(faux_assistant_message(
         vec![
             faux_thinking("thinking"),
-            AssistantContentBlock::ToolCall(ToolCall::new("call-1", "read", json!({ "path": "file.ts" }))),
+            AssistantContentBlock::ToolCall(ToolCall::new("call-1", "read_file", json!({ "path": "file.ts" }))),
         ],
         None,
     ))));
@@ -413,7 +430,7 @@ fn estimate_tokens_across_supported_message_roles() {
     });
     let tool_result_with_image = AgentMessage::Llm(Box::new(Message::ToolResult {
         tool_call_id: "call-1".to_string(),
-        tool_name: "read".to_string(),
+        tool_name: "read_file".to_string(),
         content: vec![
             ContentBlock::Text {
                 text: "tool text".to_string(),
@@ -424,6 +441,7 @@ fn estimate_tokens_across_supported_message_roles() {
             },
         ],
         details: None,
+        added_tool_names: None,
         is_error: false,
         timestamp: 0,
     }));
@@ -487,10 +505,7 @@ fn estimate_tokens_across_supported_message_roles() {
         Some(20)
     );
 
-    assert_eq!(
-        estimate_context_tokens(&[user_message("no usage")]).last_usage_index,
-        None
-    );
+    assert_eq!(estimate_context_tokens(&[user_message("no usage")]).last_usage_index, None);
     let estimate = estimate_context_tokens(&[assistant, user_message("tail")]);
     assert_eq!(estimate.usage_tokens, 20);
     assert_eq!(estimate.last_usage_index, Some(0));
@@ -539,11 +554,7 @@ fn build_session_context_tracks_model_and_thinking_level() {
     let entries = vec![
         message_entry("u1", None, user_message("1")),
         model_change_entry("model", Some("u1"), "openai", "gpt-4"),
-        message_entry(
-            "a1",
-            Some("model"),
-            AgentMessage::Llm(Box::new(Message::Assistant(assistant))),
-        ),
+        message_entry("a1", Some("model"), AgentMessage::Llm(Box::new(Message::Assistant(assistant)))),
         thinking_level_entry("thinking", Some("a1"), "high"),
     ];
     let loaded = build_session_context(&entries);
@@ -646,7 +657,7 @@ fn prepare_compaction_uses_previous_summary() {
 fn prepare_compaction_split_turn_includes_prior_file_ops() {
     let entries = vec![
         message_entry("u1", None, user_message("user msg 1")),
-        message_entry("a1", Some("u1"), assistant_with_tool("write", "written.ts")),
+        message_entry("a1", Some("u1"), assistant_with_tool("write_file", "written.ts")),
         compaction_entry(
             "c1",
             Some("a1"),
@@ -729,6 +740,7 @@ fn serialize_conversation_formats_roles() {
                 text: "done".to_string(),
             }],
             details: None,
+            added_tool_names: None,
             is_error: false,
             timestamp: 0,
         },
@@ -744,9 +756,10 @@ fn serialize_conversation_truncates_long_tool_results() {
     let long_content = "x".repeat(5000);
     let messages = vec![Message::ToolResult {
         tool_call_id: "tc1".to_string(),
-        tool_name: "read".to_string(),
+        tool_name: "read_file".to_string(),
         content: vec![ContentBlock::Text { text: long_content }],
         details: None,
+        added_tool_names: None,
         is_error: false,
         timestamp: 0,
     }];
@@ -758,9 +771,9 @@ fn serialize_conversation_truncates_long_tool_results() {
 #[test]
 fn file_ops_tracking_and_formatting() {
     let mut file_ops = create_file_ops();
-    extract_file_ops_from_message(&assistant_with_tool("read", "/a.rs"), &mut file_ops);
-    extract_file_ops_from_message(&assistant_with_tool("edit", "/b.rs"), &mut file_ops);
-    extract_file_ops_from_message(&assistant_with_tool("write", "/b.rs"), &mut file_ops);
+    extract_file_ops_from_message(&assistant_with_tool("read_file", "/a.rs"), &mut file_ops);
+    extract_file_ops_from_message(&assistant_with_tool("edit_file", "/b.rs"), &mut file_ops);
+    extract_file_ops_from_message(&assistant_with_tool("write_file", "/b.rs"), &mut file_ops);
     let (read_files, modified_files) = compute_file_lists(&file_ops);
     assert_eq!(read_files, vec!["/a.rs".to_string()]);
     assert_eq!(modified_files, vec!["/b.rs".to_string()]);
@@ -775,11 +788,7 @@ fn get_last_assistant_usage_skips_aborted_messages() {
     aborted.usage.total_tokens = 99;
     let entries = vec![
         message_entry("u1", None, user_message("hi")),
-        message_entry(
-            "a1",
-            Some("u1"),
-            AgentMessage::Llm(Box::new(Message::Assistant(aborted))),
-        ),
+        message_entry("a1", Some("u1"), AgentMessage::Llm(Box::new(Message::Assistant(aborted)))),
         message_entry(
             "a2",
             Some("a1"),
@@ -792,10 +801,7 @@ fn get_last_assistant_usage_skips_aborted_messages() {
             ),
         ),
     ];
-    assert_eq!(
-        get_last_assistant_usage(&entries).map(|usage| usage.total_tokens),
-        Some(12)
-    );
+    assert_eq!(get_last_assistant_usage(&entries).map(|usage| usage.total_tokens), Some(12));
 }
 
 #[tokio::test]
@@ -874,18 +880,9 @@ async fn generate_summary_includes_previous_summary_and_instructions() {
         faux_assistant_message(vec![faux_text("## Goal\nTest summary")], None)
     }))]);
 
-    let summary = generate_summary(
-        &messages,
-        &models,
-        &model,
-        2000,
-        None,
-        Some("focus"),
-        Some("old summary"),
-        None,
-    )
-    .await
-    .expect("summary");
+    let summary = generate_summary(&messages, &models, &model, 2000, None, Some("focus"), Some("old summary"), None)
+        .await
+        .expect("summary");
 
     let prompt = prompt_text.lock().clone();
     assert!(summary.contains("Test summary"));
@@ -1111,7 +1108,7 @@ async fn compact_generates_summary_with_faux_provider() {
 async fn compact_returns_result_with_file_details() {
     let entries = vec![
         message_entry("u1", None, user_message("read a file")),
-        message_entry("a1", Some("u1"), assistant_with_tool("read", "src/index.ts")),
+        message_entry("a1", Some("u1"), assistant_with_tool("read_file", "src/index.ts")),
         message_entry("u2", Some("a1"), user_message("continue")),
         message_entry(
             "a2",

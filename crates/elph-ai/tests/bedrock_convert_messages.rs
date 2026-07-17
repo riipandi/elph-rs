@@ -1,11 +1,11 @@
 mod common;
 
 use common::sample_user_context;
-use elph_ai::api::bedrock_converse_stream::{BedrockOptions, build_bedrock_converse_body};
+use elph_ai::api::bedrock_converse_stream::BedrockOptions;
+use elph_ai::api::bedrock_converse_stream::build_bedrock_converse_body;
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, TextContent, Usage, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, TextContent, Usage};
 use elph_ai::utils::sanitize_unicode::sanitize_utf16_code_units;
 
 fn bedrock_model() -> elph_ai::types::Model {
@@ -89,6 +89,7 @@ fn skips_assistant_text_blocks_emptied_by_surrogate_sanitization() {
             api: model.api.clone(),
             provider: model.provider.clone(),
             model: model.id.clone(),
+            diagnostics: None,
             usage: Usage::default(),
             stop_reason: StopReason::Stop,
             timestamp: 0,
@@ -111,6 +112,7 @@ fn replaces_blank_tool_result_content_with_placeholder() {
             tool_name: "tool".to_string(),
             content: vec![ContentBlock::Text { text: String::new() }],
             details: None,
+            added_tool_names: None,
             is_error: false,
             timestamp: 0,
         }],
@@ -134,6 +136,7 @@ fn skips_assistant_messages_with_only_empty_text_blocks() {
             api: model.api.clone(),
             provider: model.provider.clone(),
             model: model.id.clone(),
+            diagnostics: None,
             usage: Usage::default(),
             stop_reason: StopReason::Stop,
             timestamp: 0,

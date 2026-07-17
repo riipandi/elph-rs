@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS memories (
     last_retrieved  INTEGER,
     retrieval_count INTEGER DEFAULT 0,
     source_task     TEXT
-);
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS tasks (
     id               TEXT PRIMARY KEY,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     task_score       REAL,
     started_at       INTEGER,
     finished_at      INTEGER
-);
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS memory_retrievals (
     memory_id   TEXT,
@@ -55,12 +55,12 @@ CREATE TABLE IF NOT EXISTS memory_retrievals (
     self_report REAL,
     credit      REAL,
     PRIMARY KEY (memory_id, task_id)
-);
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
-)"#;
+) STRICT"#;
 
 pub const V2_NAME: &str = "floppy_fix_truncated_embeddings";
 pub const V2_UP: &str = "UPDATE memories SET embedding = NULL WHERE embedding IS NOT NULL AND length(embedding) < 1536";
@@ -107,8 +107,8 @@ async fn run(conn: &Connection, migrations: &[FloppyMigration]) -> Result<()> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             version INTEGER NOT NULL,
             name TEXT NOT NULL,
-            applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )",
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) STRICT",
         (),
     )
     .await?;

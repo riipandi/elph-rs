@@ -10,14 +10,15 @@
 //! cargo run -p elph-agent --example agent_web_tools -- --query "What is the Rust borrow checker?"
 //! ```
 
-use std::io::{IsTerminal, Write, stderr};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
-use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState, create_all_tools_with_web};
-use elph_ai::{Message, StopReason, builtin_models, get_builtin_model};
-use indicatif::{ProgressBar, ProgressStyle};
+use elph_agent::create_all_tools_with_web;
+use elph_agent::{Agent, AgentEvent, AgentOptions, PartialAgentState};
+use elph_ai::{Message, StopReason};
+use elph_ai::{builtin_models, get_builtin_model};
+use elph_tui::progress_spinner;
 
 const PROVIDER: &str = "opencode";
 const MODEL_ID: &str = "big-pickle";
@@ -49,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("Provider: OpenCode Zen");
     println!("Model:    {} ({})", model.name, model.id);
-    println!("Tools:    web_search, web_fetch, read, bash, edit, write, grep, find, ls");
+    println!("Tools:    web_search, web_fetch, read_file, bash, edit_file, write_file, grep, find_path, list_dir");
     println!();
 
     let setup = progress_spinner("Resolving auth...");
@@ -58,10 +59,7 @@ async fn main() -> anyhow::Result<()> {
     setup.finish_and_clear();
 
     if let Some(auth) = &auth {
-        println!(
-            "Auth:     configured via {}",
-            auth.source.as_deref().unwrap_or("unknown")
-        );
+        println!("Auth:     configured via {}", auth.source.as_deref().unwrap_or("unknown"));
     } else {
         anyhow::bail!("OpenCode Zen is not configured (missing OPENCODE_API_KEY?)");
     }
@@ -130,13 +128,13 @@ async fn main() -> anyhow::Result<()> {
                             tool_calls.fetch_add(1, Ordering::SeqCst);
                             println!();
                             println!("🔧 Calling: {tool_name}");
-                            // Show query for web_search
+                            // Show query for websearch
                             if tool_name == "web_search"
                                 && let Some(query) = args.get("query").and_then(|q| q.as_str())
                             {
                                 println!("   Query: {query}");
                             }
-                            // Show URL for web_fetch
+                            // Show URL for webfetch
                             if tool_name == "web_fetch"
                                 && let Some(url) = args.get("url").and_then(|u| u.as_str())
                             {
@@ -214,30 +212,6 @@ fn print_help() {
            cargo run -p elph-agent --example agent_web_tools\n\
            cargo run -p elph-agent --example agent_web_tools -- --query \"Latest Rust release\""
     );
-}
-
-fn progress_spinner(message: &str) -> ProgressBar {
-    if !progress_enabled() {
-        eprintln!("{message}");
-        return ProgressBar::hidden();
-    }
-
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg:.cyan}")
-            .expect("valid spinner template"),
-    );
-    bar.set_message(message.to_string());
-    bar.enable_steady_tick(Duration::from_millis(80));
-    bar
-}
-
-fn progress_enabled() -> bool {
-    if std::env::var("NO_COLOR").as_deref() == Ok("true") {
-        return false;
-    }
-    stderr().is_terminal()
 }
 
 fn print_usage(message: &elph_ai::AssistantMessage) {

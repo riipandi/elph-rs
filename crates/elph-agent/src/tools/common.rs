@@ -2,11 +2,12 @@
 
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use tokio_util::sync::CancellationToken;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::types::{CreateDirOptions, FileError, FileErrorCode, FileSystem, Result as HarnessResult};
+use crate::agent::harness::types::{CreateDirOptions, FileError, FileErrorCode, FileSystem, Result as HarnessResult};
+use crate::runtime::local_env::LocalExecutionEnv;
 
 pub fn check_aborted(signal: Option<&CancellationToken>) -> Result<()> {
     if signal.is_some_and(|token| token.is_cancelled()) {

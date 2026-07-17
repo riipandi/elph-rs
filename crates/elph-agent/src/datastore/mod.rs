@@ -8,7 +8,13 @@ use std::path::Path;
 use anyhow::Result;
 use turso::Builder;
 
-pub use crate::migration::Migration;
+/// One versioned SQL migration applied to a local database.
+pub struct Migration {
+    pub version: i64,
+    pub name: &'static str,
+    pub up: &'static str,
+}
+
 pub use lazy::ensure_databases_once;
 pub use migrations::run as run_migrations;
 
@@ -53,7 +59,7 @@ mod tests {
     static TEST_MIGRATIONS: [Migration; 1] = [Migration {
         version: 1,
         name: "create_notes",
-        up: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)",
+        up: "CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL) STRICT",
     }];
 
     #[tokio::test]

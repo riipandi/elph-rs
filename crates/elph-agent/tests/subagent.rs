@@ -3,12 +3,20 @@ mod common;
 
 use std::sync::Arc;
 
-use elph_agent::{
-    AgentControl, AgentGraphStore, AgentHarnessResources, AgentHarnessStreamOptions, LocalExecutionEnv,
-    SubagentBootstrap, SubagentLimits, SubagentSpawnConfig, SubagentStatus, create_read_only_tools,
-};
-use elph_agent::{Migration, ensure_database};
-use elph_ai::{FauxResponseStep, StopReason, faux_assistant_message, faux_text};
+use elph_agent::AgentControl;
+use elph_agent::AgentGraphStore;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentHarnessStreamOptions;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::Migration;
+use elph_agent::SubagentBootstrap;
+use elph_agent::SubagentLimits;
+use elph_agent::SubagentSpawnConfig;
+use elph_agent::SubagentStatus;
+use elph_agent::create_search_tools;
+use elph_agent::ensure_database;
+use elph_ai::{FauxResponseStep, StopReason};
+use elph_ai::{faux_assistant_message, faux_text};
 
 const GRAPH_MIGRATION: &[Migration] = &[Migration {
     version: 7,
@@ -19,9 +27,9 @@ const GRAPH_MIGRATION: &[Migration] = &[Migration {
             agent_path TEXT NOT NULL,
             depth INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'open',
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (parent_session_id, child_session_id)
-        );",
+        ) STRICT;",
 }];
 
 #[tokio::test(flavor = "multi_thread")]
@@ -34,7 +42,7 @@ async fn spawn_and_list_subagents_with_session_dir() {
         Some(StopReason::Stop),
     ))]);
     let stream_fn = common::faux_stream_fn(&faux);
-    let tools = create_read_only_tools(env.clone());
+    let tools = create_search_tools(env.clone());
 
     let sessions_root = temp.path().join("sessions").to_string_lossy().to_string();
     std::fs::create_dir_all(&sessions_root).expect("sessions root");

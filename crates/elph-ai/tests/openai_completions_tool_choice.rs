@@ -1,7 +1,8 @@
 mod common;
 
 use common::{completions_proxy_model, sample_user_context};
-use elph_ai::api::openai_completions::{OpenAICompletionsOptions, build_openai_completions_params};
+use elph_ai::api::openai_completions::OpenAICompletionsOptions;
+use elph_ai::api::openai_completions::build_openai_completions_params;
 use elph_ai::get_builtin_model;
 use elph_ai::models::{clamp_thinking_level, thinking_level_to_str};
 use elph_ai::types::{Context, Message, OpenAICompletionsCompat, ThinkingLevel, Tool, UserContent};
@@ -164,6 +165,7 @@ fn stores_zai_glm_5_2_effort_metadata() {
             .and_then(|c| c.supports_reasoning_effort),
         Some(true)
     );
+    // Catalog maps adaptive effort including native "max" (pi 0.80.6+).
     assert_eq!(
         model.thinking_level_map,
         Some(
@@ -172,7 +174,7 @@ fn stores_zai_glm_5_2_effort_metadata() {
                 ("low".to_string(), Some("high".to_string())),
                 ("medium".to_string(), Some("high".to_string())),
                 ("high".to_string(), Some("high".to_string())),
-                ("xhigh".to_string(), Some("max".to_string())),
+                ("max".to_string(), Some("max".to_string())),
             ]
             .into_iter()
             .collect()
@@ -196,17 +198,14 @@ fn maps_zai_glm_5_2_thinking_levels_to_reasoning_effort() {
         (ThinkingLevel::Low, "high"),
         (ThinkingLevel::Medium, "high"),
         (ThinkingLevel::High, "high"),
-        (ThinkingLevel::Xhigh, "max"),
+        (ThinkingLevel::Max, "max"),
     ] {
         let options = OpenAICompletionsOptions {
             reasoning_effort: Some(reasoning_effort_for_model(&model, level)),
             ..Default::default()
         };
         let params = build_openai_completions_params(&model, &context, &options).expect("params");
-        assert_eq!(
-            params["thinking"],
-            json!({ "type": "enabled", "clear_thinking": false })
-        );
+        assert_eq!(params["thinking"], json!({ "type": "enabled", "clear_thinking": false }));
         assert_eq!(params["reasoning_effort"], json!(expected_effort));
     }
 }

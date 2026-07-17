@@ -1,24 +1,24 @@
 //! Factory for coding-agent sessions.
 
 use anyhow::Result;
+use elph_agent::create_goal_tools;
 use elph_agent::{
-    AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, GoalRuntime, GoalStore,
-    LocalExecutionEnv, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt, create_all_tools,
-    create_goal_tools,
+    AgentGraphStore, AgentHarness, AgentHarnessOptions, AgentHarnessStreamOptions, BuiltinToolsBuilder, GoalRuntime,
+    GoalStore, LocalExecutionEnv, McpToolRegistry, QueueMode, SubagentBootstrap, SystemPrompt,
 };
 use elph_core::utils::path::AppPaths;
 use std::path::Path;
 use std::sync::Arc;
-use tracing::warn;
+use tokio::sync::Mutex;
 
+use super::mcp_bootstrap::{discover_mcp_registry, start_mcp_notifications};
 use super::model_registry::resolve_model;
-use super::resource_loader::load_resources;
-use super::session::CodingAgentSession;
+use super::resource_loader::{LoadResourcesResult, load_resources};
+use super::session::{CodingAgentSession, CodingAgentSessionParams};
 use super::session_manager::SessionManager;
 use super::system_prompt::{agents_md_for_cwd, build_system_prompt};
 use super::tool_policy::{agent_mode_from_setting, thinking_level_from_setting, to_agent_thinking};
 use crate::platform::{Paths, Settings};
-
 pub struct CreateSessionOptions<'a> {
     pub paths: &'a Paths,
     pub settings: &'a Settings,
@@ -26,6 +26,10 @@ pub struct CreateSessionOptions<'a> {
     pub resume_id: Option<&'a str>,
     pub provider_override: Option<&'a str>,
     pub model_override: Option<&'a str>,
+    /// When set, skips a second [`load_resources`] pass during session bootstrap.
+    pub preloaded_resources: Option<LoadResourcesResult>,
+    /// When true, MCP discovery is skipped; use [`super::mcp_bootstrap`] to load later.
+    pub defer_mcp_load: bool,
 }
 
 pub async fn create_coding_session_with_events(
@@ -45,18 +49,24 @@ pub async fn create_coding_session_with_events(
     };
     let selection = resolve_model(options.settings, options.provider_override, options.model_override).await?;
 
-    let resources = load_resources(options.paths, options.cwd);
-    let mut tools = create_all_tools(env.clone());
-
-    let mcp_config = crate::platform::mcp::load_config(options.paths)?;
-    let mcp_registry = match McpToolRegistry::load(mcp_config).await {
-        Ok(registry) => Arc::new(registry),
-        Err(error) => {
-            warn!("MCP tool discovery failed: {error}");
-            Arc::new(McpToolRegistry::empty())
-        }
+    let resources = match options.preloaded_resources {
+        Some(loaded) => loaded.resources,
+        None => load_resources(options.paths, options.cwd, env.as_ref()).await.resources,
     };
-    tools.extend(mcp_registry.create_agent_tools());
+    let mut tools = BuiltinToolsBuilder::all(env.clone()).build();
+    tools.push(super::diagnostics::create_diagnostics_tool(&options.cwd.display().to_string()));
+
+    // Create shared UI event channel for ask_user tool and session.
+    let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
+    tools.push(super::ask_user::create_ask_user_tool(ui_tx.clone()));
+
+    let (mcp_registry, mcp_config_warnings) = if options.defer_mcp_load {
+        (Arc::new(McpToolRegistry::empty()), Vec::new())
+    } else {
+        let (registry, warnings) = discover_mcp_registry(options.paths).await;
+        tools.extend(registry.create_agent_tools());
+        (registry, warnings)
+    };
 
     let goal_store = Arc::new(GoalStore::new(options.paths.metadata_db_path()));
     let goal_runtime = Arc::new(GoalRuntime::new(goal_store.clone(), session_id.clone()));
@@ -73,10 +83,23 @@ pub async fn create_coding_session_with_events(
         thinking_level: thinking,
         agent_graph: Some(agent_graph),
     };
-    let tool_names: Vec<String> = tools.iter().map(|t| t.name().to_string()).collect();
-    let agents_md = agents_md_for_cwd(options.cwd);
-    let system_prompt = build_system_prompt(options.cwd, &resources, &tool_names, agents_md.as_deref());
+
     let agent_mode = agent_mode_from_setting(&options.settings.session.agent_mode);
+    let mode_state = Arc::new(Mutex::new(agent_mode));
+    let cwd = options.cwd.to_path_buf();
+    let agents_md = agents_md_for_cwd(options.cwd);
+    let mode_for_prompt = Arc::clone(&mode_state);
+
+    let system_prompt = SystemPrompt::Dynamic(Arc::new(move |ctx| {
+        let cwd = cwd.clone();
+        let agents_md = agents_md.clone();
+        let mode_state = Arc::clone(&mode_for_prompt);
+        Box::pin(async move {
+            let mode = *mode_state.lock().await;
+            let tool_names: Vec<String> = ctx.active_tools.iter().map(|t| t.name().to_string()).collect();
+            build_system_prompt(&cwd, &ctx.resources, &tool_names, agents_md.as_deref(), mode)
+        })
+    }));
 
     let model = selection.model.clone();
     let models = Arc::clone(&selection.models);
@@ -86,7 +109,7 @@ pub async fn create_coding_session_with_events(
         models,
         tools,
         resources,
-        system_prompt: SystemPrompt::Static(system_prompt),
+        system_prompt,
         stream_options: AgentHarnessStreamOptions::default(),
         model,
         thinking_level: thinking,
@@ -100,16 +123,27 @@ pub async fn create_coding_session_with_events(
     })
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    CodingAgentSession::new(
-        Arc::new(harness),
+    let harness = Arc::new(harness);
+
+    let session = CodingAgentSession::new(CodingAgentSessionParams {
+        harness: harness.clone(),
         session_manager,
         session_id,
         selection,
         agent_mode,
-        options.settings.show_thinking,
+        mode_state: Arc::clone(&mode_state),
+        show_thinking: options.settings.show_thinking,
         goal_runtime,
-    )
-    .await
+        mcp_registry: Some(Arc::clone(&mcp_registry)),
+        ui_tx: ui_tx.clone(),
+    })
+    .await?;
+
+    if !options.defer_mcp_load {
+        start_mcp_notifications(&session, mcp_registry, mcp_config_warnings);
+    }
+
+    Ok((session, ui_rx))
 }
 
 pub async fn create_coding_session(options: CreateSessionOptions<'_>) -> Result<CodingAgentSession> {

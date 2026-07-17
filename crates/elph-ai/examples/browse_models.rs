@@ -13,10 +13,9 @@
 //! cargo run -p elph-ai --example browse_models -- --provider openai
 //! ```
 
-use elph_ai::{
-    Model, ThinkingLevel, clamp_thinking_level, get_builtin_model, get_builtin_models, get_builtin_providers,
-    get_supported_thinking_levels,
-};
+use elph_ai::get_supported_thinking_levels;
+use elph_ai::{Model, ThinkingLevel};
+use elph_ai::{clamp_thinking_level, get_builtin_model, get_builtin_models, get_builtin_providers};
 
 struct Args {
     reasoning_only: bool,

@@ -4,21 +4,27 @@ use elph_ai::{Context, Message, Model, Models, SimpleStreamOptions, StopReason};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use crate::compaction::utils::{
-    compute_file_lists, create_file_ops, extract_file_ops_from_message, format_file_operations, serialize_conversation,
-};
-use crate::compaction::{SUMMARIZATION_SYSTEM_PROMPT, estimate_tokens};
-use crate::harness::types::FileOperations;
-use crate::harness::types::{BranchSummaryError, BranchSummaryErrorCode, BranchSummaryResult};
-use crate::messages::{
-    CustomMessageBlock, CustomMessageContent, create_branch_summary_message, create_compaction_summary_message,
-    create_custom_message, default_convert_to_llm,
-};
+use crate::agent::harness::types::FileOperations;
+use crate::agent::harness::types::{BranchSummaryError, BranchSummaryErrorCode, BranchSummaryResult};
+use crate::compaction::SUMMARIZATION_SYSTEM_PROMPT;
+use crate::compaction::estimate_tokens;
+use crate::compaction::utils::compute_file_lists;
+use crate::compaction::utils::create_file_ops;
+use crate::compaction::utils::extract_file_ops_from_message;
+use crate::compaction::utils::format_file_operations;
+use crate::compaction::utils::serialize_conversation;
+use crate::messages::create_branch_summary_message;
+use crate::messages::create_compaction_summary_message;
+use crate::messages::create_custom_message;
+use crate::messages::default_convert_to_llm;
+use crate::messages::{CustomMessageBlock, CustomMessageContent};
 use crate::session::tree::Session;
-use crate::session::types::{
-    CustomMessageEntryBlock, CustomMessageEntryContent, SessionError, SessionErrorCode, SessionStorage,
-    SessionTreeEntry,
-};
+use crate::session::types::CustomMessageEntryBlock;
+use crate::session::types::CustomMessageEntryContent;
+use crate::session::types::SessionError;
+use crate::session::types::SessionErrorCode;
+use crate::session::types::SessionStorage;
+use crate::session::types::SessionTreeEntry;
 use crate::types::AgentMessage;
 
 /// File-operation details stored on generated branch summary entries.
@@ -342,5 +348,133 @@ pub async fn generate_branch_summary(
                 modified_files,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_options_reserve_tokens() {
+        let opts = GenerateBranchSummaryOptions::default();
+        assert_eq!(opts.reserve_tokens, 16384);
+        assert!(!opts.replace_instructions);
+    }
+
+    fn make_user_entry(id: &str, text: &str) -> SessionTreeEntry {
+        SessionTreeEntry::Message {
+            id: id.into(),
+            parent_id: None,
+            timestamp: "0".into(),
+            message: AgentMessage::Llm(Box::new(Message::User {
+                content: elph_ai::UserContent::Text(text.into()),
+                timestamp: 0,
+            })),
+        }
+    }
+
+    #[test]
+    fn prepare_branch_entries_empty() {
+        let result = prepare_branch_entries(&[], 10000);
+        assert!(result.messages.is_empty());
+        assert_eq!(result.total_tokens, 0);
+    }
+
+    #[test]
+    fn prepare_branch_entries_within_budget() {
+        let entry = make_user_entry("1", "hello world");
+        let result = prepare_branch_entries(&[entry], 10000);
+        assert_eq!(result.messages.len(), 1);
+        assert!(result.total_tokens > 0);
+    }
+
+    #[test]
+    fn prepare_branch_entries_exceeds_budget() {
+        let long = "x".repeat(500);
+        let entry = make_user_entry("1", &long);
+        let result = prepare_branch_entries(&[entry], 5);
+        assert!(result.messages.is_empty());
+    }
+
+    #[test]
+    fn get_message_from_entry_user() {
+        let entry = make_user_entry("1", "hello");
+        let result = get_message_from_entry(&entry);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().role(), "user");
+    }
+
+    #[test]
+    fn get_message_from_entry_tool_result_filtered() {
+        let entry = SessionTreeEntry::Message {
+            id: "1".into(),
+            parent_id: None,
+            timestamp: "0".into(),
+            message: AgentMessage::Llm(Box::new(Message::ToolResult {
+                tool_call_id: "t1".into(),
+                tool_name: "test".into(),
+                content: vec![],
+                details: None,
+                added_tool_names: None,
+                is_error: false,
+                timestamp: 0,
+            })),
+        };
+        assert!(get_message_from_entry(&entry).is_none());
+    }
+
+    #[test]
+    fn get_message_from_entry_compaction() {
+        let entry = SessionTreeEntry::Compaction {
+            id: "1".into(),
+            parent_id: None,
+            timestamp: "0".into(),
+            summary: "compacted".into(),
+            first_kept_entry_id: "first".into(),
+            tokens_before: 100,
+            details: None,
+            from_hook: None,
+        };
+        let result = get_message_from_entry(&entry);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn get_message_from_entry_branch_summary() {
+        let entry = SessionTreeEntry::BranchSummary {
+            id: "1".into(),
+            parent_id: None,
+            timestamp: "0".into(),
+            from_id: "parent".into(),
+            summary: "summary".into(),
+            details: None,
+            from_hook: None,
+        };
+        let result = get_message_from_entry(&entry);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn prepare_extracts_file_ops_from_details() {
+        let details = serde_json::json!({"readFiles": ["r.txt"], "modifiedFiles": ["m.txt"]});
+        let entry = SessionTreeEntry::BranchSummary {
+            id: "1".into(),
+            parent_id: None,
+            timestamp: "0".into(),
+            from_id: "p".into(),
+            summary: "s".into(),
+            details: Some(details),
+            from_hook: Some(false),
+        };
+        let result = prepare_branch_entries(&[entry], 10000);
+        assert_eq!(result.file_ops.read.len(), 1);
+        assert_eq!(result.file_ops.edited.len(), 1);
+    }
+
+    #[test]
+    fn now_millis_is_reasonable() {
+        let t = now_millis();
+        assert!(t > 1_700_000_000_000);
     }
 }

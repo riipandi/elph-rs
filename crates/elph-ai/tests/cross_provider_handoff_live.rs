@@ -4,9 +4,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use elph_ai::types::{
-    AssistantContentBlock, Context, Message, SimpleStreamOptions, StopReason, ThinkingLevel, Tool, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, Context, Message, SimpleStreamOptions, StopReason, ThinkingLevel, Tool};
 use elph_ai::{builtin_models, get_builtin_model};
 use serde_json::json;
 
@@ -110,6 +109,7 @@ async fn generate_fixture(pair: &ProviderPair) -> Option<Vec<Message>> {
         tool_name: tool_call.name.clone(),
         content: vec![elph_ai::types::ContentBlock::Text { text: "42".to_string() }],
         details: None,
+        added_tool_names: None,
         is_error: false,
         timestamp: 1,
     };
@@ -120,19 +120,11 @@ async fn generate_fixture(pair: &ProviderPair) -> Option<Vec<Message>> {
     };
     let final_response = models.complete_simple(&model, &final_context, options).await;
     if final_response.stop_reason == StopReason::Error {
-        eprintln!(
-            "[{}] final request failed: {:?}",
-            pair.label, final_response.error_message
-        );
+        eprintln!("[{}] final request failed: {:?}", pair.label, final_response.error_message);
         return None;
     }
 
-    Some(vec![
-        user,
-        assistant_message,
-        tool_result,
-        Message::Assistant(final_response),
-    ])
+    Some(vec![user, assistant_message, tool_result, Message::Assistant(final_response)])
 }
 
 fn fixtures() -> Arc<HashMap<String, Vec<Message>>> {

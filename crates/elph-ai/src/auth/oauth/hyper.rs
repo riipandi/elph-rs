@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::device_code::{DeviceCodePollOptions, DeviceCodePollResult, poll_oauth_device_code_flow};
+use super::device_code::poll_oauth_device_code_flow;
+use super::device_code::{DeviceCodePollOptions, DeviceCodePollResult};
+use crate::auth::OAuthLoader;
+use crate::auth::lazy_oauth;
 use crate::auth::types::{AuthLoginCallbacks, ModelAuth, OAuthAuth, OAuthCredential};
-use crate::auth::{OAuthLoader, lazy_oauth};
 
 const DEFAULT_HYPER_URL: &str = "https://hyper.charm.land";
 const DEFAULT_DEVICE_POLL_INTERVAL_SECONDS: u64 = 5;

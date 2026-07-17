@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use crate::api::faux::FauxCore;
 use crate::auth::types::{AuthResolveInput, AuthResult, ModelAuth, ProviderAuth};
-use crate::models::{CreateProviderOptions, Provider, ProviderApi, create_provider};
+use crate::models::create_provider;
+use crate::models::{CreateProviderOptions, Provider, ProviderApi};
 use crate::providers::adapter::faux_api;
 
-pub use crate::api::faux::{
-    FauxApi, FauxModelDefinition, FauxResponseFactory, FauxResponseStep, FauxState, RegisterFauxProviderOptions,
-    faux_assistant_message, faux_text, faux_thinking, faux_tool_call,
-};
+pub use crate::api::faux::RegisterFauxProviderOptions;
+pub use crate::api::faux::{FauxApi, FauxModelDefinition, FauxResponseFactory, FauxResponseStep, FauxState};
+pub use crate::api::faux::{faux_assistant_message, faux_text, faux_thinking, faux_tool_call};
 
 pub struct FauxProviderHandle {
     pub provider: Provider,

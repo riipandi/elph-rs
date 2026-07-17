@@ -1,4 +1,5 @@
-use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode, Settings, ensure_home_blocking};
+use crate::platform::ensure_home_blocking;
+use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode, Settings};
 
 pub fn handle() -> ExitCode {
     let paths = match ensure_home_blocking(env!("CARGO_PKG_VERSION")) {

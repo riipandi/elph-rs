@@ -3,15 +3,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use reqwest::Client;
 use serde_json::Value;
 
 use crate::api::http_proxy::resolve_http_proxy_url_for_target;
-use crate::types::{
-    AssistantMessage, AssistantMessageEvent, Model, OnPayloadCallback, OnResponseCallback, ProviderEnv,
-    ProviderResponse, StopReason, StreamOptions,
-};
+use crate::types::{AssistantMessage, AssistantMessageEvent, Model, OnPayloadCallback, OnResponseCallback};
+use crate::types::{ProviderEnv, ProviderResponse, StopReason, StreamOptions};
 use crate::utils::error_body::{error_body_from_response, format_provider_error, normalize_provider_error};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::headers::{has_header, headers_to_record, merge_provider_headers};
@@ -86,6 +85,10 @@ pub fn is_abort_error(error: &anyhow::Error) -> bool {
     error.to_string() == REQUEST_ABORTED
 }
 
+pub fn with_trace_headers(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    crate::trace::with_trace_headers(request)
+}
+
 pub async fn send_with_abort(
     token: &Option<tokio_util::sync::CancellationToken>,
     request: reqwest::RequestBuilder,
@@ -93,6 +96,7 @@ pub async fn send_with_abort(
     if is_request_aborted(token) {
         return Err(request_aborted_error());
     }
+    let request = with_trace_headers(request);
     match token {
         Some(token) => {
             let token = token.clone();

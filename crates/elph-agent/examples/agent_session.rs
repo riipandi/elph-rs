@@ -9,10 +9,12 @@
 
 use std::sync::Arc;
 
-use elph_agent::{
-    InMemorySessionCreateOptions, InMemorySessionRepo, LocalExecutionEnv, SessionDirRepo, SessionDirRepoCreateOptions,
-    llm_message_to_agent,
-};
+use elph_agent::InMemorySessionCreateOptions;
+use elph_agent::InMemorySessionRepo;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::SessionDirRepo;
+use elph_agent::SessionDirRepoCreateOptions;
+use elph_agent::llm_message_to_agent;
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -38,23 +40,22 @@ async fn main() -> anyhow::Result<()> {
 
     // Append assistant message
     session
-        .append_message(llm_message_to_agent(elph_ai::Message::Assistant(
-            elph_ai::AssistantMessage {
-                role: "assistant".into(),
-                content: vec![elph_ai::AssistantContentBlock::Text(elph_ai::TextContent::new(
-                    "Session response",
-                ))],
-                api: "faux".into(),
-                provider: "faux".into(),
-                model: "faux-1".into(),
-                response_model: None,
-                response_id: None,
-                usage: elph_ai::Usage::default(),
-                stop_reason: elph_ai::StopReason::Stop,
-                error_message: None,
-                timestamp: now_ms(),
-            },
-        )))
+        .append_message(llm_message_to_agent(elph_ai::Message::Assistant(elph_ai::AssistantMessage {
+            role: "assistant".into(),
+            content: vec![elph_ai::AssistantContentBlock::Text(elph_ai::TextContent::new(
+                "Session response",
+            ))],
+            api: "faux".into(),
+            provider: "faux".into(),
+            model: "faux-1".into(),
+            response_model: None,
+            response_id: None,
+            diagnostics: None,
+            usage: elph_ai::Usage::default(),
+            stop_reason: elph_ai::StopReason::Stop,
+            error_message: None,
+            timestamp: now_ms(),
+        })))
         .await?;
 
     // Read back entries

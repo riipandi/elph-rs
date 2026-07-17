@@ -1,7 +1,7 @@
 //! Skill invocation formatting — elph-agent module.
 
-use crate::env::{basename_env_path, dirname_env_path};
-use crate::harness::types::Skill;
+use crate::agent::harness::types::Skill;
+use crate::runtime::env::{basename_env_path, dirname_env_path};
 
 /// Format a skill invocation prompt, optionally appending additional user instructions.
 pub fn format_skill_invocation(skill: &Skill, additional_instructions: Option<&str>) -> String {

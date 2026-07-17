@@ -4,10 +4,14 @@ mod common;
 use std::sync::Arc;
 
 use common::{assistant_agent_message, user_agent_message};
-use elph_agent::{
-    ForkEntriesOptions, InMemorySessionCreateOptions, InMemorySessionRepo, LocalExecutionEnv, SUMMARY_FILE,
-    SessionDirListOptions, SessionDirRepo, SessionDirRepoCreateOptions,
-};
+use elph_agent::ForkEntriesOptions;
+use elph_agent::InMemorySessionCreateOptions;
+use elph_agent::InMemorySessionRepo;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::SUMMARY_FILE;
+use elph_agent::SessionDirListOptions;
+use elph_agent::SessionDirRepo;
+use elph_agent::SessionDirRepoCreateOptions;
 use tempfile::TempDir;
 
 fn temp_root() -> (TempDir, Arc<LocalExecutionEnv>) {
@@ -194,10 +198,7 @@ async fn session_dir_repo_opens_deletes_and_forks_by_metadata() {
         .expect("fork");
     let fork_metadata = fork.metadata().await;
     assert_eq!(fork_metadata.cwd, "/tmp/target");
-    assert_eq!(
-        fork_metadata.parent_session_id.as_deref(),
-        Some(source_metadata.id.as_str())
-    );
+    assert_eq!(fork_metadata.parent_session_id.as_deref(), Some(source_metadata.id.as_str()));
     let fork_ids: Vec<_> = fork
         .entries()
         .await

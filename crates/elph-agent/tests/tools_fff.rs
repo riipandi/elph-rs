@@ -2,9 +2,10 @@
 
 use std::sync::Arc;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::types::{FileSystem, get_or_throw};
-use elph_agent::tools::{create_find_tool, create_grep_tool};
+use elph_agent::agent::harness::types::FileSystem;
+use elph_agent::agent::harness::types::get_or_throw;
+use elph_agent::runtime::local_env::LocalExecutionEnv;
+use elph_agent::tools::{create_find_path_tool, create_grep_tool};
 use elph_agent::types::ToolResultContent;
 use serde_json::json;
 use tempfile::TempDir;
@@ -30,7 +31,7 @@ async fn find_tool_matches_glob_pattern_recursively() {
     get_or_throw(env.write_file("src/nested/lib.rs", "pub fn lib() {}\n").await);
     get_or_throw(env.write_file("readme.md", "# readme\n").await);
 
-    let tool = create_find_tool(env.clone());
+    let tool = create_find_path_tool(env.clone());
     let result = (tool.execute)("find-1".into(), json!({ "pattern": "*.rs" }), None, None)
         .await
         .expect("find tool");
@@ -48,14 +49,9 @@ async fn grep_tool_finds_literal_pattern_in_directory() {
     get_or_throw(env.write_file("beta.txt", "goodbye world\n").await);
 
     let tool = create_grep_tool(env.clone());
-    let result = (tool.execute)(
-        "grep-1".into(),
-        json!({ "pattern": "hello", "literal": true }),
-        None,
-        None,
-    )
-    .await
-    .expect("grep tool");
+    let result = (tool.execute)("grep-1".into(), json!({ "pattern": "hello", "literal": true }), None, None)
+        .await
+        .expect("grep tool");
 
     let text = tool_text(result);
     assert!(text.contains("alpha.txt:1:hello world"), "unexpected output:\n{text}");

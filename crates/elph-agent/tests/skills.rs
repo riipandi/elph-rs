@@ -3,11 +3,11 @@
 use std::os::unix::fs::symlink;
 use std::path::Path;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::types::{
-    SkillLoadOptions, SkillValidationSettings, resolve_project_skills_dirs, resolve_user_skills_dirs,
-};
-use elph_agent::skills::{SkillDiagnosticCode, load_skills, load_skills_with_options, load_sourced_skills};
+use elph_agent::agent::harness::types::{SkillLoadOptions, SkillValidationSettings};
+use elph_agent::agent::harness::types::{resolve_project_skills_dirs, resolve_user_skills_dirs};
+use elph_agent::runtime::local_env::LocalExecutionEnv;
+use elph_agent::skills::SkillDiagnosticCode;
+use elph_agent::skills::{load_skills, load_skills_with_options, load_sourced_skills};
 use tempfile::TempDir;
 
 fn join_path(root: &Path, parts: &[&str]) -> String {
@@ -122,10 +122,7 @@ async fn load_sourced_skills_attaches_source_to_diagnostics() {
     assert_eq!(result.diagnostics.len(), 1);
     assert_eq!(result.diagnostics[0].code, SkillDiagnosticCode::InvalidMetadata);
     assert_eq!(result.diagnostics[0].message, "description is required");
-    assert_eq!(
-        result.diagnostics[0].path,
-        join_path(&root, &["user", "broken", "SKILL.md"])
-    );
+    assert_eq!(result.diagnostics[0].path, join_path(&root, &["user", "broken", "SKILL.md"]));
     assert_eq!(result.diagnostics[0].source, Source { kind: "user" });
 }
 
@@ -139,12 +136,9 @@ async fn load_skills_loads_direct_markdown_children_only_from_root() {
     env.write_file("skills/root.md", "---\ndescription: Root skill\n---\nRoot content")
         .await
         .expect("write root");
-    env.write_file(
-        "skills/nested/ignored.md",
-        "---\ndescription: Ignored\n---\nIgnored content",
-    )
-    .await
-    .expect("write nested");
+    env.write_file("skills/nested/ignored.md", "---\ndescription: Ignored\n---\nIgnored content")
+        .await
+        .expect("write nested");
 
     let result = load_skills(&env, &["skills"]).await;
 
@@ -164,7 +158,7 @@ async fn load_skills_with_optional_fields() {
         .expect("create dir");
     env.write_file(
         ".agents/skills/example/SKILL.md",
-        "---\nname: example\ndescription: Example skill\nlicense: MIT\ncompatibility: Requires bash\nmetadata:\n  author: test\n  version: '1.0'\nallowed-tools: bash read write\n---\nUse this skill.",
+        "---\nname: example\ndescription: Example skill\nlicense: MIT\ncompatibility: Requires bash\nmetadata:\n  author: test\n  version: '1.0'\nallowed-tools: bash read_file write_file\n---\nUse this skill.",
     )
     .await
     .expect("write file");
@@ -182,7 +176,7 @@ async fn load_skills_with_optional_fields() {
     assert_eq!(metadata.get("version").unwrap(), "1.0");
     assert_eq!(
         result.skills[0].allowed_tools,
-        Some(vec!["bash".to_string(), "read".to_string(), "write".to_string()])
+        Some(vec!["bash".to_string(), "read_file".to_string(), "write_file".to_string()])
     );
 }
 
@@ -258,9 +252,9 @@ fn resolve_user_skills_dirs_uses_app_name() {
     assert!(dirs[1].ends_with("/.elph/skills"));
     assert!(dirs[2].ends_with("/.elph/bundled/skills"));
 
-    let dirs = resolve_user_skills_dirs("eclaw");
-    assert!(dirs[1].ends_with("/.eclaw/skills"));
-    assert!(dirs[2].ends_with("/.eclaw/bundled/skills"));
+    let dirs = resolve_user_skills_dirs("acme");
+    assert!(dirs[1].ends_with("/.acme/skills"));
+    assert!(dirs[2].ends_with("/.acme/bundled/skills"));
 }
 
 #[test]
@@ -270,6 +264,6 @@ fn resolve_project_skills_dirs_uses_app_name() {
     assert_eq!(dirs[0], "/project/.agents/skills");
     assert_eq!(dirs[1], "/project/.elph/skills");
 
-    let dirs = resolve_project_skills_dirs("/project", "eclaw");
-    assert_eq!(dirs[1], "/project/.eclaw/skills");
+    let dirs = resolve_project_skills_dirs("/project", "acme");
+    assert_eq!(dirs[1], "/project/.acme/skills");
 }

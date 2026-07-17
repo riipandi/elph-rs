@@ -83,7 +83,7 @@ Session storage implementations must persist leaf changes as `leaf` entries. `se
 Backends:
 
 - `InMemorySessionStorage` — tests and ephemeral use
-- `JsonlSessionStorage` — append-only file sessions
+- `JsonSessionStorage` — append-only file sessions
 - `TursoSessionStorage` — SQL-backed durable sessions
 
 ### Pending session writes
@@ -255,7 +255,7 @@ Built-in tool wiring:
 - `read`, `write`, `edit`, `bash` — `ExecutionEnv` file and shell APIs
 - `ls` — path resolution via `ExecutionEnv`, listing via `walkdir` on a blocking thread
 - `grep`, `find` — resolve paths via `ExecutionEnv`, then search the real filesystem with [`fff-search`](https://crates.io/crates/fff-search) (`FilePicker::collect_files`, `watch: false`)
-- `web_search`, `web_fetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Register via `create_web_tools()` or `create_all_tools_with_web()`.
+- `websearch`, `webfetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Enable the `tools-web` feature and register via `BuiltinToolsBuilder::all(env).build()` or `create_web_tools()`.
 
 See [tools.md](./tools.md) for tool groups, parameters, engine ranking, and output formats.
 
@@ -291,10 +291,11 @@ cargo test -p elph-agent --test harness
 - Typed hook handlers with result chaining
 - `ExecutionEnv` with typed `Result` returns
 - Built-in coding and exploration tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`)
-- Web tools (`web_search`, `web_fetch`) with multi-engine ranking and Obscura fallback
+- Web tools (`websearch`, `webfetch`) with multi-engine ranking and Obscura fallback
 - `grep` / `find` backed by `fff-search`; filesystem tools use `ExecutionEnv` directly
 - Collaboration mode (`Default` / `Plan`) with plan proposal extraction and confirmation API
 - Subagent control plane (`AgentControl`) and multi-agent tools (`spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `list_agents`)
+- Core fastrace spans for turns, agent loop, tools, MCP, and provider streaming (see [observability.md](./observability.md))
 
 ### Planned
 
@@ -303,4 +304,4 @@ cargo test -p elph-agent --test harness
 - Retry handling
 - Semi-durable harness recovery (see [durable-harness.md](./durable-harness.md))
 - Broad listener/hook reentrancy test suite
-- Observability instrumentation (see [observability.md](./observability.md))
+- Extended observability: skill/template/compaction spans, session I/O, provider usage events, OTel adapters (see [observability.md](./observability.md))

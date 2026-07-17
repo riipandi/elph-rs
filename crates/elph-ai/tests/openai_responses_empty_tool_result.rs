@@ -2,9 +2,8 @@ mod common;
 
 use elph_ai::api::openai_responses_shared::convert_responses_messages;
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, ToolCall, Usage, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, ToolCall, Usage};
 use serde_json::json;
 use std::collections::HashSet;
 
@@ -23,6 +22,7 @@ fn uses_no_tool_output_placeholder_for_empty_tool_results_without_images() {
         api: model.api.clone(),
         provider: model.provider.clone(),
         model: model.id.clone(),
+        diagnostics: None,
         usage: Usage::default(),
         stop_reason: StopReason::ToolUse,
         timestamp: 0,
@@ -43,6 +43,7 @@ fn uses_no_tool_output_placeholder_for_empty_tool_results_without_images() {
                 tool_name: "bash".to_string(),
                 content: vec![ContentBlock::Text { text: String::new() }],
                 details: None,
+                added_tool_names: None,
                 is_error: false,
                 timestamp: 1,
             },

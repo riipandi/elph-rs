@@ -6,13 +6,13 @@ Design log for evaluating third-party libraries. Verdicts guide adoption — imp
 
 ## Near-term stack (target)
 
-| Layer           | Planned crates                                                  |
-| --------------- | --------------------------------------------------------------- |
-| LLM / providers | `genai`, `schemars`                                             |
-| Agent runtime   | `fff-search` (done), `rmcp`, `jsonschema`                       |
-| TUI             | `superlighttui`, `syntect`, `anstyle-syntect`, `pulldown-cmark` |
-| Config          | `figment`, `jsonc-parser`                                       |
-| Shared          | `tracing`, `tokio`, `chrono`, `memchr`                          |
+| Layer           | Planned crates                                              |
+| --------------- | ----------------------------------------------------------- |
+| LLM / providers | `genai`, `schemars`                                         |
+| Agent runtime   | `fff-search` (done), `rmcp`, `jsonschema`                   |
+| TUI             | `iocraft`, `syntect`, `anstyle-syntect`, `pulldown-cmark`   |
+| Config          | `figment`, `jsonc-parser`                                   |
+| Shared          | `log` + `logforth`, `fastrace`, `tokio`, `chrono`, `memchr` |
 
 ---
 
@@ -41,11 +41,11 @@ Design log for evaluating third-party libraries. Verdicts guide adoption — imp
 
 ## TUI, markdown & prompts
 
-Two layers: immediate-mode agent shell + rich diff/overlay components.
+Two layers: iocraft agent shell + rich diff/overlay components.
 
 | Verdict   | Item                                                                                                      | Rationale                                    |
 | --------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **Keep**  | [superlighttui](https://github.com/subinium/SuperLightTUI)                                                | Agent shell for elph and owly                |
+| **Keep**  | [iocraft](https://crates.io/crates/iocraft)                                                               | Agent shell for elph                         |
 | **Keep**  | [pulldown-cmark](https://github.com/pulldown-cmark/pulldown-cmark)                                        | Markdown line rendering                      |
 | **Adopt** | [syntect](https://crates.io/crates/syntect) + [anstyle-syntect](https://crates.io/crates/anstyle-syntect) | Code-block highlighting                      |
 | **Defer** | anstyle-git, termimad                                                                                     | Git diff colors; full markdown TUI redundant |
@@ -73,7 +73,7 @@ Blocking wizards only outside the active TUI session (raw-mode conflict).
 
 ## Configuration
 
-Schema: [schemas/elph-config-schema.json](../schemas/elph-config-schema.json).
+Schema: [schemas/elph-schema.json](../schemas/elph-schema.json).
 
 **Merge order:** defaults → home → project → env → CLI.
 
@@ -88,11 +88,11 @@ Schema: [schemas/elph-config-schema.json](../schemas/elph-config-schema.json).
 
 ## Infrastructure
 
-| Verdict   | Item                           | Rationale                                        |
-| --------- | ------------------------------ | ------------------------------------------------ |
-| **Keep**  | tracing, chrono, memchr, rayon | Logging, time, parsing, parallel fuzzy filter    |
-| **Defer** | rapidhash, obscura             | Fingerprints; embedded browser (high build cost) |
-| **Skip**  | Duplicate transitive deps      | Add only when needed in-tree                     |
+| Verdict   | Item                                            | Rationale                                                          |
+| --------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| **Keep**  | log + logforth, fastrace, chrono, memchr, rayon | Structured logs, trace spans, time, parsing, parallel fuzzy filter |
+| **Defer** | rapidhash, obscura                              | Fingerprints; embedded browser (high build cost)                   |
+| **Skip**  | Duplicate transitive deps                       | Add only when needed in-tree                                       |
 
 ---
 

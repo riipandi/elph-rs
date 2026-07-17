@@ -2,7 +2,8 @@
 
 use serde::Deserialize;
 
-use crate::harness::types::{Result, err, ok};
+use crate::agent::harness::types::Result;
+use crate::agent::harness::types::{err, ok};
 
 const MAX_NAME_LENGTH: usize = 64;
 const MAX_DESCRIPTION_LENGTH: usize = 1024;
@@ -11,9 +12,7 @@ const MAX_COMPATIBILITY_LENGTH: usize = 500;
 pub(super) fn validate_name(name: &str, parent_dir_name: &str) -> Vec<String> {
     let mut errors = Vec::new();
     if name != parent_dir_name {
-        errors.push(format!(
-            "name \"{name}\" does not match parent directory \"{parent_dir_name}\""
-        ));
+        errors.push(format!("name \"{name}\" does not match parent directory \"{parent_dir_name}\""));
     }
     if name.len() > MAX_NAME_LENGTH {
         errors.push(format!("name exceeds {MAX_NAME_LENGTH} characters ({})", name.len()));

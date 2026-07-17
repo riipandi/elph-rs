@@ -7,7 +7,7 @@ use elph_ai::{ImageContent, TextContent};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::mode::CollaborationMode;
+use crate::collaboration::CollaborationMode;
 use crate::types::AgentMessage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

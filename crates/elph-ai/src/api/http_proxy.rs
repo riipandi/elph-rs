@@ -1,4 +1,5 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 use url::Url;
 
 use crate::types::ProviderEnv;
@@ -137,10 +138,7 @@ pub fn resolve_http_proxy_url_for_target(target_url: &str, env: Option<&Provider
     let proxy_url = Url::parse(&proxy).map_err(|error| anyhow!("Invalid proxy URL {:?}: {error}", proxy))?;
 
     if proxy_url.scheme() != "http" && proxy_url.scheme() != "https" {
-        return Err(anyhow!(
-            "{UNSUPPORTED_PROXY_PROTOCOL_MESSAGE} Got {}:",
-            proxy_url.scheme()
-        ));
+        return Err(anyhow!("{UNSUPPORTED_PROXY_PROTOCOL_MESSAGE} Got {}:", proxy_url.scheme()));
     }
 
     Ok(Some(proxy_url))

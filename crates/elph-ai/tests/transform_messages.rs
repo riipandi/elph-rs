@@ -2,9 +2,8 @@ use elph_ai::api::openai_compat::get_compat;
 use elph_ai::api::openai_completions::convert_messages;
 use elph_ai::api::transform_messages::transform_messages;
 use elph_ai::get_builtin_model;
-use elph_ai::types::{
-    AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, ToolCall, Usage, UserContent,
-};
+use elph_ai::types::UserContent;
+use elph_ai::types::{AssistantContentBlock, AssistantMessage, ContentBlock, Message, StopReason, ToolCall, Usage};
 use serde_json::json;
 
 fn assistant_with_tool_call(id: &str) -> AssistantMessage {
@@ -20,6 +19,7 @@ fn assistant_with_tool_call(id: &str) -> AssistantMessage {
         api: "openai-completions".to_string(),
         provider: "openai".to_string(),
         model: "gpt-4o-mini".to_string(),
+        diagnostics: None,
         usage: Usage::default(),
         stop_reason: StopReason::ToolUse,
         timestamp: 0,
@@ -74,6 +74,7 @@ fn normalizes_foreign_pipe_separated_tool_call_ids_for_cross_provider_handoff() 
         api: "openai-responses".to_string(),
         provider: "github-copilot".to_string(),
         model: "gpt-5.2-codex".to_string(),
+        diagnostics: None,
         usage: Usage::default(),
         stop_reason: StopReason::ToolUse,
         timestamp: 0,
@@ -94,6 +95,7 @@ fn normalizes_foreign_pipe_separated_tool_call_ids_for_cross_provider_handoff() 
                 text: "hello".to_string(),
             }],
             details: None,
+            added_tool_names: None,
             is_error: false,
             timestamp: 1,
         },
@@ -144,6 +146,7 @@ fn openrouter_completions_normalizes_long_pipe_separated_ids_from_issue_1022() {
                 api: "openai-responses".to_string(),
                 provider: "github-copilot".to_string(),
                 model: "gpt-5.2-codex".to_string(),
+                diagnostics: None,
                 usage: Usage::default(),
                 stop_reason: StopReason::ToolUse,
                 timestamp: 0,
@@ -158,6 +161,7 @@ fn openrouter_completions_normalizes_long_pipe_separated_ids_from_issue_1022() {
                     text: "hello".to_string(),
                 }],
                 details: None,
+                added_tool_names: None,
                 is_error: false,
                 timestamp: 1,
             },

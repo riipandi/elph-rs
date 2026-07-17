@@ -1,0 +1,136 @@
+//! Pure layout helpers for multiline prompt sizing and scroll.
+
+use crate::text_input_layout::WrappedTextLayout;
+
+/// Logical row count, including an empty row after a trailing `\n`.
+pub fn logical_line_count(text: &str) -> u16 {
+    let lines = text.chars().filter(|&c| c == '\n').count() + 1;
+    lines.max(1) as u16
+}
+
+/// Display rows after soft-wrapping.
+pub fn display_row_count(text: &str, viewport_width: u16) -> u16 {
+    WrappedTextLayout::new_for_overlay_editor(text, viewport_width).row_count()
+}
+
+/// Cursor offset for viewport sizing (maps a single trailing `\n` to the empty continuation row).
+pub fn layout_cursor_for_viewport(text: &str, cursor: usize) -> usize {
+    let cursor = cursor.min(text.len());
+    if !text.ends_with('\n') {
+        return cursor;
+    }
+    if cursor == text.len() {
+        return cursor;
+    }
+    // Only the final lone `\n` gets an empty continuation row — not blank lines in the middle.
+    if cursor == text.len().saturating_sub(1) {
+        let before_last = text.len().saturating_sub(1);
+        if before_last == 0 || !text[..before_last].ends_with('\n') {
+            return text.len();
+        }
+    }
+    cursor
+}
+
+fn visible_row_count_from_layout(wrapped: &WrappedTextLayout, text: &str, cursor: usize) -> u16 {
+    let mut rows = wrapped.row_count();
+    if rows > 1 && text.ends_with('\n') {
+        let (cursor_row, _) = wrapped.row_column_for_offset(text, cursor.min(text.len()));
+        let last_row = rows.saturating_sub(1);
+        if cursor_row < last_row {
+            rows -= 1;
+        }
+    }
+    rows.max(1)
+}
+
+/// Rows to allocate vertically: omit a trailing empty continuation row unless the cursor is on it.
+pub fn visible_row_count(text: &str, cursor: usize, viewport_width: u16) -> u16 {
+    let wrapped = WrappedTextLayout::new_for_overlay_editor(text, viewport_width);
+    visible_row_count_from_layout(&wrapped, text, cursor)
+}
+
+pub fn compute_viewport_height(content_rows: u16, min_height: u16, max_height: Option<u16>) -> u16 {
+    let min_h = min_height.max(1);
+    match max_height {
+        None => content_rows.max(min_h),
+        Some(max) => content_rows.min(max.max(min_h)).max(min_h),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TextareaLayout {
+    pub input_width: u16,
+    pub content_rows: u16,
+    pub viewport_height: u16,
+    pub show_scrollbar: bool,
+}
+
+fn layout_from_wrapped(
+    wrapped: &WrappedTextLayout,
+    text: &str,
+    cursor: usize,
+    outer_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> TextareaLayout {
+    let content_rows = wrapped.row_count();
+    let visible_rows = match max_height {
+        Some(_) => content_rows,
+        None => visible_row_count_from_layout(wrapped, text, cursor),
+    };
+    let viewport_height = compute_viewport_height(visible_rows, min_height, max_height);
+    let show_scrollbar = max_height.is_some() && content_rows > viewport_height;
+    let input_width = if show_scrollbar {
+        outer_width.saturating_sub(1).max(1)
+    } else {
+        outer_width.max(1)
+    };
+    TextareaLayout {
+        input_width,
+        content_rows,
+        viewport_height,
+        show_scrollbar,
+    }
+}
+
+/// Viewport metrics from an existing wrap pass (cursor only affects growth-without-cap mode).
+pub fn layout_metrics_from_wrapped(
+    wrapped: &WrappedTextLayout,
+    text: &str,
+    cursor: usize,
+    outer_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> TextareaLayout {
+    layout_from_wrapped(wrapped, text, cursor, outer_width, min_height, max_height)
+}
+
+/// Layout metrics plus a single shared wrap pass for cursor/scroll rendering.
+pub fn layout_textarea_measured(
+    text: &str,
+    cursor: usize,
+    outer_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> (TextareaLayout, WrappedTextLayout) {
+    let wrapped_full = WrappedTextLayout::new_for_overlay_editor(text, outer_width.max(1));
+    let layout_probe = layout_from_wrapped(&wrapped_full, text, cursor, outer_width, min_height, max_height);
+    if layout_probe.show_scrollbar {
+        let wrapped = WrappedTextLayout::new_for_overlay_editor(text, layout_probe.input_width);
+        let layout = layout_from_wrapped(&wrapped, text, cursor, outer_width, min_height, max_height);
+        (layout, wrapped)
+    } else {
+        (layout_probe, wrapped_full)
+    }
+}
+
+pub fn layout_textarea(
+    text: &str,
+    cursor: usize,
+    outer_width: u16,
+    min_height: u16,
+    max_height: Option<u16>,
+) -> TextareaLayout {
+    layout_textarea_measured(text, cursor, outer_width, min_height, max_height).0
+}

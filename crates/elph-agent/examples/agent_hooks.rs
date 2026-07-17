@@ -8,11 +8,17 @@
 
 use std::sync::Arc;
 
-use elph_agent::{
-    AfterToolCallContext, AfterToolCallResult, Agent, AgentEvent, AgentOptions, BeforeToolCallContext,
-    BeforeToolCallResult, PartialAgentState, simple_tool,
-};
-use elph_ai::{FauxResponseStep, Tool, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
+use elph_agent::AfterToolCallContext;
+use elph_agent::AfterToolCallResult;
+use elph_agent::Agent;
+use elph_agent::AgentEvent;
+use elph_agent::AgentOptions;
+use elph_agent::BeforeToolCallContext;
+use elph_agent::BeforeToolCallResult;
+use elph_agent::PartialAgentState;
+use elph_agent::simple_tool;
+use elph_ai::{FauxResponseStep, Tool};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 
 #[tokio::main]
@@ -49,12 +55,8 @@ async fn main() -> anyhow::Result<()> {
             ..Default::default()
         }),
         stream_fn: Some(stream_fn),
-        before_tool_call: Some(Arc::new(|ctx, _signal| {
-            Box::pin(async move { before_tool_hook(ctx).await })
-        })),
-        after_tool_call: Some(Arc::new(|ctx, _signal| {
-            Box::pin(async move { after_tool_hook(ctx).await })
-        })),
+        before_tool_call: Some(Arc::new(|ctx, _signal| Box::pin(async move { before_tool_hook(ctx).await }))),
+        after_tool_call: Some(Arc::new(|ctx, _signal| Box::pin(async move { after_tool_hook(ctx).await }))),
         ..Default::default()
     });
 
@@ -142,9 +144,7 @@ fn create_read_file_tool() -> elph_agent::AgentTool {
                         "[package]\nname = \"elph\"\nversion = \"0.0.22\"",
                     ))
                 } else {
-                    Ok(elph_agent::AgentToolResult::text(format!(
-                        "Contents of {path} (simulated)"
-                    )))
+                    Ok(elph_agent::AgentToolResult::text(format!("Contents of {path} (simulated)")))
                 }
             })
         },

@@ -1,21 +1,20 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
-};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use axum::{
-    Router,
-    body::Body,
-    http::{HeaderValue, StatusCode, header},
-    response::Response,
-    routing::get,
-};
-use elph_ai::api::common::{REQUEST_ABORTED, build_http_client};
+use axum::Router;
+use axum::body::Body;
+use axum::http::header;
+use axum::http::{HeaderValue, StatusCode};
+use axum::response::Response;
+use axum::routing::get;
+use elph_ai::api::common::REQUEST_ABORTED;
+use elph_ai::api::common::build_http_client;
 use elph_ai::api::sse::{for_each_anthropic_sse_event, for_each_sse_json_event};
 use futures::stream;
 use serde_json::json;
 use tokio::net::TcpListener;
-use tokio::time::{Duration, sleep};
+use tokio::time::Duration;
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
 async fn slow_sse_handler() -> Response {
@@ -25,10 +24,7 @@ async fn slow_sse_handler() -> Response {
         }
         let payload = json!({ "index": index });
         sleep(Duration::from_millis(50)).await;
-        Some((
-            Ok::<_, std::convert::Infallible>(format!("data: {payload}\n\n")),
-            index + 1,
-        ))
+        Some((Ok::<_, std::convert::Infallible>(format!("data: {payload}\n\n")), index + 1))
     }));
 
     Response::builder()

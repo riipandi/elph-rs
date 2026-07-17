@@ -4,7 +4,8 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::anyhow;
+use anyhow::{Context, Result};
 use regex::Regex;
 use reqwest::Client;
 use url::Url;
@@ -29,7 +30,7 @@ pub async fn do_get(client: &Client, url: &str, headers: &[(&str, &str)]) -> Res
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    let resp = req.send().await?;
+    let resp = crate::trace::with_trace_headers(req).send().await?;
     let status = resp.status();
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
@@ -48,7 +49,7 @@ pub async fn do_post_json(
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    let resp = req.send().await?;
+    let resp = crate::trace::with_trace_headers(req).send().await?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
@@ -57,10 +58,19 @@ pub async fn do_post_json(
     Ok(resp.json().await?)
 }
 
+/// Truncate at a Unicode scalar boundary (never mid-codepoint).
+pub(crate) fn truncate_at_chars(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        s.chars().take(max_chars).collect()
+    }
+}
+
 fn trim_error_body(body: &str) -> String {
     let s = body.trim();
-    if s.len() > 240 {
-        format!("{}...", &s[..240])
+    if s.chars().count() > 240 {
+        format!("{}...", truncate_at_chars(s, 240))
     } else {
         s.to_string()
     }
@@ -82,7 +92,23 @@ pub fn strip_html(s: &str) -> String {
 }
 
 pub fn html_to_text(data: &str) -> String {
-    let clean = strip_html(data);
+    match htmd::convert(data) {
+        Ok(markdown) => {
+            let trimmed = markdown.trim();
+            if trimmed.is_empty() {
+                // Fallback to plain text extraction if conversion yields nothing.
+                strip_html_plain(data)
+            } else {
+                trimmed.to_string()
+            }
+        }
+        Err(_) => strip_html_plain(data),
+    }
+}
+
+/// Fallback: strip HTML tags and decode entities to plain text.
+fn strip_html_plain(s: &str) -> String {
+    let clean = strip_html(s);
     clean
         .replace("\r\n", "\n")
         .replace('\r', "\n")
@@ -186,5 +212,22 @@ mod tests {
     fn strip_html_decodes_entities() {
         assert_eq!(strip_html("<b>hello</b>"), "hello");
         assert_eq!(strip_html("a &amp; b"), "a & b");
+    }
+
+    #[test]
+    fn truncate_at_chars_respects_scalar_boundaries() {
+        let bullet = "•";
+        let input = format!("{}a", bullet.repeat(100));
+        let truncated = truncate_at_chars(&input, 100);
+        assert_eq!(truncated.chars().count(), 100);
+        assert!(std::str::from_utf8(truncated.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn trim_error_body_does_not_panic_on_multibyte_chars() {
+        let body = format!("{}end", "•".repeat(250));
+        let trimmed = trim_error_body(&body);
+        assert!(trimmed.ends_with("..."));
+        assert!(trimmed.chars().count() <= 244);
     }
 }

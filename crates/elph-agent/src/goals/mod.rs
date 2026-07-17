@@ -7,7 +7,8 @@ mod store;
 mod tools;
 mod types;
 
-pub use accounting::{GoalAccountingState, goal_token_delta};
+pub use accounting::GoalAccountingState;
+pub use accounting::goal_token_delta;
 pub use runtime::{GoalRuntime, GoalTurnFinish, GoalTurnStart};
 pub use store::GoalStore;
 pub use tools::create_goal_tools;

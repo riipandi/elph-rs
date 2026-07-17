@@ -1,7 +1,7 @@
 use anyhow::Result;
 use turso::Connection;
 
-use crate::migration::Migration;
+use super::Migration;
 
 pub async fn run(conn: &Connection, migrations: &[Migration]) -> Result<()> {
     conn.execute(
@@ -9,8 +9,8 @@ pub async fn run(conn: &Connection, migrations: &[Migration]) -> Result<()> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             version INTEGER NOT NULL,
             name TEXT NOT NULL,
-            applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )",
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) STRICT",
         (),
     )
     .await?;

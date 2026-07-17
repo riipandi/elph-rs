@@ -2,12 +2,14 @@ mod common;
 
 use std::collections::HashMap;
 
-use common::{
-    anthropic_model, completions_proxy_model, responses_model, sample_user_context, stream_options_with_cache,
-};
-use elph_ai::api::anthropic_messages::{AnthropicOptions, build_anthropic_messages_params};
-use elph_ai::api::openai_completions::{OpenAICompletionsOptions, build_openai_completions_params};
-use elph_ai::api::openai_responses::{OpenAIResponsesOptions, build_openai_responses_params};
+use common::stream_options_with_cache;
+use common::{anthropic_model, completions_proxy_model, responses_model, sample_user_context};
+use elph_ai::api::anthropic_messages::AnthropicOptions;
+use elph_ai::api::anthropic_messages::build_anthropic_messages_params;
+use elph_ai::api::openai_completions::OpenAICompletionsOptions;
+use elph_ai::api::openai_completions::build_openai_completions_params;
+use elph_ai::api::openai_responses::OpenAIResponsesOptions;
+use elph_ai::api::openai_responses::build_openai_responses_params;
 use elph_ai::types::{AnthropicMessagesCompat, CacheRetention, OpenAICompletionsCompat, OpenAIResponsesCompat};
 #[test]
 fn anthropic_uses_ephemeral_cache_control_by_default() {

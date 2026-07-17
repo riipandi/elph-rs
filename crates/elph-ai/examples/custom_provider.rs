@@ -10,10 +10,9 @@
 
 use std::sync::Arc;
 
-use elph_ai::{
-    ApiKeyAuth, AuthResolveInput, AuthResult, Context, Message, Model, ModelAuth, ModelCost, MutableModels,
-    ProviderApi, ProviderAuth, UserContent, create_models, create_provider,
-};
+use elph_ai::{ApiKeyAuth, AuthResolveInput, AuthResult, Context, Message, Model, ModelAuth, ModelCost};
+use elph_ai::{MutableModels, ProviderApi, ProviderAuth, UserContent};
+use elph_ai::{create_models, create_provider};
 
 // Real model reachable without a key (opencode big-pickle)
 const REAL_MODEL: &str = "big-pickle";
@@ -36,6 +35,8 @@ async fn main() -> anyhow::Result<()> {
             output: 0.60,
             cache_read: 0.075,
             cache_write: 0.15,
+
+            tiers: None,
         },
         context_window: 128_000,
         max_tokens: 16_384,

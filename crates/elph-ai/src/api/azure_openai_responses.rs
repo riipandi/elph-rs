@@ -1,24 +1,22 @@
 use std::collections::HashSet;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 use crate::api::azure_base_url::{build_default_azure_base_url, normalize_azure_base_url};
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, invoke_on_response_from_reqwest,
-    is_request_aborted, merge_model_headers, send_with_abort,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers, send_with_abort};
 use crate::api::openai_prompt_cache::clamp_openai_prompt_cache_key;
-use crate::api::openai_responses_shared::{
-    ResponsesStreamState, convert_responses_messages, convert_responses_tools, process_responses_stream_event,
-};
+use crate::api::openai_responses_shared::ResponsesStreamState;
+use crate::api::openai_responses_shared::process_responses_stream_event;
+use crate::api::openai_responses_shared::{convert_responses_messages, convert_responses_tools};
 use crate::api::simple_options::build_base_options;
 use crate::models::{clamp_thinking_level, thinking_level_to_str};
-use crate::types::{
-    AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams, SimpleStreamOptions, StopReason,
-    StreamOptions,
-};
+use crate::types::{AssistantMessage, AssistantMessageEvent, Context, Model, ProviderStreams, SimpleStreamOptions};
+use crate::types::{StopReason, StreamOptions};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::provider_env::get_provider_env_value;
 
@@ -138,9 +136,7 @@ async fn run_azure(
     if is_request_aborted(&options.base.signal) {
         output.stop_reason = StopReason::Aborted;
     } else if !responses_state.saw_terminal {
-        return Err(anyhow!(
-            "OpenAI Responses stream ended before a terminal response event"
-        ));
+        return Err(anyhow!("OpenAI Responses stream ended before a terminal response event"));
     }
 
     stream.push(AssistantMessageEvent::Done {
@@ -196,7 +192,22 @@ fn build_params(
     deployment: &str,
     providers: &HashSet<String>,
 ) -> Result<Value> {
-    let messages = convert_responses_messages(model, context, providers, None);
+    let supports_tool_search = model
+        .openai_responses_compat
+        .as_ref()
+        .and_then(|c| c.supports_tool_search)
+        .unwrap_or(false);
+    let (immediate_tools, deferred_map) =
+        crate::utils::deferred_tools::split_deferred_tools(context, supports_tool_search, None);
+    let messages = convert_responses_messages(
+        model,
+        context,
+        providers,
+        Some(crate::api::openai_responses_shared::ConvertResponsesMessagesOptions {
+            include_system_prompt: true,
+            deferred_tools: Some(deferred_map),
+        }),
+    );
     let mut params = json!({
         "model": deployment,
         "input": messages,
@@ -210,10 +221,8 @@ fn build_params(
     if let Some(temp) = options.base.temperature {
         params["temperature"] = json!(temp);
     }
-    if let Some(tools) = &context.tools
-        && !tools.is_empty()
-    {
-        params["tools"] = json!(convert_responses_tools(tools, None));
+    if !immediate_tools.is_empty() {
+        params["tools"] = json!(convert_responses_tools(&immediate_tools, None));
     }
     if model.reasoning
         && let Some(effort) = &options.reasoning_effort

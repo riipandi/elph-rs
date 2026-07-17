@@ -2,7 +2,8 @@ use std::fs::File;
 use std::io::{self, Write};
 
 use clap::{Args, CommandFactory};
-use clap_complete::{Shell, generate};
+use clap_complete::Shell;
+use clap_complete::generate;
 
 use super::Cli;
 use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode};
@@ -35,20 +36,20 @@ pub fn handle(args: &CompletionsArgs) -> ExitCode {
         let mut file = match File::create(path) {
             Ok(file) => file,
             Err(error) => {
-                tracing::error!(path = %path.display(), %error, "failed to create completion file");
+                eprintln!("failed to create completion file: path={} error={error}", path.display());
                 return EXIT_ERROR;
             }
         };
         if let Err(error) = write_completions(args.shell, &mut cmd, &bin_name, &mut file) {
-            tracing::error!(path = %path.display(), %error, "failed to write completion file");
+            eprintln!("failed to write completion file: path={} error={error}", path.display());
             return EXIT_ERROR;
         }
-        tracing::info!(path = %path.display(), shell = %args.shell, "wrote shell completions");
+        println!("wrote shell completions: path={} shell={}", path.display(), args.shell);
         return EXIT_SUCCESS;
     }
 
     if let Err(error) = write_completions(args.shell, &mut cmd, &bin_name, &mut io::stdout()) {
-        tracing::error!(%error, "failed to write completions to stdout");
+        eprintln!("failed to write completions to stdout: {error}");
         return EXIT_ERROR;
     }
     EXIT_SUCCESS
@@ -72,10 +73,7 @@ mod tests {
 
         let script = String::from_utf8(script).expect("utf8");
         assert!(script.contains("elph"), "expected bin name in script:\n{script}");
-        assert!(
-            script.contains("extensions"),
-            "expected extensions subcommand:\n{script}"
-        );
+        assert!(script.contains("extensions"), "expected extensions subcommand:\n{script}");
         assert!(script.contains("ext"), "expected ext alias:\n{script}");
         assert!(script.contains("memory"), "expected memory subcommand:\n{script}");
     }

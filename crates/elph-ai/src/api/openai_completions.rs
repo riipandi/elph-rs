@@ -2,22 +2,20 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key,
-    invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error, get_client_api_key};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
 use crate::api::github_copilot_headers::{build_copilot_dynamic_headers, has_copilot_vision_input};
-use crate::api::openai_compat::{ResolvedOpenAICompletionsCompat, get_compat, has_tool_history};
+use crate::api::openai_compat::ResolvedOpenAICompletionsCompat;
+use crate::api::openai_compat::{get_compat, has_tool_history};
 use crate::api::openai_prompt_cache::clamp_openai_prompt_cache_key;
 use crate::api::simple_options::build_base_options;
 use crate::api::transform_messages::transform_messages;
 use crate::models::{calculate_cost, clamp_thinking_level, thinking_level_to_str};
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message, Model,
-    ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, UserContent,
-};
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message};
+use crate::types::{Model, ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, UserContent};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::json_parse::parse_streaming_json;
 use crate::utils::provider_env::get_provider_env_value;

@@ -2,7 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::bail;
+use anyhow::{Context, Result};
 use turso::{Builder, Connection};
 
 use super::types::{Goal, GoalStatus};
@@ -103,7 +104,7 @@ impl GoalStore {
             bail!("budgets must be non-negative");
         }
 
-        let goal_id = crate::session::id::create_tsid();
+        let goal_id = crate::session::id::create_kalid();
         let conn = self.connection().await?;
         conn.execute(
             "INSERT INTO goals (

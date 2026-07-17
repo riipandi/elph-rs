@@ -3,13 +3,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::env::LocalExecutionEnv;
-use crate::harness::types::{FileSystem, get_or_throw};
+use crate::agent::harness::types::FileSystem;
+use crate::agent::harness::types::get_or_throw;
+use crate::runtime::local_env::LocalExecutionEnv;
 use crate::session::backends::InMemorySessionStorage;
-use crate::session::backends::session_dir::{
-    SUMMARY_FILE, SessionDirCreateOptions, SessionDirStorage, load_session_metadata,
-};
-use crate::session::repo_utils::{ForkEntriesOptions, create_session_id, get_entries_to_fork, to_session};
+use crate::session::backends::session_dir::SUMMARY_FILE;
+use crate::session::backends::session_dir::load_session_metadata;
+use crate::session::backends::session_dir::{SessionDirCreateOptions, SessionDirStorage};
+use crate::session::repo_utils::ForkEntriesOptions;
+use crate::session::repo_utils::{create_session_id, get_entries_to_fork, to_session};
 use crate::session::tree::Session;
 use crate::session::types::{SessionDirMetadata, SessionError, SessionErrorCode, SessionMetadata, SessionStorage};
 
@@ -53,12 +55,10 @@ impl InMemorySessionRepo {
     }
 
     pub async fn open(&self, metadata: &SessionMetadata) -> Result<Session<InMemorySessionStorage>, SessionError> {
-        self.sessions.get(&metadata.id).cloned().ok_or_else(|| {
-            SessionError::new(
-                SessionErrorCode::NotFound,
-                format!("Session not found: {}", metadata.id),
-            )
-        })
+        self.sessions
+            .get(&metadata.id)
+            .cloned()
+            .ok_or_else(|| SessionError::new(SessionErrorCode::NotFound, format!("Session not found: {}", metadata.id)))
     }
 
     pub async fn list(&self) -> Vec<SessionMetadata> {
@@ -137,16 +137,12 @@ impl SessionDirRepo {
 
     async fn project_sessions_dir(&self, project_key: &str) -> Result<String, SessionError> {
         let root = self.sessions_root().await?;
-        Ok(get_or_throw(
-            self.fs.join_path(&[root.as_str(), project_key], None).await,
-        ))
+        Ok(get_or_throw(self.fs.join_path(&[root.as_str(), project_key], None).await))
     }
 
     async fn session_dir(&self, project_key: &str, session_id: &str) -> Result<String, SessionError> {
         let project_dir = self.project_sessions_dir(project_key).await?;
-        Ok(get_or_throw(
-            self.fs.join_path(&[project_dir.as_str(), session_id], None).await,
-        ))
+        Ok(get_or_throw(self.fs.join_path(&[project_dir.as_str(), session_id], None).await))
     }
 
     pub async fn create(
@@ -192,7 +188,7 @@ impl SessionDirRepo {
             }
             let entries = get_or_throw(self.fs.list_dir(&project_dir, None).await);
             for entry in entries {
-                if entry.kind != crate::harness::types::FileKind::Directory {
+                if entry.kind != crate::agent::harness::types::FileKind::Directory {
                     continue;
                 }
                 let summary_path = get_or_throw(self.fs.join_path(&[entry.path.as_str(), SUMMARY_FILE], None).await);
@@ -219,7 +215,7 @@ impl SessionDirRepo {
             self.fs
                 .remove(
                     &metadata.dir,
-                    Some(crate::harness::types::RemoveOptions {
+                    Some(crate::agent::harness::types::RemoveOptions {
                         recursive: true,
                         force: true,
                         abort_token: None,
@@ -264,7 +260,7 @@ impl SessionDirRepo {
         let entries = get_or_throw(self.fs.list_dir(&root, None).await);
         Ok(entries
             .into_iter()
-            .filter(|entry| entry.kind == crate::harness::types::FileKind::Directory)
+            .filter(|entry| entry.kind == crate::agent::harness::types::FileKind::Directory)
             .map(|entry| entry.path)
             .collect())
     }

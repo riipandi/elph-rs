@@ -10,11 +10,10 @@
 
 use std::collections::HashMap;
 
-use elph_agent::env::LocalExecutionEnv;
-use elph_agent::harness::format_skills_for_system_prompt;
-use elph_agent::harness::types::{
-    Skill, SkillLoadOptions, SkillValidationSettings, resolve_project_skills_dirs, resolve_user_skills_dirs,
-};
+use elph_agent::agent::harness::format_skills_for_system_prompt;
+use elph_agent::agent::harness::types::{Skill, SkillLoadOptions, SkillValidationSettings};
+use elph_agent::agent::harness::types::{resolve_project_skills_dirs, resolve_user_skills_dirs};
+use elph_agent::runtime::local_env::LocalExecutionEnv;
 use elph_agent::skills::{format_skill_invocation, load_skills_with_options};
 use tempfile::TempDir;
 
@@ -292,8 +291,8 @@ allowed-tools: bash read grep
         println!("  - {}", dir);
     }
 
-    println!("\nUser directories for 'eclaw':");
-    for dir in resolve_user_skills_dirs("eclaw") {
+    println!("\nUser directories for 'acme':");
+    for dir in resolve_user_skills_dirs("acme") {
         println!("  - {}", dir);
     }
 
@@ -320,6 +319,7 @@ allowed-tools: bash read grep
         compatibility: Some("Requires Python 3.10+".to_string()),
         metadata: Some(metadata),
         allowed_tools: Some(vec!["python".to_string(), "pytest".to_string()]),
+        argument_hint: None,
     };
 
     println!("Custom skill formatted for invocation:");

@@ -10,7 +10,7 @@ use super::accounting::GoalAccountingState;
 use super::steering::{budget_limit_prompt, continuation_prompt};
 use super::store::GoalStore;
 use super::types::{Goal, GoalStatus};
-use crate::mode::CollaborationMode;
+use crate::collaboration::CollaborationMode;
 
 #[derive(Debug, Clone)]
 pub enum GoalTurnStart {

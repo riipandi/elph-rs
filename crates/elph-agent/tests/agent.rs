@@ -5,17 +5,28 @@ use std::sync::Arc;
 
 use parking_lot::Mutex as ParkingMutex;
 
-use elph_agent::{
-    Agent, AgentEvent, AgentMessage, AgentOptions, AgentThinkingLevel, AgentTool, AgentToolResult, PartialAgentState,
-    QueueMode, ToolResultContent, llm_message_to_agent, simple_tool,
-};
-use elph_ai::{
-    FauxResponseStep, Message, StopReason, Tool, UserContent, api::common::wrap_on_payload, builtin_models,
-    faux_assistant_message, faux_provider, faux_text, faux_tool_call,
-};
+use elph_agent::Agent;
+use elph_agent::AgentEvent;
+use elph_agent::AgentMessage;
+use elph_agent::AgentOptions;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::AgentTool;
+use elph_agent::AgentToolResult;
+use elph_agent::PartialAgentState;
+use elph_agent::QueueMode;
+use elph_agent::ToolResultContent;
+use elph_agent::{llm_message_to_agent, simple_tool};
+use elph_ai::api::common::wrap_on_payload;
+use elph_ai::builtin_models;
+use elph_ai::faux_assistant_message;
+use elph_ai::faux_provider;
+use elph_ai::faux_text;
+use elph_ai::faux_tool_call;
+use elph_ai::{FauxResponseStep, Message, StopReason, Tool, UserContent};
 use serde_json::json;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 
 use common::{error_stream_fn, faux_stream_fn, hanging_until_abort_stream_fn};
 
@@ -670,12 +681,14 @@ async fn agent_ignores_late_tool_updates_after_settlement() {
                     cb(AgentToolResult {
                         content: vec![ToolResultContent::Text(elph_ai::TextContent::new("running"))],
                         details: json!({ "status": "running" }),
+                        added_tool_names: None,
                         terminate: None,
                     });
                 }
                 Ok(AgentToolResult {
                     content: vec![ToolResultContent::Text(elph_ai::TextContent::new("ok"))],
                     details: json!({ "status": "done" }),
+                    added_tool_names: None,
                     terminate: Some(true),
                 })
             })
@@ -719,6 +732,7 @@ async fn agent_ignores_late_tool_updates_after_settlement() {
         cb(AgentToolResult {
             content: vec![ToolResultContent::Text(elph_ai::TextContent::new("late"))],
             details: json!({ "status": "late" }),
+            added_tool_names: None,
             terminate: None,
         });
     }
@@ -905,6 +919,7 @@ async fn agent_ignores_parallel_settled_tool_update_while_another_tool_runs() {
                 Ok(AgentToolResult {
                     content: vec![ToolResultContent::Text(elph_ai::TextContent::new("done"))],
                     details: json!({ "status": "done" }),
+                    added_tool_names: None,
                     terminate: Some(true),
                 })
             })
@@ -933,6 +948,7 @@ async fn agent_ignores_parallel_settled_tool_update_while_another_tool_runs() {
                 Ok(AgentToolResult {
                     content: vec![ToolResultContent::Text(elph_ai::TextContent::new("done"))],
                     details: json!({ "status": "done" }),
+                    added_tool_names: None,
                     terminate: Some(true),
                 })
             })
@@ -997,6 +1013,7 @@ async fn agent_ignores_parallel_settled_tool_update_while_another_tool_runs() {
         cb(AgentToolResult {
             content: vec![ToolResultContent::Text(elph_ai::TextContent::new("late"))],
             details: json!({ "status": "late" }),
+            added_tool_names: None,
             terminate: None,
         });
     }

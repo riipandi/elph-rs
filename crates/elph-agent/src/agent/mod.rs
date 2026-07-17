@@ -1,23 +1,33 @@
 //! Stateful `Agent` wrapper — elph-agent module.
 
 mod events;
+pub mod harness;
 mod queue;
 mod run;
 mod state;
+pub mod subagent;
 
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use elph_ai::{OnPayloadCallback, OnResponseCallback, ThinkingBudgets, Transport, builtin_models};
+use elph_ai::builtin_models;
+use elph_ai::{OnPayloadCallback, OnResponseCallback, ThinkingBudgets, Transport};
 use parking_lot::Mutex as ParkingMutex;
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::messages::default_convert_to_llm_fn;
-use crate::types::{
-    AgentEvent, AgentMessage, AgentState, AgentThinkingLevel, ConvertToLlmFn, QueueMode, StreamFn, ToolExecutionMode,
-};
+use crate::prompt::encoding::PromptEncodingConfig;
+use crate::types::AgentEvent;
+use crate::types::AgentMessage;
+use crate::types::AgentState;
+use crate::types::AgentThinkingLevel;
+use crate::types::ConvertToLlmFn;
+use crate::types::QueueMode;
+use crate::types::StreamFn;
+use crate::types::ToolExecutionMode;
 
 pub use queue::PendingMessageQueue;
 pub use state::default_model;
@@ -70,6 +80,7 @@ pub struct AgentOptions {
     pub transport: Option<Transport>,
     pub max_retry_delay_ms: Option<u64>,
     pub tool_execution: ToolExecutionMode,
+    pub prompt_encoding: Option<PromptEncodingConfig>,
 }
 
 struct ActiveRun {
@@ -99,6 +110,7 @@ pub struct Agent {
     transport: Transport,
     max_retry_delay_ms: Option<u64>,
     tool_execution: ToolExecutionMode,
+    prompt_encoding: PromptEncodingConfig,
     active_run: Mutex<Option<ActiveRun>>,
     skip_initial_steering: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -109,9 +121,7 @@ impl Agent {
         let default_stream: StreamFn = Arc::new(move |model, context, opts| models.stream_simple(model, context, opts));
 
         Self {
-            state: Arc::new(Mutex::new(state::MutableAgentState::from_partial(
-                options.initial_state,
-            ))),
+            state: Arc::new(Mutex::new(state::MutableAgentState::from_partial(options.initial_state))),
             listeners: Arc::new(Mutex::new(Vec::new())),
             steering_queue: PendingMessageQueue::new(options.steering_mode),
             follow_up_queue: PendingMessageQueue::new(options.follow_up_mode),
@@ -131,6 +141,7 @@ impl Agent {
             transport: options.transport.unwrap_or(Transport::Auto),
             max_retry_delay_ms: options.max_retry_delay_ms,
             tool_execution: options.tool_execution,
+            prompt_encoding: options.prompt_encoding.unwrap_or_else(PromptEncodingConfig::from_env),
             active_run: Mutex::new(None),
             skip_initial_steering: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
@@ -238,12 +249,12 @@ impl Agent {
     }
 
     pub async fn wait_for_idle(&self) {
+        // Avoid nested mutex await while holding `active_run` (can stall finish_run).
         let rx = {
             let guard = self.active_run.lock().await;
-            if let Some(run) = guard.as_ref() {
-                run.idle_rx.lock().await.take()
-            } else {
-                None
+            match guard.as_ref() {
+                Some(run) => run.idle_rx.try_lock().ok().and_then(|mut slot| slot.take()),
+                None => None,
             }
         };
         if let Some(rx) = rx {

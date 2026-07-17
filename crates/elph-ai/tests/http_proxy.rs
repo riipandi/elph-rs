@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use elph_ai::api::http_proxy::{
-    UNSUPPORTED_PROXY_PROTOCOL_MESSAGE, resolve_http_proxy_url_for_target, websocket_proxy_lookup_url,
-};
+use elph_ai::api::http_proxy::UNSUPPORTED_PROXY_PROTOCOL_MESSAGE;
+use elph_ai::api::http_proxy::{resolve_http_proxy_url_for_target, websocket_proxy_lookup_url};
 use elph_ai::types::ProviderEnv;
 
 const TARGET_URL: &str = "https://bedrock-runtime.us-east-1.amazonaws.com";
@@ -19,10 +18,7 @@ fn maps_websocket_urls_for_proxy_lookup() {
         websocket_proxy_lookup_url("wss://chatgpt.com/backend-api/codex/responses"),
         "https://chatgpt.com/backend-api/codex/responses"
     );
-    assert_eq!(
-        websocket_proxy_lookup_url("ws://localhost:9001/ws"),
-        "http://localhost:9001/ws"
-    );
+    assert_eq!(websocket_proxy_lookup_url("ws://localhost:9001/ws"), "http://localhost:9001/ws");
 }
 
 #[test]

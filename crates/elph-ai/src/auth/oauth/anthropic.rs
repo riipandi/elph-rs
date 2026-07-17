@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+use crate::auth::OAuthLoader;
+use crate::auth::lazy_oauth;
 use crate::auth::types::{AuthEvent, AuthLoginCallbacks, AuthPrompt, OAuthAuth, OAuthCredential};
-use crate::auth::{OAuthLoader, lazy_oauth};
 
-use super::callback::{CallbackResult, parse_authorization_input, start_callback_server};
+use super::callback::CallbackResult;
+use super::callback::{parse_authorization_input, start_callback_server};
 use super::pkce::generate_pkce;
 
 const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";

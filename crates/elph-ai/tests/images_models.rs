@@ -4,13 +4,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use common::fake_auth_context;
-use elph_ai::auth::{ApiKeyAuth, AuthResolveInput, AuthResult, ModelAuth, ProviderAuth, env_api_key_auth};
-use elph_ai::images::{
-    CreateImagesProviderOptions, builtin_images_models, create_images_models, create_images_provider,
-};
-use elph_ai::types::{
-    AssistantImages, ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ModelCost, ProviderImages, StopReason,
-};
+use elph_ai::auth::env_api_key_auth;
+use elph_ai::auth::{ApiKeyAuth, AuthResolveInput, AuthResult, ModelAuth, ProviderAuth};
+use elph_ai::images::CreateImagesProviderOptions;
+use elph_ai::images::{builtin_images_models, create_images_models, create_images_provider};
+use elph_ai::types::{AssistantImages, ContentBlock, ImagesContext, ImagesModel, ImagesOptions, ModelCost};
+use elph_ai::types::{ProviderImages, StopReason};
 fn sample_context() -> ImagesContext {
     ImagesContext {
         input: vec![ContentBlock::Text {
@@ -33,6 +32,8 @@ fn test_image_model(provider: &str, id: &str) -> ImagesModel {
             output: 0.0,
             cache_read: 0.0,
             cache_write: 0.0,
+
+            tiers: None,
         },
         headers: None,
     }
@@ -124,10 +125,7 @@ fn registers_providers_and_reads_models_synchronously() {
     all_model_ids.sort_unstable();
     assert_eq!(all_model_ids, vec!["m1", "m2", "m3"]);
     let p1_models = models.get_models(Some("p1"));
-    assert_eq!(
-        p1_models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
-        vec!["m1", "m2"]
-    );
+    assert_eq!(p1_models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), vec!["m1", "m2"]);
     assert_eq!(models.get_model("p2", "m3").expect("model").id, "m3");
     assert!(models.get_model("p2", "missing").is_none());
 }

@@ -1,9 +1,7 @@
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
 use elph_ai::create_models;
-use elph_ai::{
-    AssistantContentBlock, Context, FauxResponseStep, Message, StopReason, UserContent, faux_assistant_message,
-    faux_provider, faux_text, faux_thinking, faux_tool_call,
-};
+use elph_ai::{AssistantContentBlock, Context, FauxResponseStep, Message, StopReason, UserContent};
+use elph_ai::{faux_assistant_message, faux_provider, faux_text, faux_thinking, faux_tool_call};
 use serde_json::json;
 
 #[tokio::test]
@@ -35,10 +33,7 @@ async fn registers_custom_provider_and_estimates_usage() {
     }
     assert!(response.usage.input > 0);
     assert!(response.usage.output > 0);
-    assert_eq!(
-        response.usage.total_tokens,
-        response.usage.input + response.usage.output
-    );
+    assert_eq!(response.usage.total_tokens, response.usage.input + response.usage.output);
     assert_eq!(faux.core.state.lock().unwrap().call_count, 1);
 }
 

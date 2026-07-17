@@ -6,11 +6,13 @@ use base64::Engine;
 use rand::Rng;
 use serde_json::Value;
 
+use crate::auth::OAuthLoader;
+use crate::auth::lazy_oauth;
 use crate::auth::types::{AuthEvent, AuthLoginCallbacks, AuthPrompt, OAuthAuth, OAuthCredential};
-use crate::auth::{OAuthLoader, lazy_oauth};
 
 use super::callback::{parse_authorization_input, start_callback_server};
-use super::device_code::{DeviceCodePollOptions, DeviceCodePollResult, poll_oauth_device_code_flow};
+use super::device_code::poll_oauth_device_code_flow;
+use super::device_code::{DeviceCodePollOptions, DeviceCodePollResult};
 use super::pkce::generate_pkce;
 
 pub const OPENAI_CODEX_BROWSER_LOGIN_METHOD: &str = "browser";
@@ -221,9 +223,7 @@ async fn start_device_auth() -> anyhow::Result<DeviceAuthInfo> {
         ));
     }
     if !status.is_success() {
-        return Err(anyhow::anyhow!(
-            "OpenAI Codex device code request failed ({status}): {text}"
-        ));
+        return Err(anyhow::anyhow!("OpenAI Codex device code request failed ({status}): {text}"));
     }
     let json: Value = serde_json::from_str(&text)?;
     Ok(DeviceAuthInfo {

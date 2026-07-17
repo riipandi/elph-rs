@@ -3,10 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::auth::{
-    AuthContext, AuthModel, AuthResult, CredentialStore, InMemoryCredentialStore, ProviderAuth, ProviderAuthHolder,
-    resolve::{AuthResolutionOverrides, ModelsError, ModelsErrorCode, resolve_provider_auth},
-};
+use crate::auth::ProviderAuthHolder;
+use crate::auth::resolve::resolve_provider_auth;
+use crate::auth::resolve::{AuthResolutionOverrides, ModelsError, ModelsErrorCode};
+use crate::auth::{AuthContext, AuthModel, AuthResult, CredentialStore, InMemoryCredentialStore, ProviderAuth};
 use crate::types::{AssistantMessage, Context, Model, ProviderHeaders, SimpleStreamOptions, StreamOptions};
 use crate::utils::event_stream::AssistantMessageEventStream;
 
@@ -67,11 +67,7 @@ impl Provider {
             return Ok(());
         };
         refresh().await.map_err(|e| {
-            ModelsError::with_cause(
-                ModelsErrorCode::ModelSource,
-                format!("Model refresh failed for {}", self.id),
-                e,
-            )
+            ModelsError::with_cause(ModelsErrorCode::ModelSource, format!("Model refresh failed for {}", self.id), e)
         })?;
         Ok(())
     }
@@ -192,10 +188,7 @@ impl Models {
 
     pub async fn get_auth(&self, model: &Model) -> Result<Option<AuthResult>, ModelsError> {
         let provider = self.providers.get(&model.provider).ok_or_else(|| {
-            ModelsError::new(
-                ModelsErrorCode::Provider,
-                format!("Unknown provider: {}", model.provider),
-            )
+            ModelsError::new(ModelsErrorCode::Provider, format!("Unknown provider: {}", model.provider))
         })?;
         resolve_provider_auth(
             &ProviderAuthHolder {
@@ -264,12 +257,9 @@ impl Models {
     }
 
     fn require_provider(&self, model: &Model) -> Result<&Provider, ModelsError> {
-        self.providers.get(&model.provider).ok_or_else(|| {
-            ModelsError::new(
-                ModelsErrorCode::Provider,
-                format!("Unknown provider: {}", model.provider),
-            )
-        })
+        self.providers
+            .get(&model.provider)
+            .ok_or_else(|| ModelsError::new(ModelsErrorCode::Provider, format!("Unknown provider: {}", model.provider)))
     }
 
     async fn apply_auth(
@@ -371,7 +361,8 @@ where
 {
     let stream = AssistantMessageEventStream::new();
     let output = stream.clone_handle();
-    tokio::spawn(async move {
+    let trace_model = model.clone();
+    crate::trace::spawn_stream(&trace_model, async move {
         match setup().await {
             Ok(mut inner) => {
                 while let Some(event) = inner.next_event().await {
@@ -472,6 +463,7 @@ pub fn get_supported_thinking_levels(model: &Model) -> Vec<crate::types::Thinkin
         crate::types::ThinkingLevel::Medium,
         crate::types::ThinkingLevel::High,
         crate::types::ThinkingLevel::Xhigh,
+        crate::types::ThinkingLevel::Max,
     ];
     levels
         .into_iter()
@@ -481,9 +473,12 @@ pub fn get_supported_thinking_levels(model: &Model) -> Vec<crate::types::Thinkin
                 if map.get(key) == Some(&None) {
                     return false;
                 }
-                if matches!(level, crate::types::ThinkingLevel::Xhigh) {
+                // xhigh/max are opt-in via thinkingLevelMap; other levels default on.
+                if matches!(level, crate::types::ThinkingLevel::Xhigh | crate::types::ThinkingLevel::Max) {
                     return map.contains_key(key);
                 }
+            } else if matches!(level, crate::types::ThinkingLevel::Xhigh | crate::types::ThinkingLevel::Max) {
+                return false;
             }
             true
         })
@@ -501,6 +496,7 @@ pub fn clamp_thinking_level(model: &Model, level: crate::types::ThinkingLevel) -
         crate::types::ThinkingLevel::Medium,
         crate::types::ThinkingLevel::High,
         crate::types::ThinkingLevel::Xhigh,
+        crate::types::ThinkingLevel::Max,
     ];
     let idx = all.iter().position(|l| *l == level).unwrap_or(0);
     for &candidate in &all[idx..] {

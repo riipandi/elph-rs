@@ -1,18 +1,16 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+use anyhow::anyhow;
 
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
-use crate::api::common::{
-    apply_on_payload, build_http_client_for_target, finish_stream_error, invoke_on_response_from_reqwest,
-    is_request_aborted, merge_model_headers,
-};
+use crate::api::common::{apply_on_payload, build_http_client_for_target, finish_stream_error};
+use crate::api::common::{invoke_on_response_from_reqwest, is_request_aborted, merge_model_headers};
 use crate::api::simple_options::build_base_options;
 use crate::api::transform_messages::transform_messages;
 use crate::models::{calculate_cost, clamp_thinking_level, thinking_level_to_str};
-use crate::types::{
-    AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message, Model,
-    ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, UserContent,
-};
+use crate::types::{AssistantContentBlock, AssistantMessage, AssistantMessageEvent, ContentBlock, Context, Message};
+use crate::types::{Model, ProviderStreams, SimpleStreamOptions, StopReason, StreamOptions, UserContent};
 use crate::utils::event_stream::AssistantMessageEventStream;
 use crate::utils::hash::short_hash;
 use crate::utils::json_parse::parse_streaming_json;

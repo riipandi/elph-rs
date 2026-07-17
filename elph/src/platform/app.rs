@@ -1,12 +1,11 @@
 #![allow(dead_code)]
 
 use super::exit_message;
-use crate::shell;
-use elph_tui::disable_keyboard_enhancement;
 use std::sync::atomic::AtomicBool;
 
 #[cfg(unix)]
-use libc::{SIGTERM, getppid, kill};
+use libc::SIGTERM;
+use libc::{getppid, kill};
 
 pub static WAS_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
@@ -34,21 +33,11 @@ pub const EXIT_CONNECTION_ERROR: ExitCode = 6;
 pub const EXIT_SERVER_ERROR: ExitCode = 7;
 pub const EXIT_INTERRUPTED: ExitCode = 130;
 
-struct KeyboardEnhancementGuard;
-
-impl Drop for KeyboardEnhancementGuard {
-    fn drop(&mut self) {
-        if let Err(e) = disable_keyboard_enhancement() {
-            tracing::error!(error = %e, "failed to restore keyboard enhancements");
-        }
-    }
-}
-
-pub fn run(options: shell::TuiOptions) {
-    let _guard = KeyboardEnhancementGuard;
-    let result = shell::run_tui(options.resume_id);
+/// Launch the TUI app.
+pub fn run(resume_id: Option<String>) {
+    let result = elph_agent::try_block_on(crate::tui::run_tui(crate::tui::TuiOptions { resume_id }));
     exit_message::print_and_clear();
     if let Err(e) = result {
-        tracing::error!(error = %e, "app error");
+        log::error!("app error: {e}");
     }
 }

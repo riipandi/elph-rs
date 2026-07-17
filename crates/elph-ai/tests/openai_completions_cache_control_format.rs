@@ -1,4 +1,5 @@
-use elph_ai::api::openai_completions::{OpenAICompletionsOptions, build_openai_completions_params};
+use elph_ai::api::openai_completions::OpenAICompletionsOptions;
+use elph_ai::api::openai_completions::build_openai_completions_params;
 use elph_ai::types::{Context, Message, OpenAICompletionsCompat, Tool, UserContent};
 use elph_ai::types::{Model, ModelCost};
 use serde_json::json;
@@ -18,6 +19,8 @@ fn cache_control_model() -> Model {
             output: 0.0,
             cache_read: 0.0,
             cache_write: 0.0,
+
+            tiers: None,
         },
         context_window: 128_000,
         max_tokens: 32_000,

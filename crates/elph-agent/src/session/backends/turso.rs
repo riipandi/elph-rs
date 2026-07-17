@@ -8,10 +8,13 @@ use crate::datastore::migrations::run as run_migrations;
 use crate::session::id::{generate_entry_id, generate_session_id};
 use crate::session::migrations::SESSION_TREE_MIGRATIONS;
 use crate::session::storage_utils::{append_to_index, build_index, create_leaf_entry, find_entries, get_path_to_root};
-use crate::session::types::{
-    SessionError, SessionErrorCode, SessionIndex, SessionMetadata, SessionStorage, SessionTreeEntry,
-    TursoSessionMetadata,
-};
+use crate::session::types::SessionError;
+use crate::session::types::SessionErrorCode;
+use crate::session::types::SessionIndex;
+use crate::session::types::SessionMetadata;
+use crate::session::types::SessionStorage;
+use crate::session::types::SessionTreeEntry;
+use crate::session::types::TursoSessionMetadata;
 
 pub struct TursoSessionStorage {
     db_path: PathBuf,

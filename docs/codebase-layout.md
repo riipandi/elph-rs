@@ -15,15 +15,13 @@ Implementation detail lives in [openwiki](../openwiki/quickstart.md); this docum
 
 ## Workspace crates
 
-| Crate / binary | Layout intent                                                                            |
-| -------------- | ---------------------------------------------------------------------------------------- |
-| `elph-agent`   | Runtime engine: `agent_loop/`, `harness/`, `session/`, `goals/`, `subagent/`, `plugins/` |
-| `elph-ai`      | Provider layer: `api/`, `auth/`, `models/`, `providers/`, `utils/`                       |
-| `elph-core`    | Shared primitives: `floppy/` (`query/`, `store/`), `logger/`, `scaffold/`, `utils/`      |
-| `elph-tui`     | Reusable widgets: `diff/`, `prompt/`, `chrome/`, `shell/`                                |
-| `eclaw`        | Personal assistant binary: `cmd/`, `runtime/`, `server/`                                 |
-| `elph`         | Product shell: `agent/`, `shell/`, `cli/`, `platform/`, `extensions/`                    |
-| `owly`         | Docs agent: `session/`, `agent/`, `checkpoint/`, `shell/`, `tui/`                        |
+| Crate / binary | Layout intent                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| `elph-agent`   | Runtime: `agent/` (harness + subagent), `runtime/`, `tools/`, `session/`, `goals/`, `plugins/` |
+| `elph-ai`      | Provider layer: `api/`, `auth/`, `models/`, `providers/`, `utils/`                             |
+| `elph-core`    | Shared primitives: `floppy/` (`query/`, `store/`), `logger/`, `scaffold/`, `utils/`            |
+| `elph-tui`     | Reusable widgets: `diff/`, `prompt/`, `chrome/`, `shell/`                                      |
+| `elph`         | Product shell: `agent/`, `shell/`, `cli/`, `platform/`, `extensions/`                          |
 
 ## `elph` module map
 
@@ -69,66 +67,81 @@ elph/
 
 ## `elph-agent` module layout
 
-Top-level `agent_loop/` is the low-level turn runner (stream → tool execution → repeat). The harness wraps it with session persistence, hooks, and compaction.
+Top-level `runtime/` is the agent turn runner (stream → tool execution → repeat) plus env, proxy, and async bridge. The agent harness wraps it with session persistence, hooks, and compaction.
 
 ```
 crates/elph-agent/src/
-├── agent_loop/              # Core agent turn loop (tools.rs + private run_loop)
-├── harness/
-│   ├── mod.rs
-│   ├── types/               # Error, event, option types (split submodules)
-│   ├── hooks.rs
-│   ├── agent_harness/
-│   │   ├── mod.rs           # AgentHarness struct + core impl
+├── builder.rs               # AgentBuilder (logging) + BuiltinToolsBuilder (tool catalog) + InitProgress
+├── agent/
+│   ├── mod.rs               # Agent struct + events, queue, run, state
+│   ├── harness/             # AgentHarness (flattened from harness/agent_harness)
+│   │   ├── mod.rs           # AgentHarness struct + core impl + re-exports
 │   │   ├── helpers.rs       # Message builders, validation
-│   │   ├── plan_mode.rs
-│   │   ├── prompt_ops.rs
-│   │   ├── compaction_ops.rs
-│   │   ├── tree_nav.rs
-│   │   └── run_loop/        # Harness turn loop (split by concern)
-│   │       ├── mod.rs       # abort, run entrypoints
-│   │       ├── turn_execution.rs
-│   │       ├── event_handling.rs
-│   │       └── session_writes.rs
-│   └── utils/
-└── session/, goals/, subagent/, plugins/, …
-
-crates/elph-agent/tests/     # integration tests; shared helpers in tests/common/
-```
-
-Extension WASM loading is in `elph-agent/src/plugins/`; `elph/extensions/` wires registry into slash dispatch and `elph plugin`.
+│   │   ├── plan_mode.rs, prompt_ops.rs, compaction_ops.rs, tree_nav.rs
+│   │   ├── run_loop/        # Harness turn loop (split by concern)
+│   │   ├── types/           # Error, event, option types
+│   │   ├── utils/           # Truncation, shell output
+│   │   └── hooks.rs, system_prompt.rs, generic_on.rs
+│   └── subagent/            # Multi-agent orchestration
+├── runtime/
+│   ├── mod.rs               # agent_loop entry + block_on/try_block_on
+│   ├── loop_config.rs       # AgentLoopConfig, AgentContext, AgentEvent, callbacks
+│   ├── run_loop.rs          # Core turn iteration
+│   ├── stream.rs            # Assistant response streaming
+│   ├── event_stream.rs      # AgentEventStream + AgentEventSink
+│   ├── exec/                # Tool execution pipeline (was runtime/tools)
+│   ├── env.rs               # Path helpers (LocalExecutionEnv in local_env/)
+│   ├── local_env/           # Filesystem + shell execution
+│   └── proxy.rs             # Browser stream proxy
+├── tools/
+│   ├── types.rs             # AgentTool, AgentToolResult, ToolResultContent
+│   ├── mcp/                 # Model Context Protocol clients
+│   ├── web/                 # Web fetch + search tools
+│   └── bash.rs, read.rs, write.rs, grep.rs, …
+├── types/
+│   └── enums.rs             # Global enums (QueueMode, ToolExecutionMode, AgentThinkingLevel)
+├── collaboration/           # Collaboration modes (Plan / Default) + tool policy
+├── messages/
+│   ├── types.rs             # AgentMessage, CustomAgentMessage
+│   └── mod.rs               # Message bridge (convert_to_llm, custom roles)
+├── prompt/
+│   └── encoding/            # TOON encoding for structured prompt payloads
+├── compaction/, session/, goals/, skills/, plugins/, datastore/, trace/
+└── lib.rs                   # Crate root (module declarations + re-exports)
 
 ## `elph-core` floppy layout
 
 ```
+
 crates/elph-core/src/floppy/
 ├── mod.rs
-├── query.rs                 # Task start, memory search, retrieval SQL
-├── store/                   # Turso-backed MemoryStore (split submodules)
-│   ├── mod.rs
-│   ├── read.rs
-│   ├── write.rs
-│   ├── embed.rs
-│   └── tasks.rs
+├── query.rs # Task start, memory search, retrieval SQL
+├── store/ # Turso-backed MemoryStore (split submodules)
+│ ├── mod.rs
+│ ├── read.rs
+│ ├── write.rs
+│ ├── embed.rs
+│ └── tasks.rs
 ├── scoring.rs, migrations.rs, builder.rs, …
 └── (unit tests colocated in src/; no integration tests/ yet)
+
 ```
 
 ## Crate boundaries
 
-| Crate        | Responsibility                                                                   |
-| ------------ | -------------------------------------------------------------------------------- |
-| `elph-agent` | AgentHarness, tools, goals, subagents, MCP, **WASM extension host** (`plugins/`) |
-| `elph-ai`    | LLM providers, streaming                                                         |
-| `elph-tui`   | Reusable TUI components, chrome, diff engine                                     |
-| `elph`       | Product binary: CLI + shell + platform glue                                      |
+| Crate        | Responsibility                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `elph-agent` | Agent + AgentHarness, optional built-in tools (`builtin-tools`), goals, subagents, MCP (`tools/mcp/`), **WASM extension host** (`plugins/`) |
+| `elph-ai`    | LLM providers, streaming                                                                                             |
+| `elph-tui`   | Reusable TUI components, chrome, diff engine                                                                         |
+| `elph`       | Product binary: CLI + shell + platform glue                                                                          |
 
 ## Test placement rules
 
 | Kind                | Location                    | Examples                                                                              |
 | ------------------- | --------------------------- | ------------------------------------------------------------------------------------- |
 | Unit                | `#[cfg(test)]` in same file | `paths.rs` path helpers, `settings` merge                                             |
-| Integration         | `<crate>/tests/*.rs`        | `elph-agent` harness, `elph-tui` keys, owly docs                                      |
+| Integration         | `<crate>/tests/*.rs`        | `elph-agent` harness, `elph-tui` keys, `elph` CLI                                     |
 | App integration     | `elph/tests/*.rs`           | CLI `--help`, bootstrap dirs, SIGINT channel                                          |
 | Shared test helpers | `<crate>/tests/common/`     | `elph-agent/tests/common/`, `elph-ai/tests/common/` (`mod common;` in each test file) |
 
@@ -150,3 +163,4 @@ Each crate's integration tests exercise that crate's public API. `elph/tests/` c
 - [extensions.md](./extensions.md)
 - [agent-runtime.md](./agent-runtime.md)
 - [cli.md](./cli.md)
+```

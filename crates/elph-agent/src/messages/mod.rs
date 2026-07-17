@@ -1,5 +1,7 @@
 //! Message bridge — `convert_to_llm` and custom role handling.
 
+pub mod types;
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;

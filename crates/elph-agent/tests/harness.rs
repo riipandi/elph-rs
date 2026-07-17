@@ -9,18 +9,29 @@ use std::time::Duration;
 
 use elph_ai::api::faux::{FauxModelDefinition, RegisterFauxProviderOptions};
 
+use elph_agent::AgentHarness;
+use elph_agent::AgentHarnessErrorCode;
+use elph_agent::AgentHarnessEvent;
+use elph_agent::AgentHarnessOptions;
+use elph_agent::AgentHarnessOwnEvent;
+use elph_agent::AgentHarnessResources;
+use elph_agent::AgentThinkingLevel;
+use elph_agent::AgentTool;
+use elph_agent::BranchSummarySummary;
+use elph_agent::CustomMessageContent;
+use elph_agent::InMemorySessionStorage;
+use elph_agent::LocalExecutionEnv;
+use elph_agent::NavigateTreeOptions;
+use elph_agent::QueueMode;
+use elph_agent::Session;
+use elph_agent::SessionBeforeTreeResult;
+use elph_agent::Skill;
+use elph_agent::SystemPrompt;
+use elph_agent::ToolResultPatch;
 use elph_agent::session::types::SessionTreeEntry;
-use elph_agent::{
-    AgentHarness, AgentHarnessErrorCode, AgentHarnessEvent, AgentHarnessOptions, AgentHarnessOwnEvent,
-    AgentHarnessPhase, AgentHarnessResources, AgentThinkingLevel, AgentTool, BranchSummarySummary,
-    CustomMessageContent, InMemorySessionStorage, LocalExecutionEnv, NavigateTreeOptions, QueueMode, Session,
-    SessionBeforeTreeResult, Skill, SystemPrompt, ToolResultPatch, create_custom_message, llm_message_to_agent,
-    simple_tool,
-};
-use elph_ai::{
-    ContentBlock, FauxResponseStep, Message, Models, StopReason, Tool, UserContent, builtin_models,
-    faux_assistant_message, faux_provider, faux_text, faux_tool_call,
-};
+use elph_agent::{create_custom_message, llm_message_to_agent, simple_tool};
+use elph_ai::{ContentBlock, FauxResponseStep, Message, Models, StopReason, Tool, UserContent};
+use elph_ai::{builtin_models, faux_assistant_message, faux_provider, faux_text, faux_tool_call};
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -378,6 +389,7 @@ async fn harness_tool_result_hook_patches_output() {
                     ))]),
                     details: Some(json!({ "patched": true })),
                     is_error: None,
+                    added_tool_names: None,
                     terminate: Some(true),
                 })
             }
@@ -599,7 +611,12 @@ async fn harness_abort_clears_queues_preserves_next_turn() {
                 loop {
                     let cancelled = signal.as_ref().is_some_and(|token| token.is_cancelled());
                     *aborted_signal.lock() = Some(cancelled);
-                    if cancelled || release.load(Ordering::SeqCst) {
+                    if cancelled {
+                        return faux_assistant_message(vec![faux_text("aborted-ish")], None);
+                    }
+                    if release.load(Ordering::SeqCst) {
+                        let cancelled = signal.as_ref().is_some_and(|token| token.is_cancelled());
+                        *aborted_signal.lock() = Some(cancelled);
                         return faux_assistant_message(vec![faux_text("aborted-ish")], None);
                     }
                     std::thread::sleep(Duration::from_millis(1));
@@ -635,18 +652,31 @@ async fn harness_abort_clears_queues_preserves_next_turn() {
 
     let harness_for_prompt = harness.clone();
     let first_prompt = tokio::spawn(async move { harness_for_prompt.prompt("first", None).await });
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while aborted_signal.lock().is_none() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("faux factory should start");
     harness.steer("steer", None).await.expect("steer");
     harness.follow_up("follow", None).await.expect("follow up");
     harness.next_turn("next", None).await.expect("next turn");
     let abort_result = harness.abort().await.expect("abort");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !aborted_signal.lock().unwrap_or(false) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("faux factory should observe abort");
     release.store(true, Ordering::SeqCst);
     let _ = first_prompt.await.expect("join first prompt");
     harness.prompt("second", None).await.expect("second prompt");
 
     assert_eq!(abort_result.cleared_steer.len(), 1);
     assert_eq!(abort_result.cleared_follow_up.len(), 1);
-    assert!(aborted_signal.lock().unwrap_or(false));
+    assert_eq!(*aborted_signal.lock(), Some(true));
     let updates = queue_updates.lock().await;
     assert!(updates.contains(&(0, 0, 1)));
     assert_eq!(
@@ -739,6 +769,7 @@ async fn harness_save_point_refreshes_config_at_tool_execution() {
             compatibility: None,
             metadata: None,
             allowed_tools: None,
+            argument_hint: None,
         }],
         ..Default::default()
     };
@@ -799,6 +830,7 @@ async fn harness_save_point_refreshes_config_at_tool_execution() {
                                 compatibility: None,
                                 metadata: None,
                                 allowed_tools: None,
+                                argument_hint: None,
                             }],
                             ..Default::default()
                         })
@@ -894,24 +926,30 @@ async fn harness_wait_for_idle_waits_for_async_subscribers() {
     ))]);
 
     let harness = Arc::new(make_harness(&faux, models, env, HarnessOptions::default()));
-    let barrier = Arc::new(tokio::sync::Mutex::new(None::<tokio::sync::oneshot::Receiver<()>>));
+    // Use a channel (not a mutex-guarded option) so the listener does not hold
+    // locks across the barrier await (edition 2024 temporary scopes).
     let (barrier_tx, barrier_rx) = tokio::sync::oneshot::channel::<()>();
-    *barrier.lock().await = Some(barrier_rx);
+    let barrier_rx = Arc::new(tokio::sync::Mutex::new(Some(barrier_rx)));
     let listener_waiting = Arc::new(AtomicBool::new(false));
     let listener_finished = Arc::new(AtomicBool::new(false));
 
-    let barrier_clone = barrier.clone();
+    let barrier_rx_clone = barrier_rx.clone();
     let listener_waiting_clone = listener_waiting.clone();
     let listener_finished_clone = listener_finished.clone();
     harness
         .subscribe(move |event, _| {
-            let barrier = barrier_clone.clone();
+            let barrier_rx = barrier_rx_clone.clone();
             let listener_waiting = listener_waiting_clone.clone();
             let listener_finished = listener_finished_clone.clone();
             async move {
-                if matches!(event, AgentHarnessEvent::Agent(elph_agent::AgentEvent::AgentEnd { .. }))
-                    && let Some(rx) = barrier.lock().await.take()
-                {
+                if !matches!(event, AgentHarnessEvent::Agent(elph_agent::AgentEvent::AgentEnd { .. })) {
+                    return;
+                }
+                let rx = {
+                    // Drop the mutex guard before awaiting the barrier.
+                    barrier_rx.lock().await.take()
+                };
+                if let Some(rx) = rx {
                     listener_waiting.store(true, Ordering::SeqCst);
                     let _ = rx.await;
                     listener_finished.store(true, Ordering::SeqCst);
@@ -923,9 +961,16 @@ async fn harness_wait_for_idle_waits_for_async_subscribers() {
     let harness_for_prompt = harness.clone();
     let prompt_task = tokio::spawn(async move { harness_for_prompt.prompt("hello", None).await });
 
-    while harness.phase().await == AgentHarnessPhase::Idle {
-        tokio::task::yield_now().await;
-    }
+    // AgentEnd sets phase=Idle *before* async subscribers finish. Do not spin on
+    // phase != Idle — that races and deadlocks when the run completes quickly.
+    // Wait until the AgentEnd subscriber is blocked on the barrier instead.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !listener_waiting.load(Ordering::SeqCst) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("AgentEnd subscriber should block on barrier");
 
     let idle_resolved = Arc::new(AtomicBool::new(false));
     let idle_resolved_for_task = idle_resolved.clone();
@@ -935,10 +980,12 @@ async fn harness_wait_for_idle_waits_for_async_subscribers() {
         idle_resolved_for_task.store(true, Ordering::SeqCst);
     });
 
-    while !listener_waiting.load(Ordering::SeqCst) {
-        tokio::task::yield_now().await;
-    }
-    assert!(!idle_resolved.load(Ordering::SeqCst));
+    // Give wait_for_idle a chance to attach to the idle oneshot while the run is still open.
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert!(
+        !idle_resolved.load(Ordering::SeqCst),
+        "wait_for_idle must not resolve while AgentEnd subscribers are still running"
+    );
     assert!(!listener_finished.load(Ordering::SeqCst));
 
     barrier_tx.send(()).expect("release barrier");
@@ -1185,6 +1232,7 @@ async fn harness_resources_update_events_clone_resources() {
             compatibility: None,
             metadata: None,
             allowed_tools: None,
+            argument_hint: None,
         }],
         prompt_templates: vec![elph_agent::PromptTemplate {
             name: "review".into(),

@@ -49,6 +49,8 @@ fn convert_image_model(raw: RawImageModel) -> ImagesModel {
             output: raw.cost.output,
             cache_read: raw.cost.cache_read,
             cache_write: raw.cost.cache_write,
+
+            tiers: None,
         },
         headers: None,
     }
@@ -57,11 +59,7 @@ fn convert_image_model(raw: RawImageModel) -> ImagesModel {
 macro_rules! define_image_catalog {
     ($name:ident, $file:literal) => {
         pub static $name: LazyLock<Vec<ImagesModel>> = LazyLock::new(|| {
-            parse_image_models(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/models/images/",
-                $file
-            )))
+            parse_image_models(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/models/images/", $file)))
         });
     };
 }

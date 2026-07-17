@@ -1,8 +1,10 @@
-//! Integration tests for web_search ranking and web_fetch URL validation.
+//! Integration tests for websearch ranking and webfetch URL validation.
 
+use elph_agent::WebSearchEngine;
 use elph_agent::tools::web::engines::parse_ddg_html;
-use elph_agent::tools::web::ranking::{Engine, ordered_try_list};
-use elph_agent::{WebSearchEngine, create_web_fetch_tool, create_web_search_tool};
+use elph_agent::tools::web::ranking::Engine;
+use elph_agent::tools::web::ranking::ordered_try_list;
+use elph_agent::{create_web_fetch_tool, create_web_search_tool};
 
 #[test]
 fn ordered_try_list_puts_duckduckgo_last() {

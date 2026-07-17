@@ -2,7 +2,9 @@ use std::env;
 
 use clap::Args;
 
-use crate::agent::{RunModeOptions, run_non_interactive};
+use crate::agent::RunModeOptions;
+use crate::agent::run_non_interactive;
+use crate::cli::help;
 use crate::platform::{EXIT_ERROR, EXIT_SUCCESS, ExitCode, Paths, Settings};
 
 #[derive(Args, Default)]
@@ -43,21 +45,21 @@ pub struct RunArgs {
 pub fn handle(args: &RunArgs) -> ExitCode {
     let prompt = args.prompt.join(" ");
     if prompt.trim().is_empty() {
-        tracing::error!("run requires a prompt");
+        help::cli_error("run requires a prompt");
         return EXIT_ERROR;
     }
 
     let paths = match Paths::resolve() {
         Ok(p) => p,
         Err(err) => {
-            tracing::error!(error = %err, "resolve paths");
+            help::cli_error(format!("resolve paths: {err}"));
             return EXIT_ERROR;
         }
     };
     let settings = match Settings::load(&paths) {
         Ok(s) => s,
         Err(err) => {
-            tracing::error!(error = %err, "load settings");
+            help::cli_error(format!("load settings: {err}"));
             return EXIT_ERROR;
         }
     };
@@ -66,13 +68,13 @@ pub fn handle(args: &RunArgs) -> ExitCode {
     let resume_id = if args.r#continue { None } else { args.session.as_deref() };
 
     if args.fork {
-        tracing::warn!("--fork is not yet implemented; continuing without fork");
+        eprintln!("--fork is not yet implemented; continuing without fork");
     }
     if !args.files.is_empty() {
-        tracing::warn!(files = ?args.files, "file attachments not yet implemented");
+        eprintln!("file attachments not yet implemented: files={:?}", args.files);
     }
     if args.output_format != "text" {
-        tracing::warn!(format = %args.output_format, "only text output-format is supported");
+        eprintln!("only text output-format is supported: format={}", args.output_format);
     }
 
     let result = elph_agent::block_on(run_non_interactive(RunModeOptions {
@@ -88,7 +90,7 @@ pub fn handle(args: &RunArgs) -> ExitCode {
     match result {
         Ok(()) => EXIT_SUCCESS,
         Err(err) => {
-            tracing::error!(error = %err, "run failed");
+            help::cli_error(format!("run failed: {err}"));
             EXIT_ERROR
         }
     }

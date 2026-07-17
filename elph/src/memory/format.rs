@@ -1,8 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use elph_core::floppy::category_str;
 use elph_core::floppy::{
     EmbeddingStatus, MemoryCategory, MemoryRecord, StoreStatus, TaskRecord, TaskStatus, TimelineEvent,
-    TimelineEventKind, category_str,
+    TimelineEventKind,
 };
 
 pub fn time_ago(epoch_secs: i64) -> String {

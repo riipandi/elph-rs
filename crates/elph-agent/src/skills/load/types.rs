@@ -1,6 +1,6 @@
 //! Skill load result and diagnostic types.
 
-use crate::harness::types::Skill;
+use crate::agent::harness::types::Skill;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillDiagnosticCode {

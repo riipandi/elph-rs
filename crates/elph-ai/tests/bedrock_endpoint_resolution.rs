@@ -1,6 +1,5 @@
-use elph_ai::api::bedrock_shared::{
-    BedrockThinkingOptions, get_standard_bedrock_endpoint_region, resolve_bedrock_runtime_config,
-};
+use elph_ai::api::bedrock_shared::BedrockThinkingOptions;
+use elph_ai::api::bedrock_shared::{get_standard_bedrock_endpoint_region, resolve_bedrock_runtime_config};
 use elph_ai::get_builtin_model;
 
 fn thinking_options<'a>(
@@ -69,10 +68,8 @@ fn handles_missing_regions_for_explicit_scoped_and_ambient_profiles() {
     );
     assert_eq!(scoped.region.as_deref(), Some("eu-central-1"));
 
-    let ambient = resolve_bedrock_runtime_config(
-        &model,
-        &thinking_options(None, None, Some("ambient-bedrock-profile"), None),
-    );
+    let ambient =
+        resolve_bedrock_runtime_config(&model, &thinking_options(None, None, Some("ambient-bedrock-profile"), None));
     assert_eq!(ambient.profile.as_deref(), Some("ambient-bedrock-profile"));
     assert!(ambient.endpoint.is_none());
     assert!(ambient.region.is_none());

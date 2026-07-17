@@ -1,10 +1,9 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
+use anyhow::bail;
 use turso::params;
 
-use super::{
-    MemoryStore, SelfReportRow, WeightUpdate, batch_set_weights, fetch_weights, new_id, now_secs,
-    touch_retrieved_memories,
-};
+use super::{MemoryStore, SelfReportRow, WeightUpdate};
+use super::{batch_set_weights, fetch_weights, new_id, now_secs, touch_retrieved_memories};
 use crate::floppy::scoring::{compute_credit, compute_task_score, initial_weight, update_baseline, update_weight};
 use crate::floppy::types::{
     Memory, MemoryCategory, ReportCorrectionInput, ReportUserInput, StartTaskResult, TaskEndInput,
@@ -97,10 +96,7 @@ impl MemoryStore {
         let avg_tokens = self
             .with_db(|conn| async move {
                 let mut rows = conn
-                    .query(
-                        "SELECT AVG(tokens_used) as avg FROM tasks WHERE tokens_used IS NOT NULL",
-                        (),
-                    )
+                    .query("SELECT AVG(tokens_used) as avg FROM tasks WHERE tokens_used IS NOT NULL", ())
                     .await?;
                 let avg = match rows.next().await? {
                     Some(row) => row.get::<Option<f64>>(0)?.unwrap_or(10_000.0),

@@ -4,9 +4,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, RwLock};
 
 use crate::auth::helpers::lazy_oauth;
-use crate::auth::oauth::{
-    anthropic_oauth_loader, github_copilot_oauth_loader, hyper_oauth_loader, openai_codex_oauth_loader,
-};
+use crate::auth::oauth::openai_codex_oauth_loader;
+use crate::auth::oauth::{anthropic_oauth_loader, github_copilot_oauth_loader, hyper_oauth_loader};
 use crate::auth::types::{AuthLoginCallbacks, ModelAuth, OAuthAuth, OAuthCredential};
 use crate::models::catalog::GITHUB_COPILOT_MODELS;
 use crate::types::Model;

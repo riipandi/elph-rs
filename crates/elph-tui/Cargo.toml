@@ -3,38 +3,157 @@ name = "elph-tui"
 version = "0.0.26"
 license = "MIT"
 description = "Terminal UI components for Elph agent"
-keywords = ["tui", "terminal", "prompt", "superlighttui", "elph"]
+keywords = ["tui", "terminal", "prompt", "iocraft", "elph"]
 categories = ["command-line-utilities", "gui"]
 homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 edition.workspace = true
-publish = true
+publish = false
 
 [lib]
 name = "elph_tui"
 path = "src/lib.rs"
 
 [dependencies]
+anstyle-syntect.workspace = true
+anstyle.workspace = true
 anyhow.workspace = true
-base64.workspace = true
 chrono.workspace = true
-crossterm.workspace = true
-elph-core = { workspace = true, features = ["git"] }
+figlet-rs.workspace = true
+html-escape.workspace = true
+iocraft.workspace = true
+linkify.workspace = true
 memchr.workspace = true
-parking_lot.workspace = true
 pulldown-cmark.workspace = true
-rayon.workspace = true
+qrcode.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 similar.workspace = true
-superlighttui.workspace = true
-tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
+supports-color.workspace = true
+syntect.workspace = true
+textwrap.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
+two-face.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
-
+url.workspace = true
 [dev-dependencies]
 futures.workspace = true
-similar-asserts.workspace = true
-tokio = { workspace = true, features = ["macros"] }
+lipsum = "0.9.1"
+macro_rules_attribute = "0.2.0"
+mexprp = { version = "0.3.1", default-features = false }
+smol = "2.0.2"
+smol-macros = "0.1.1"
 
-[target.'cfg(unix)'.dev-dependencies]
-libc.workspace = true
+[[example]]
+name = "basic_context"
+path = "examples/basic_context.rs"
+
+[[example]]
+name = "basic_counter"
+path = "examples/basic_counter.rs"
+
+[[example]]
+name = "basic_form"
+path = "examples/basic_form.rs"
+
+[[example]]
+name = "basic_input"
+path = "examples/basic_input.rs"
+
+[[example]]
+name = "basic_layout"
+path = "examples/basic_layout.rs"
+
+[[example]]
+name = "basic_output"
+path = "examples/basic_output.rs"
+
+[[example]]
+name = "basic_overlap"
+path = "examples/basic_overlap.rs"
+
+[[example]]
+name = "basic_scrolling"
+path = "examples/basic_scrolling.rs"
+
+[[example]]
+name = "basic_table"
+path = "examples/basic_table.rs"
+
+[[example]]
+name = "calculator"
+path = "examples/calculator.rs"
+
+[[example]]
+name = "chat_layout"
+path = "examples/chat_layout.rs"
+
+[[example]]
+name = "progress_bar"
+path = "examples/progress_bar.rs"
+
+[[example]]
+name = "weather"
+path = "examples/weather.rs"
+
+[[example]]
+name = "demo_text_card"
+path = "examples/demo_text_card.rs"
+
+[[example]]
+name = "demo_input"
+path = "examples/demo_input.rs"
+
+[[example]]
+name = "demo_scroll"
+path = "examples/demo_scroll.rs"
+
+[[example]]
+name = "demo_theme"
+path = "examples/demo_theme.rs"
+
+[[example]]
+name = "demo_select"
+path = "examples/demo_select.rs"
+
+[[example]]
+name = "demo_code"
+path = "examples/demo_code.rs"
+
+[[example]]
+name = "demo_markdown"
+path = "examples/demo_markdown.rs"
+
+[[example]]
+name = "demo_diff"
+path = "examples/demo_diff.rs"
+
+[[example]]
+name = "demo_special"
+path = "examples/demo_special.rs"
+
+[[example]]
+name = "demo_loading_indicator"
+path = "examples/demo_loading_indicator.rs"
+
+[[example]]
+name = "demo_progress_indicator"
+path = "examples/demo_progress_indicator.rs"
+
+[[example]]
+name = "demo_dialog_shell"
+path = "examples/demo_dialog_shell.rs"
+
+[[example]]
+name = "demo_dialog_choices"
+path = "examples/demo_dialog_choices.rs"
+
+[[example]]
+name = "coding_agent"
+path = "examples/apps/coding_agent/main.rs"
+
+[lints.rust]
+linker_messages = "allow"

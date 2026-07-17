@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use crate::api::{
-    AnthropicMessagesApi, AzureOpenAIResponsesApi, BedrockConverseStreamApi, FauxApi, GoogleGenerativeAIApi,
-    GoogleVertexApi, MistralConversationsApi, OpenAICodexResponsesApi, OpenAICompletionsApi, OpenAIResponsesApi,
-};
+use crate::api::{AnthropicMessagesApi, AzureOpenAIResponsesApi, BedrockConverseStreamApi, FauxApi};
+use crate::api::{GoogleGenerativeAIApi, GoogleVertexApi, MistralConversationsApi, OpenAICodexResponsesApi};
+use crate::api::{OpenAICompletionsApi, OpenAIResponsesApi};
 use crate::models::{ProviderApi, ProviderStreamsDyn};
 use crate::types::ProviderStreams;
 
