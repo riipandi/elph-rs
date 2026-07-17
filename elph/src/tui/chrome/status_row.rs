@@ -10,6 +10,12 @@ use iocraft::prelude::*;
 
 const IDLE_ACTION_HINT: &str = "Enter to send · Ctrl+D exit";
 
+/// Persistent left status while mouse capture is off (native text selection).
+pub const SELECT_MODE_STATUS_LEFT: &str = "SELECT · drag to select text";
+
+/// Persistent right status while mouse capture is off — how to restore capture.
+pub const SELECT_MODE_STATUS_RIGHT: &str = "Ctrl+S re-enable capture";
+
 /// Paint refresh while busy (ms). Frame *phase* is wall-clock; this only schedules redraws.
 const STATUS_TICK_MS: u64 = 80;
 
@@ -27,6 +33,8 @@ const TIPS: &[&str] = &[
     "!! runs a shell command without context",
     "@ opens the file picker to insert paths",
     "Ctrl+V pastes an image when the model supports vision",
+    "Ctrl+Y copies the full prompt to the clipboard",
+    "Ctrl+S toggles text selection (mouse capture on/off)",
     "Brave mode skips tool-approval prompts",
     "Plan mode is for read-only exploration and planning",
     "Enter sends · Ctrl+D exits · Ctrl+C cancels a busy turn",
@@ -36,6 +44,7 @@ use crate::tui::activity::{
     braille_spinner_glyph_now, format_activity_busy_line, format_session_busy_right_line,
     format_session_idle_right_line,
 };
+use crate::tui::theme::QUIT_BUSY_NOTICE_FG;
 
 /// Props for [`StatusRow`].
 ///
@@ -56,6 +65,8 @@ pub struct StatusRowProps {
     pub idle_notice: Option<String>,
     /// When true, append quit-confirm keys to the busy right segment.
     pub quit_confirm_pending: bool,
+    /// Mouse capture off — sticky status (not color-only; text + warm accent).
+    pub select_mode: bool,
 }
 
 impl Default for StatusRowProps {
@@ -70,6 +81,7 @@ impl Default for StatusRowProps {
             session_elapsed_secs: 0.0,
             idle_notice: None,
             quit_confirm_pending: false,
+            select_mode: false,
         }
     }
 }
@@ -140,6 +152,33 @@ pub fn StatusRow(props: &StatusRowProps, mut hooks: Hooks) -> impl Into<AnyEleme
         format_session_busy_right_line(props.session_elapsed_secs, turn_elapsed_secs, props.quit_confirm_pending);
     let idle_right_line = format_session_idle_right_line(IDLE_ACTION_HINT);
 
+    // Sticky select-mode chrome: always visible until user re-enables capture (not toast-only).
+    let left_fg = if props.select_mode {
+        QUIT_BUSY_NOTICE_FG
+    } else {
+        Color::DarkGrey
+    };
+    let right_fg = if props.select_mode {
+        QUIT_BUSY_NOTICE_FG
+    } else {
+        Color::DarkGrey
+    };
+    let left_line = if props.select_mode {
+        SELECT_MODE_STATUS_LEFT.to_string()
+    } else if props.busy {
+        activity_line
+    } else {
+        idle_line
+    };
+    let right_line = if props.select_mode {
+        SELECT_MODE_STATUS_RIGHT.to_string()
+    } else if props.busy {
+        busy_right_line
+    } else {
+        idle_right_line
+    };
+    let show_busy_spinner = props.busy && !props.select_mode;
+
     element! {
         View(
             width: props.screen_width,
@@ -155,7 +194,7 @@ pub fn StatusRow(props: &StatusRowProps, mut hooks: Hooks) -> impl Into<AnyEleme
                 justify_content: JustifyContent::Start,
                 padding: 0,
             ) {
-                #(if props.busy {
+                #(if show_busy_spinner {
                     element! {
                         View(
                             flex_direction: FlexDirection::Row,
@@ -171,16 +210,16 @@ pub fn StatusRow(props: &StatusRowProps, mut hooks: Hooks) -> impl Into<AnyEleme
                                 content: spinner_glyph.to_string(),
                             )
                             Text(
-                                color: Color::DarkGrey,
+                                color: left_fg,
                                 wrap: TextWrap::NoWrap,
-                                content: activity_line,
+                                content: left_line,
                             )
                         }
                     }
                 } else {
                     element! {
                         View(align_items: AlignItems::Center, justify_content: JustifyContent::Start) {
-                            Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: idle_line)
+                            Text(color: left_fg, wrap: TextWrap::NoWrap, content: left_line)
                         }
                     }
                 })
@@ -191,19 +230,9 @@ pub fn StatusRow(props: &StatusRowProps, mut hooks: Hooks) -> impl Into<AnyEleme
                 justify_content: JustifyContent::End,
                 padding: 0,
             ) {
-                #(if props.busy {
-                    element! {
-                        View(align_items: AlignItems::Center, justify_content: JustifyContent::End) {
-                            Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: busy_right_line)
-                        }
-                    }
-                } else {
-                    element! {
-                        View(align_items: AlignItems::Center, justify_content: JustifyContent::End) {
-                            Text(color: Color::DarkGrey, wrap: TextWrap::NoWrap, content: idle_right_line)
-                        }
-                    }
-                })
+                View(align_items: AlignItems::Center, justify_content: JustifyContent::End) {
+                    Text(color: right_fg, wrap: TextWrap::NoWrap, content: right_line)
+                }
             }
         }
     }
@@ -234,6 +263,22 @@ mod tests {
         let next = random_tip_index(2, TIPS.len());
         assert_ne!(next, 2);
         assert!(next < TIPS.len());
+    }
+
+    #[test]
+    fn tips_document_select_and_copy_shortcuts() {
+        let joined = TIPS.join("\n");
+        assert!(joined.contains("Ctrl+Y"));
+        assert!(joined.contains("Ctrl+S"));
+        assert!(joined.contains("text selection"));
+    }
+
+    #[test]
+    fn select_mode_status_copy_is_self_describing() {
+        assert!(SELECT_MODE_STATUS_LEFT.contains("SELECT"));
+        assert!(SELECT_MODE_STATUS_LEFT.contains("select"));
+        assert!(SELECT_MODE_STATUS_RIGHT.contains("Ctrl+S"));
+        assert!(SELECT_MODE_STATUS_RIGHT.contains("re-enable"));
     }
 
     #[test]

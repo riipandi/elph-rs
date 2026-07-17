@@ -33,9 +33,10 @@ use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatch
 use crate::tui::chrome::{ChromeStats, Header};
 use crate::tui::chrome::{chrome_stats_from_session, format_elapsed_secs, read_git_footer_info, refresh_chrome_stats};
 use crate::tui::focus::ShellFocus;
-use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
+use crate::tui::focus::{is_text_select_toggle_key, prompt_focus_char, shell_global_shortcut};
 use crate::tui::labels::GitFooterInfo;
 
+use crate::tui::clipboard::copy_to_clipboard;
 use crate::tui::confetti::{ConfettiOverlay, OpenConfettiArgs, PendingConfetti, close_confetti, open_confetti};
 use crate::tui::file_picker::FilePickerKeyAction;
 use crate::tui::file_picker::{
@@ -86,8 +87,9 @@ use crate::tui::tool_params::tool_display_verb;
 use crate::tui::transcript::{
     EphemeralBanner, EphemeralBannerGeneration, QUIT_BUSY_NOTICE_KEY, TranscriptMessage, TranscriptPanel,
     TranscriptStyle, agent_mode_banner, agent_mode_busy_banner, api_error_banner, clear_ephemeral_banner,
-    clear_ephemeral_banner_if_generation, expire_ephemeral_banner, publish_ephemeral_banner, quit_busy_banner,
-    theme_mode_banner, toggle_latest_collapsible_detail,
+    clear_ephemeral_banner_if_generation, expire_ephemeral_banner, prompt_copy_banner, prompt_copy_failed_banner,
+    publish_ephemeral_banner, quit_busy_banner, select_mode_off_banner, select_mode_on_banner, theme_mode_banner,
+    toggle_latest_collapsible_detail,
 };
 use crate::tui::user_question::PendingUserQuestion;
 use crate::tui::user_question::{
@@ -581,6 +583,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let (screen_width, screen_height) = layout_screen_size.get();
     let mut system = hooks.use_context_mut::<SystemContext>();
     let mut should_exit = hooks.use_state(|| false);
+    // When true, mouse capture is off so the terminal can native-select transcript text.
+    let mut select_mode = hooks.use_state(|| false);
+    // Apply every frame; iocraft only reconfigures the terminal when the value changes.
+    system.set_mouse_capture(!select_mode.get());
     let mut agent_mode = hooks.use_state(|| props.initial_agent_mode);
     let mut thinking_level = hooks.use_state(|| props.initial_thinking_level);
     let mut draft = hooks.use_state(String::new);
@@ -1187,6 +1193,27 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 return;
             }
 
+            // Ctrl+S (or Ctrl+Shift+S) — toggle mouse capture for native text selection.
+            // Persistent until toggled again. Skipped when scoped-models editor needs Ctrl+S to save
+            // (that handler runs later while the overlay is open).
+            let scoped_models_open_early = pending_scoped_models.read().is_some();
+            if !scoped_models_open_early && is_text_select_toggle_key(modifiers, code) {
+                let next = !select_mode.get();
+                select_mode.set(next);
+                let expire_tx = ephemeral_expire.read().tx.clone();
+                show_ephemeral_banner(
+                    &mut ephemeral_banner,
+                    &mut ephemeral_banner_generation,
+                    &expire_tx,
+                    if next {
+                        select_mode_on_banner()
+                    } else {
+                        select_mode_off_banner()
+                    },
+                );
+                return;
+            }
+
             let mut pending_tool_approval = pending_tool_approval;
             let mut pending_user_question = pending_user_question;
             let mut pending_model_selector = pending_model_selector;
@@ -1321,7 +1348,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         return;
                     }
 
+                    // Scoped editor owns Ctrl+S for save (do not require !SHIFT — either chord saves).
                     if modifiers.contains(KeyModifiers::CONTROL)
+                        && !modifiers.intersects(KeyModifiers::ALT | KeyModifiers::META)
                         && matches!(code, KeyCode::Char('s') | KeyCode::Char('S'))
                     {
                         if let Some(pending) = pending_scoped_models.write().as_mut() {
@@ -2269,6 +2298,28 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         }
                     }
                 }
+                // Ctrl+Y — copy full prompt draft to the system clipboard.
+                (m, KeyCode::Char('y')) | (m, KeyCode::Char('Y'))
+                    if m.contains(KeyModifiers::CONTROL)
+                        && !m.contains(KeyModifiers::SHIFT)
+                        && !m.contains(KeyModifiers::ALT)
+                        && !status_dialog_open
+                        && pending_user_question.read().is_none() =>
+                {
+                    let expire_tx = ephemeral_expire.read().tx.clone();
+                    let banner = if draft_body.is_empty() {
+                        prompt_copy_banner(0)
+                    } else {
+                        match copy_to_clipboard(&draft_body) {
+                            Ok(()) => prompt_copy_banner(draft_body.chars().count()),
+                            Err(err) => {
+                                log::warn!("copy prompt failed: {err}");
+                                prompt_copy_failed_banner()
+                            }
+                        }
+                    };
+                    show_ephemeral_banner(&mut ephemeral_banner, &mut ephemeral_banner_generation, &expire_tx, banner);
+                }
                 // Ctrl+Shift+T — roll theme Auto → Light → Dark (persist + reinstall palette).
                 (m, KeyCode::Char('t')) | (m, KeyCode::Char('T'))
                     if m.contains(KeyModifiers::CONTROL)
@@ -2962,6 +3013,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     .as_ref()
                     .map(|banner| (banner.text.clone(), banner.color())),
                 quit_confirm_pending: pending_quit_confirm.get(),
+                select_mode: select_mode.get(),
                 dialog: status_dialog,
                 approval_selected: Some(approval_selected),
                 approval_has_focus: approval_has_focus,
@@ -2971,7 +3023,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 screen_height: screen_height,
                 agent_mode: agent_mode.get(),
                 thinking_level: thinking_level.get(),
-                has_focus: prompt_focused,
+                has_focus: prompt_focused && !select_mode.get(),
                 project_name: project_name.clone(),
                 git: git.clone(),
                 turn: chrome.turn_count,
@@ -2996,6 +3048,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 file_picker_selected: Some(file_picker_index),
                 file_picker_show_hidden: file_picker_show_hidden.get(),
                 editor_overlay: editor_overlay,
+                text_select_mode: select_mode.get(),
                 blocked_hint: if system_prompt_open {
                     Some("Viewing system prompt — Esc to close".to_string())
                 } else if user_question_open {

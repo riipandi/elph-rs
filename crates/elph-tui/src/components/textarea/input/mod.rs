@@ -30,6 +30,8 @@ pub enum TextareaInputResult {
     Changed,
     /// Plain Enter submit — caller invokes `on_submit` with the draft.
     Submit(String),
+    /// Yank selected text (vim-style `y` with a non-empty selection).
+    Yank(String),
     /// Event consumed without mutation.
     Consumed,
     /// Not handled.
@@ -71,14 +73,36 @@ pub fn handle_textarea_terminal_event(
         return TextareaInputResult::Ignored;
     };
 
+    if kind != KeyEventKind::Release && code == KeyCode::Esc && modifiers.is_empty() {
+        if state.has_selection() {
+            state.clear_selection();
+            return TextareaInputResult::Changed;
+        }
+        if !*ctx.pending_esc && !ctx.on_escape.is_default() {
+            (ctx.on_escape)(());
+            return TextareaInputResult::Consumed;
+        }
+    }
+
+    // Vim-style yank: plain `y` / `Y` copies the selection when one exists (does not insert).
     if kind != KeyEventKind::Release
-        && code == KeyCode::Esc
         && modifiers.is_empty()
-        && !*ctx.pending_esc
-        && !ctx.on_escape.is_default()
+        && matches!(code, KeyCode::Char('y') | KeyCode::Char('Y'))
+        && let Some(selected) = state.selected_text().map(str::to_string)
     {
-        (ctx.on_escape)(());
-        return TextareaInputResult::Consumed;
+        state.clear_selection();
+        return TextareaInputResult::Yank(selected);
+    }
+
+    // Shift+arrows extend visual selection inside the buffer only.
+    // Shift+Up/Down are reserved for transcript scrolling — only Left/Right/Home/End extend selection.
+    if kind != KeyEventKind::Release
+        && modifiers.contains(KeyModifiers::SHIFT)
+        && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::META)
+        && !is_transcript_scroll_key(code, kind, modifiers)
+        && state.move_with_shift(code, ctx.input_width)
+    {
+        return TextareaInputResult::Changed;
     }
 
     let now = Instant::now();

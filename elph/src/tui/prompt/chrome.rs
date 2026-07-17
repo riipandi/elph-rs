@@ -51,6 +51,8 @@ pub struct PromptChromeProps {
     pub file_picker_key_handled: Option<Ref<bool>>,
     pub prompt_editor_mirror: Option<Ref<(String, usize)>>,
     pub blocked_hint: Option<String>,
+    /// Hide prompt draft pixels while native text selection is active.
+    pub text_select_mode: bool,
 }
 
 #[component]
@@ -86,7 +88,7 @@ pub fn PromptChrome(props: &mut PromptChromeProps) -> impl Into<AnyElement<'stat
                     screen_width: props.screen_width,
                     screen_height: props.screen_height,
                     agent_mode: props.agent_mode,
-                    has_focus: props.has_focus,
+                    has_focus: props.has_focus && !props.text_select_mode,
                     project_name: props.project_name.clone(),
                     git_branch: props.git.as_ref().map(|g| g.branch.clone()),
                     chrome_revision: props.chrome_revision,
@@ -101,6 +103,7 @@ pub fn PromptChrome(props: &mut PromptChromeProps) -> impl Into<AnyElement<'stat
                     force_palette_sync: props.force_palette_sync,
                     force_clear: props.force_editor_clear,
                     blocked_hint: props.blocked_hint.clone(),
+                    text_select_mode: props.text_select_mode,
                     on_submit: props.on_submit.take(),
                     on_escape: if props.slash_palette_snapshot.visible || props.file_picker_snapshot.visible {
                         HandlerMut::default()

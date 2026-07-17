@@ -183,6 +183,8 @@ pub struct StatusZoneProps {
     /// Fixed toast above the status row (agent mode, quit-busy, …).
     pub ephemeral_banner: Option<(String, Color)>,
     pub quit_confirm_pending: bool,
+    /// Sticky StatusRow chrome while mouse capture is off for native text selection.
+    pub select_mode: bool,
     pub dialog: Option<StatusDialogKind>,
     pub approval_selected: Option<State<usize>>,
     pub approval_has_focus: bool,
@@ -202,6 +204,7 @@ impl Default for StatusZoneProps {
             idle_notice: None,
             ephemeral_banner: None,
             quit_confirm_pending: false,
+            select_mode: false,
             dialog: None,
             approval_selected: None,
             approval_has_focus: false,
@@ -269,6 +272,7 @@ pub fn StatusZone(props: &mut StatusZoneProps, hooks: Hooks) -> impl Into<AnyEle
                 session_elapsed_secs: props.session_elapsed_secs,
                 idle_notice: props.idle_notice.clone(),
                 quit_confirm_pending: props.quit_confirm_pending,
+                select_mode: props.select_mode,
             )
             #(dialog_element)
         }

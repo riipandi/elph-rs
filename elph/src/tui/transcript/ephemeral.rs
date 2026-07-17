@@ -23,6 +23,12 @@ pub const AGENT_MODE_BUSY_NOTICE_KEY: &str = "transient:agent_mode_busy";
 /// Stable key for theme mode change banners (Ctrl+Shift+T).
 pub const THEME_MODE_NOTICE_KEY: &str = "transient:theme_mode";
 
+/// Stable key after Ctrl+Y copies the prompt draft.
+pub const PROMPT_COPY_NOTICE_KEY: &str = "transient:prompt_copy";
+
+/// Stable key for text-select mode (Ctrl+S) mouse-capture notices.
+pub const SELECT_MODE_NOTICE_KEY: &str = "transient:select_mode";
+
 /// How long an agent-mode (or blocked-toggle) banner stays visible.
 pub const AGENT_MODE_NOTICE_TTL: Duration = Duration::from_secs(3);
 
@@ -117,6 +123,54 @@ pub fn theme_mode_banner(label: &str) -> EphemeralBanner {
     EphemeralBanner {
         key: THEME_MODE_NOTICE_KEY,
         text: format!("Theme: {label}"),
+        kind: EphemeralBannerKind::Notice,
+        expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
+    }
+}
+
+/// Banner after Ctrl+Y copies the full prompt draft to the system clipboard.
+pub fn prompt_copy_banner(char_count: usize) -> EphemeralBanner {
+    let text = if char_count == 0 {
+        "Nothing to copy · prompt is empty".to_string()
+    } else {
+        format!("Copied full prompt ({char_count} chars) · Ctrl+Y")
+    };
+    EphemeralBanner {
+        key: PROMPT_COPY_NOTICE_KEY,
+        text,
+        kind: EphemeralBannerKind::Notice,
+        expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
+    }
+}
+
+/// Banner when clipboard write fails.
+pub fn prompt_copy_failed_banner() -> EphemeralBanner {
+    EphemeralBanner {
+        key: PROMPT_COPY_NOTICE_KEY,
+        text: "Could not copy prompt · check clipboard access".to_string(),
+        kind: EphemeralBannerKind::Error,
+        expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
+    }
+}
+
+/// Banner when mouse capture is turned off (native drag-select enabled).
+///
+/// StatusRow also shows a sticky SELECT line until capture is re-enabled — toast is transitional only.
+pub fn select_mode_on_banner() -> EphemeralBanner {
+    EphemeralBanner {
+        key: SELECT_MODE_NOTICE_KEY,
+        // Warning weight: mode disables wheel/click until the user toggles back.
+        text: "Text select on · drag to select · Ctrl+S to turn off".to_string(),
+        kind: EphemeralBannerKind::Warning,
+        expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
+    }
+}
+
+/// Banner when mouse capture is restored (wheel/click handling on).
+pub fn select_mode_off_banner() -> EphemeralBanner {
+    EphemeralBanner {
+        key: SELECT_MODE_NOTICE_KEY,
+        text: "Text select off · scroll and click restored · Ctrl+S to enable".to_string(),
         kind: EphemeralBannerKind::Notice,
         expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
     }
@@ -265,5 +319,38 @@ mod tests {
         assert!(slot.is_some());
         assert!(clear_ephemeral_banner_if_generation(&mut slot, &banner_gen, g2));
         assert!(slot.is_none());
+    }
+
+    #[test]
+    fn prompt_copy_banner_empty_and_counted() {
+        let empty = prompt_copy_banner(0);
+        assert_eq!(empty.key, PROMPT_COPY_NOTICE_KEY);
+        assert!(empty.text.to_ascii_lowercase().contains("empty"));
+        assert_eq!(empty.kind, EphemeralBannerKind::Notice);
+
+        let ok = prompt_copy_banner(42);
+        assert!(ok.text.contains("42"));
+        assert!(ok.text.contains("Ctrl+Y"));
+        assert!(ok.expires_at.is_some());
+
+        let fail = prompt_copy_failed_banner();
+        assert_eq!(fail.kind, EphemeralBannerKind::Error);
+        assert!(fail.text.to_ascii_lowercase().contains("could not copy"));
+    }
+
+    #[test]
+    fn select_mode_banners_use_text_not_color_alone() {
+        let on = select_mode_on_banner();
+        assert_eq!(on.key, SELECT_MODE_NOTICE_KEY);
+        assert_eq!(on.kind, EphemeralBannerKind::Warning);
+        assert!(on.text.to_ascii_lowercase().contains("text select on"));
+        assert!(on.text.contains("Ctrl+S"));
+        assert!(!on.text.contains("Esc"));
+
+        let off = select_mode_off_banner();
+        assert_eq!(off.key, SELECT_MODE_NOTICE_KEY);
+        assert_eq!(off.kind, EphemeralBannerKind::Notice);
+        assert!(off.text.to_ascii_lowercase().contains("text select off"));
+        assert!(off.text.contains("Ctrl+S"));
     }
 }

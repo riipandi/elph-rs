@@ -348,9 +348,11 @@ mod tests {
 
     #[test]
     fn overrides_apply_hex_and_rgb() {
-        let mut o = ThemeTokenOverrides::default();
-        o.accent = Some("#ff0000".into());
-        o.success = Some("rgb(0, 255, 0)".into());
+        let o = ThemeTokenOverrides {
+            accent: Some("#ff0000".into()),
+            success: Some("rgb(0, 255, 0)".into()),
+            ..Default::default()
+        };
         let theme = o.apply_to(UiTheme::dark());
         assert_eq!(theme.accent, rgb(255, 0, 0));
         assert_eq!(theme.success, rgb(0, 255, 0));

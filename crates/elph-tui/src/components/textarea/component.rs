@@ -515,6 +515,9 @@ pub fn Textarea(props: &mut TextareaProps, mut hooks: Hooks) -> impl Into<AnyEle
                         value.set(ed.text.clone());
                     }
                 }
+                TextareaInputResult::Yank(_selected) => {
+                    generation.set(generation.get().wrapping_add(1));
+                }
                 TextareaInputResult::Ignored => {}
             }
         }

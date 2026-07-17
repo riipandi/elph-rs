@@ -51,13 +51,17 @@ pub struct EditorProps {
     pub prompt_editor_mirror: Option<Ref<(String, usize)>>,
     /// Shown centered when the editor is blocked by an inline dialog.
     pub blocked_hint: Option<String>,
+    /// Text-select mode: keep draft visible (dimmed), drop focus so input is paused.
+    pub text_select_mode: bool,
 }
 
 #[component]
 pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
     let _chrome_revision = props.chrome_revision;
     let theme = UiTheme::default();
-    let has_focus = props.has_focus;
+    let text_select_mode = props.text_select_mode;
+    // Keep draft painted; only pause focus so typing does not edit during select mode.
+    let has_focus = props.has_focus && !text_select_mode;
     let draft_text = props
         .live_draft
         .as_ref()
@@ -79,7 +83,10 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
         0
     };
     let textarea_width = inner_width.saturating_sub(prefix_cols).max(1);
-    let text_color = if has_focus {
+    // Dim during select mode so the status bar mode cue is the primary focus.
+    let text_color = if text_select_mode {
+        EDITOR_TEXT_DIMMED
+    } else if has_focus {
         EDITOR_TEXT_FOCUSED
     } else {
         EDITOR_TEXT_DIMMED
