@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use iocraft::prelude::Color;
 
 use crate::tui::theme::{
-    META_FG, QUIT_BUSY_NOTICE_FG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG, TOOL_FAILED_FG,
-    TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
+    EPHEMERAL_NOTICE_FG, META_FG, QUIT_BUSY_NOTICE_FG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG,
+    TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
 };
 
 use super::card::{
@@ -69,6 +69,8 @@ impl TranscriptMessage {
         message
     }
 
+    /// Legacy constructor for tests / layout helpers (quit-busy is a fixed banner above StatusRow).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn quit_busy_notice(content: impl Into<String>) -> Self {
         Self::startup_status(QUIT_BUSY_NOTICE_KEY, content, TranscriptStyle::Meta)
     }
@@ -80,6 +82,8 @@ impl TranscriptMessage {
     pub fn transcript_foreground(&self) -> Color {
         if self.is_quit_busy_notice() {
             QUIT_BUSY_NOTICE_FG
+        } else if self.is_ephemeral_notice() {
+            EPHEMERAL_NOTICE_FG
         } else {
             self.style.text_color()
         }
@@ -383,8 +387,8 @@ mod tests {
 
     use super::*;
     use crate::tui::theme::{
-        META_FG, THINKING_BG, TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG, TOOL_SUCCESS_BG,
-        TOOL_SUCCESS_FG, USER_INPUT_BG,
+        EPHEMERAL_NOTICE_FG, META_FG, THINKING_BG, TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG,
+        TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
     };
 
     #[test]
@@ -445,6 +449,22 @@ mod tests {
     }
 
     #[test]
+    fn status_notification_fg_uses_soft_green_and_clearer_red() {
+        assert_eq!(TranscriptStyle::StatusSuccess.text_color(), TOOL_SUCCESS_FG);
+        assert_eq!(TranscriptStyle::StatusFailed.text_color(), TOOL_FAILED_FG);
+        assert_eq!(TranscriptStyle::ToolSuccess.text_color(), TOOL_SUCCESS_FG);
+        assert_eq!(TranscriptStyle::ToolFailed.text_color(), TOOL_FAILED_FG);
+        // Success reads green (g dominant over r); failed reads red (r dominant over g).
+        match (TOOL_SUCCESS_FG, TOOL_FAILED_FG) {
+            (Color::Rgb { r: sr, g: sg, b: _ }, Color::Rgb { r: fr, g: fg, b: _ }) => {
+                assert!(sg > sr, "success should skew green");
+                assert!(fr > fg, "failed should skew red");
+            }
+            _ => panic!("expected rgb status colors"),
+        }
+    }
+
+    #[test]
     fn thinking_and_response_transcript_colors() {
         assert_eq!(TranscriptStyle::Assistant.background_color(), Color::Reset);
         assert_eq!(TranscriptStyle::Thinking.background_color(), THINKING_BG);
@@ -490,6 +510,16 @@ mod tests {
             TranscriptMessage::startup_status("transient:agent_mode", "Agent mode: plan.", TranscriptStyle::Meta);
         assert!(notice.is_ephemeral_notice());
         assert_eq!(notice.transcript_padding_top(), FLUSH_CARD_PAD + EPHEMERAL_NOTICE_EXTRA_PAD_TOP);
+    }
+
+    #[test]
+    fn ephemeral_notice_uses_amber_foreground() {
+        let notice =
+            TranscriptMessage::startup_status("transient:agent_mode", "Agent mode: plan.", TranscriptStyle::Meta);
+        assert_eq!(notice.transcript_foreground(), EPHEMERAL_NOTICE_FG);
+        // Permanent meta rows stay dim.
+        let meta = TranscriptMessage::text("session resumed", TranscriptStyle::Meta);
+        assert_eq!(meta.transcript_foreground(), META_FG);
     }
 
     #[test]

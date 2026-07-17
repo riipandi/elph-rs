@@ -18,7 +18,7 @@ Elph is a Rust workspace of layered crates designed for building AI agent applic
 │  Platform (paths, settings, databases, extensions)   │
 ├─────────────────────────────────────────────────────┤
 │                  elph-tui (crate)                    │
-│  iocraft component library · 13+ examples, tests    │
+│  iocraft component library · 26+ examples, tests    │
 │  (primary TUI in elph binary)                       │
 ├─────────────────────────────────────────────────────┤
 │                 elph-agent (crate)                   │
@@ -30,13 +30,19 @@ Elph is a Rust workspace of layered crates designed for building AI agent applic
 │  Image generation · Web tools · Faux provider       │
 ├─────────────────────────────────────────────────────┤
 │                 elph-core (crate)                    │
-│  Floppy (Turso vector store) · Logger · Scaffold    │
-│  Path resolution · Filesystem utilities             │
+│  Logger · Scaffold · Path resolution · Tracing ·    │
+│  Floppy module · Filesystem utilities               │
 ├─────────────────────────────────────────────────────┤
 │                 elph-exec (crate)                    │
 │  PTY shell execution · Configurable timeouts ·      │
 │  Abort tokens · Streaming output · Sanitization     │
 └─────────────────────────────────────────────────────┘
+
+Skeleton crates (standalone extraction in progress — lib.rs stubs):
+
+  crates/floppy         — AI memory with vector search (extracting from elph-core)
+  crates/elph-cron      — Cron scheduled task tools
+  crates/elph-sandbox   — Sandbox execution via zerobox
 ```
 
 ## Design principles
@@ -109,11 +115,11 @@ Key modules:
 
 Path: `/crates/elph-core/`
 
-Shared primitives.
+Shared primitives. The `floppy` module is being extracted to a standalone workspace crate (`crates/floppy`).
 
 Key modules:
 
-- `floppy/` — Agent memory store: Turso-backed vector search with Welford baseline scoring and EMA weight updates. Ported from [memelord](https://github.com/glommer/memelord). (`/crates/elph-core/src/floppy/`)
+- `floppy/` — Agent memory store: Turso-backed vector search with Welford baseline scoring and EMA weight updates. Ported from [memelord](https://github.com/glommer/memelord). Being extracted to standalone `floppy` crate. (`/crates/elph-core/src/floppy/`)
 - `logger/` — Structured logging via `logforth` with rotating file output and optional fastrace span attachment (`/crates/elph-core/src/logger/`)
 - `trace/` — Optional fastrace distributed tracing: `JsonlReporter`, `root_span`, W3C `traceparent` propagation (`/crates/elph-core/src/trace/`)
 - `scaffold/` — Bundled manifests, trust stores, version files (`/crates/elph-core/src/scaffold/`)
@@ -148,6 +154,26 @@ Path: `/crates/elph-swarm/`
 
 Multi-agent coordination. Early stage — minimal public API.
 
+### `floppy` (library crate — skeleton)
+
+Path: `/crates/floppy/`
+
+Standalone AI memory store being extracted from `elph-core`. Provides Turso-backed vector search with Welford baseline scoring and EMA weight updates (ported from [memelord](https://github.com/glommer/memelord)). Currently a skeleton crate — the full implementation still lives in `elph-core/src/floppy/`.
+
+Cargo.toml dependencies: `anyhow`, `memorable-ids`, `serde`, `serde_json`.
+
+### `elph-cron` (library crate — skeleton)
+
+Path: `/crates/elph-cron/`
+
+Cron scheduled task tools for Elph. Skeleton crate with no implementation yet. Lib name: `elph_cron`.
+
+### `elph-sandbox` (library crate — skeleton)
+
+Path: `/crates/elph-sandbox/`
+
+Sandbox execution powered by zerobox. Skeleton crate with no implementation yet. Lib name: `elph_sandbox`.
+
 ## Key architectural decisions (from git history)
 
 | Decision                  | Commit              | Rationale                                                                                                                       |
@@ -163,6 +189,7 @@ Multi-agent coordination. Early stage — minimal public API.
 | Subagent orchestration    | `1384531`           | Rename goal tools to snake_case, refactor ask_user                                                                              |
 | Prompt template engine    | `fdbede4`           | Replace ad-hoc string formatting with MiniJinja-based layered templates (`base.md`, `coding_base.md`, mode-specific appendixes) |
 | Session tree persistence  | `95ff396`           | Tree-structured sessions with fork/branch/resume                                                                                |
+| Skeleton crate extraction | `08d6abb`           | Extract `floppy`, `elph-cron`, `elph-sandbox` as standalone workspace members (lib.rs stubs, impl remains in `elph-core`)       |
 
 ## Path resolution
 

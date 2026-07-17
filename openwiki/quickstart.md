@@ -11,15 +11,18 @@ tags: [quickstart, overview, navigation, elph]
 
 ## Repository overview
 
-| Layer       | Crate               | Purpose                                                                                                                    |
-| ----------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Binary**  | `elph/`             | Coding agent CLI + TUI — product shell                                                                                     |
-| **Runtime** | `crates/elph-agent` | App-agnostic agent runtime: turn loop, session persistence, compaction, goals, subagents, skills, MCP client, WASM plugins |
-| **AI**      | `crates/elph-ai`    | Unified LLM provider layer: model catalog, provider abstraction, OAuth, image generation, web tools                        |
-| **Core**    | `crates/elph-core`  | Shared primitives: `floppy` memory store (Turso vector DB), logger, path resolution, filesystem helpers                    |
-| **Exec**    | `crates/elph-exec`  | PTY-based shell execution with configurable timeout, abort, streaming output, and sanitization                             |
-| **TUI**     | `crates/elph-tui`   | iocraft component library + examples; primary TUI in `elph` binary (`tui.rs`)                                              |
-| **Swarm**   | `crates/elph-swarm` | Multi-agent coordination (early stage)                                                                                     |
+| Layer       | Crate                 | Purpose                                                                                                                    |
+| ----------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Binary**  | `elph/`               | Coding agent CLI + TUI — product shell                                                                                     |
+| **Runtime** | `crates/elph-agent`   | App-agnostic agent runtime: turn loop, session persistence, compaction, goals, subagents, skills, MCP client, WASM plugins |
+| **AI**      | `crates/elph-ai`      | Unified LLM provider layer: model catalog, provider abstraction, OAuth, image generation, web tools                        |
+| **Core**    | `crates/elph-core`    | Shared primitives: logger, path resolution, filesystem helpers, tracing, bundling                                          |
+| **Memory**  | `crates/floppy`       | AI memory with Turso-backed vector search (standalone skeleton; floppy module also in `elph-core`)                         |
+| **Exec**    | `crates/elph-exec`    | PTY-based shell execution with configurable timeout, abort, streaming output, and sanitization                             |
+| **Cron**    | `crates/elph-cron`    | Scheduled task tools for cron-based agent workflows (skeleton crate)                                                       |
+| **Sandbox** | `crates/elph-sandbox` | Sandbox execution powered by zerobox (skeleton crate)                                                                      |
+| **TUI**     | `crates/elph-tui`     | iocraft component library + examples; primary TUI in `elph` binary (`tui.rs`)                                              |
+| **Swarm**   | `crates/elph-swarm`   | Multi-agent coordination (early stage)                                                                                     |
 
 ## Key concepts
 
@@ -35,11 +38,12 @@ tags: [quickstart, overview, navigation, elph]
 - **TOON Encoding** — Optional structured-data encoding for tool results (reduces token usage on tabular payloads).
 - **Extensions** — WASM-based dynamic plugins compiled with `wasmtime`.
 
-## Project state (HEAD `d7a82cb`)
+## Project state (HEAD `08d6abb`)
 
 This repository is under **active development**. Recent milestones:
 
 - **Prompt template engine** — Layered MiniJinja-based prompt assembly replaces ad-hoc string formatting. Ships `base.md` + `coding_base.md` + 4 mode-specific templates (`ask`, `brave`, `build`, `plan`). `SystemPromptBuilder` in `elph-agent` provides reusable infrastructure; `build_coding_system_prompt()` in the binary crate adds coding-domain context (`fdbede4`).
+- **New skeleton crates** — `crates/floppy` (standalone AI memory, extracted from `elph-core`), `crates/elph-cron` (scheduled task tools), `crates/elph-sandbox` (zerobox sandbox execution) added as workspace members (`08d6abb`, `3b0f0d6`, `5d59f08`).
 - **Confetti overlay** — Hidden Easter egg: `/confetti` triggers a full-screen animated particle effect (rain or fireworks) at ~60 FPS with auto-close after 2–5 seconds (`d7a82cb`).
 - **System prompt dialog** — `/system-prompt` opens a scrollable dialog showing the compiled system prompt, rebuilt live from current session state (`fdbede4`).
 - **Chrome stats improvements** — Turn count in footer stats, fallback to live model info when branch I/O fails; more reliable terminal size polling (`d7a82cb`).

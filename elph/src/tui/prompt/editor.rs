@@ -1,4 +1,4 @@
-//! Multiline prompt editor with dynamic prefix and agent-mode overlap label.
+//! Multiline prompt editor with dynamic prefix and project label on the bottom border.
 
 use elph_tui::PaletteKeyInput;
 use elph_tui::Textarea;
@@ -8,12 +8,17 @@ use iocraft::prelude::*;
 
 use crate::types::AgentMode;
 
+use crate::tui::chrome::fit_editor_border_project;
 use crate::tui::theme::prompt_border_color;
-use crate::tui::theme::rgb_color;
 use crate::tui::theme::{EDITOR_CURSOR, EDITOR_TEXT_DIMMED, EDITOR_TEXT_FOCUSED, PROMPT_PREFIX_FG};
 
 fn editor_max_height(screen_height: u16) -> u16 {
-    (screen_height / 4).clamp(4, 12)
+    // Reserve rows for header, status, footer, borders, and a thin transcript band
+    // so the footer stays on-screen even when the terminal is short.
+    const RESERVED_CHROME_ROWS: u16 = 7;
+    let budget = screen_height.saturating_sub(RESERVED_CHROME_ROWS).max(1);
+    let preferred = (screen_height / 4).clamp(1, 12);
+    preferred.min(budget)
 }
 
 #[derive(Default, Props)]
@@ -22,6 +27,12 @@ pub struct EditorProps {
     pub screen_height: u16,
     pub agent_mode: AgentMode,
     pub has_focus: bool,
+    /// Project folder name for the bottom-border badge (`~ name (branch)`).
+    pub project_name: String,
+    /// Git branch for the bottom-border badge (parentheses form).
+    pub git_branch: Option<String>,
+    /// Bumped with chrome refresh so the border project label repaints.
+    pub chrome_revision: u64,
     pub prefix_config: PromptPrefixConfig,
     pub input_prefix_kind: Option<Ref<InputPrefixKind>>,
     pub draft: Option<State<String>>,
@@ -44,8 +55,8 @@ pub struct EditorProps {
 
 #[component]
 pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
+    let _chrome_revision = props.chrome_revision;
     let theme = UiTheme::default();
-    let label_color = rgb_color(props.agent_mode.label_rgb());
     let has_focus = props.has_focus;
     let draft_text = props
         .live_draft
@@ -77,6 +88,17 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
         format!("{} ", prefix_symbol(prefix_kind, &props.prefix_config))
     } else {
         String::new()
+    };
+    // Sit on the bottom border before the corner: leave room for `╯` and spacing.
+    let border_label_max = (props.screen_width as usize)
+        .saturating_sub(6)
+        .min((props.screen_width as usize * 3) / 5)
+        .max(1);
+    let border_project = fit_editor_border_project(&props.project_name, props.git_branch.as_deref(), border_label_max);
+    let border_badge = if border_project.is_empty() {
+        String::new()
+    } else {
+        format!(" {border_project} ")
     };
 
     element! {
@@ -136,20 +158,24 @@ pub fn Editor(props: &mut EditorProps) -> impl Into<AnyElement<'static>> {
                     cursor_color: Some(EDITOR_CURSOR),
                 )
             }
-            View(
-                position: Position::Absolute,
-                right: 1,
-                bottom: 0,
-                margin_bottom: -1,
-                background_color: Color::Reset,
-            ) {
-                Text(
-                    color: label_color,
-                    weight: Weight::Bold,
-                    wrap: TextWrap::NoWrap,
-                    content: format!(" {} ", props.agent_mode.footer_label()),
-                )
-            }
+            #( (!border_badge.is_empty()).then(|| -> AnyElement<'static> {
+                element! {
+                    View(
+                        position: Position::Absolute,
+                        right: 1,
+                        bottom: 0,
+                        margin_bottom: -1,
+                        background_color: Color::Reset,
+                    ) {
+                        Text(
+                            color: Color::DarkGrey,
+                            wrap: TextWrap::NoWrap,
+                            content: border_badge.clone(),
+                        )
+                    }
+                }
+                .into()
+            }))
             #(props
                 .blocked_hint
                 .as_ref()

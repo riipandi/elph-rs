@@ -184,6 +184,7 @@ pub fn to_agent_thinking(level: crate::types::ThinkingLevel) -> elph_agent::Agen
         ThinkingLevel::Medium => AgentThinkingLevel::Medium,
         ThinkingLevel::High => AgentThinkingLevel::High,
         ThinkingLevel::Xhigh => AgentThinkingLevel::Xhigh,
+        ThinkingLevel::Max => AgentThinkingLevel::Max,
     }
 }
 

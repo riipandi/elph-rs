@@ -33,6 +33,9 @@ pub struct Settings {
     pub auto_compact_limit: u8,
     #[serde(default = "default_footer_token_display")]
     pub footer_token_display: String,
+    /// When true, footer status uses mode/thinking/git accent colors; otherwise dimmed grey.
+    #[serde(default = "default_true")]
+    pub colored_status_footer: bool,
     /// Curated `provider/model_id` entries shown in the model picker Scoped tab.
     #[serde(default)]
     pub scoped_model_items: Vec<String>,
@@ -111,6 +114,7 @@ impl Settings {
             auto_compact_context: true,
             auto_compact_limit: default_compact_limit(),
             footer_token_display: default_footer_token_display(),
+            colored_status_footer: true,
             scoped_model_items: Vec::new(),
             file_picker: FilePickerSettings::default(),
         }
@@ -211,6 +215,20 @@ mod tests {
     fn file_picker_settings_default_hidden_off() {
         let settings = Settings::defaults();
         assert!(!settings.file_picker.show_hidden_files);
+    }
+
+    #[test]
+    fn colored_status_footer_defaults_true_and_merges_when_missing() {
+        let settings = Settings::defaults();
+        assert!(settings.colored_status_footer);
+
+        let json = r#"{"theme":"auto"}"#;
+        let decoded: Settings = serde_json::from_str(json).expect("deserialize");
+        assert!(decoded.colored_status_footer);
+
+        let off = r#"{"coloredStatusFooter":false}"#;
+        let decoded_off: Settings = serde_json::from_str(off).expect("deserialize");
+        assert!(!decoded_off.colored_status_footer);
     }
 
     #[test]

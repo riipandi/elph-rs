@@ -26,9 +26,8 @@ use crate::types::{is_force_quit_command, is_quit_command};
 
 use crate::tui::activity::TurnTokenTracker;
 use crate::tui::activity::{
-    accumulate_session_elapsed, activity_label_for_event, format_quit_canceled_notice,
-    format_quit_while_busy_transcript, format_shell_canceled_notice, format_turn_canceled_notice,
-    format_turn_complete_notice, user_shell_activity_label,
+    accumulate_session_elapsed, activity_label_for_event, format_quit_canceled_notice, format_shell_canceled_notice,
+    format_turn_canceled_notice, format_turn_complete_notice, user_shell_activity_label,
 };
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
 use crate::tui::chrome::{ChromeStats, Header};
@@ -36,7 +35,6 @@ use crate::tui::chrome::{chrome_stats_from_session, format_elapsed_secs, read_gi
 use crate::tui::focus::ShellFocus;
 use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
 use crate::tui::labels::GitFooterInfo;
-use crate::tui::labels::project_footer_label;
 
 use crate::tui::confetti::{ConfettiOverlay, OpenConfettiArgs, PendingConfetti, close_confetti, open_confetti};
 use crate::tui::file_picker::FilePickerKeyAction;
@@ -77,8 +75,9 @@ use crate::tui::system_prompt_dialog::{
 use crate::tui::tool_approval::PendingToolApproval;
 use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
 use crate::tui::transcript::{
-    AGENT_MODE_NOTICE_KEY, TranscriptMessage, TranscriptPanel, TranscriptStyle, agent_mode_notice_expired,
-    next_agent_mode_notice_deadline, remove_ephemeral_notice, show_agent_mode_notice,
+    EphemeralBanner, EphemeralBannerGeneration, QUIT_BUSY_NOTICE_KEY, TranscriptMessage, TranscriptPanel,
+    TranscriptStyle, agent_mode_banner, agent_mode_busy_banner, clear_ephemeral_banner,
+    clear_ephemeral_banner_if_generation, expire_ephemeral_banner, publish_ephemeral_banner, quit_busy_banner,
 };
 use crate::tui::user_question::PendingUserQuestion;
 use crate::tui::user_question::{
@@ -112,14 +111,14 @@ fn initial_layout_screen_size() -> (u16, u16) {
 }
 
 fn merge_layout_screen_size(layout_size: &mut State<(u16, u16)>, hook_width: u16, hook_height: u16) {
+    // Prefer a live terminal size. Taking max() with a stale larger value oversizes the
+    // canvas and clips the footer off the bottom of the real terminal.
     let polled = crossterm::terminal::size()
-        .map(|(width, height)| (width.max(1), height.max(1)))
-        .unwrap_or((0, 0));
+        .ok()
+        .map(|(width, height)| (width.max(1), height.max(1)));
+    let from_hook = (hook_width > 0 && hook_height > 0).then_some((hook_width.max(1), hook_height.max(1)));
     let current = layout_size.get();
-    let next = (
-        hook_width.max(polled.0).max(current.0).max(1),
-        hook_height.max(polled.1).max(current.1).max(1),
-    );
+    let next = polled.or(from_hook).unwrap_or((current.0.max(1), current.1.max(1)));
     if next != current {
         layout_size.set(next);
     }
@@ -134,16 +133,25 @@ fn poll_layout_screen_size(layout_size: &mut State<(u16, u16)>) {
     }
 }
 
+fn bump_chrome_ui_revision(chrome_ui_revision: &mut State<u64>) {
+    chrome_ui_revision.set(chrome_ui_revision.get().wrapping_add(1));
+}
+
+/// Publish chrome stats when they change. Returns `true` if values were updated.
+///
+/// Callers that need a footer/header repaint even when values are unchanged
+/// (AgentReady, first layout paint) should call `bump_chrome_ui_revision` when this returns `false`.
 fn publish_chrome_stats(
     chrome_stats: &mut State<ChromeStats>,
     chrome_ui_revision: &mut State<u64>,
     stats: ChromeStats,
-) {
+) -> bool {
     if *chrome_stats.read() == stats {
-        return;
+        return false;
     }
     chrome_stats.set(stats);
-    chrome_ui_revision.set(chrome_ui_revision.get().wrapping_add(1));
+    bump_chrome_ui_revision(chrome_ui_revision);
+    true
 }
 
 struct IdleStatusNotice {
@@ -190,10 +198,10 @@ pub struct MainShellProps {
     pub initial_agent_mode: AgentMode,
     pub initial_thinking_level: ThinkingLevel,
     pub model_label: String,
-    pub project_label: String,
     pub context_limit: u64,
     pub supports_images: bool,
     pub footer_token_display: String,
+    pub colored_status_footer: bool,
     pub sticky_scroll: bool,
     pub show_thinking: bool,
     pub agent_session: Option<Arc<CodingAgentSession>>,
@@ -218,10 +226,10 @@ impl Default for MainShellProps {
             initial_agent_mode: AgentMode::default(),
             initial_thinking_level: ThinkingLevel::default(),
             model_label: String::new(),
-            project_label: String::new(),
             context_limit: 200_000,
             supports_images: false,
             footer_token_display: "both".to_string(),
+            colored_status_footer: true,
             sticky_scroll: false,
             show_thinking: false,
             agent_session: None,
@@ -280,45 +288,98 @@ struct PendingQuitAction<'a> {
     agent_session: &'a Option<Arc<CodingAgentSession>>,
 }
 
+/// Show a fixed toast above StatusRow. Timed banners schedule an async clear that does **not**
+/// wait for agent busy/stream to finish; generation guards ignore stale clear tasks.
+fn show_ephemeral_banner(
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &mut Ref<EphemeralBannerGeneration>,
+    expire_tx: &UnboundedSender<u64>,
+    banner: EphemeralBanner,
+) {
+    let mut slot = ephemeral_banner.read().clone();
+    let mut banner_gen = generation.get();
+    let (id, ttl) = publish_ephemeral_banner(&mut slot, &mut banner_gen, banner);
+    generation.set(banner_gen);
+    ephemeral_banner.set(slot);
+    if let Some(ttl) = ttl {
+        let tx = expire_tx.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(ttl).await;
+            let _ = tx.send(id);
+        });
+    }
+}
+
+fn clear_quit_busy_banner(
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &mut Ref<EphemeralBannerGeneration>,
+) {
+    let mut slot = ephemeral_banner.read().clone();
+    if clear_ephemeral_banner(&mut slot, Some(QUIT_BUSY_NOTICE_KEY)) {
+        // Invalidate pending async clears for previous timed notices.
+        let mut banner_gen = generation.get();
+        banner_gen.bump();
+        generation.set(banner_gen);
+        ephemeral_banner.set(slot);
+    }
+}
+
+fn poll_ephemeral_banner_expiry(
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &Ref<EphemeralBannerGeneration>,
+    expire_rx: &mut UnboundedReceiver<u64>,
+) {
+    while let Ok(id) = expire_rx.try_recv() {
+        let mut slot = ephemeral_banner.read().clone();
+        let banner_gen = generation.get();
+        if clear_ephemeral_banner_if_generation(&mut slot, &banner_gen, id) {
+            ephemeral_banner.set(slot);
+        }
+    }
+    // Wall-clock safety net (e.g. if a sleep task was dropped).
+    let mut slot = ephemeral_banner.read().clone();
+    if expire_ephemeral_banner(&mut slot) {
+        ephemeral_banner.set(slot);
+    }
+}
+
 fn arm_pending_quit(
     pending_quit_confirm: &mut Ref<bool>,
-    messages: &mut State<Vec<TranscriptMessage>>,
-    messages_revision: &mut State<u64>,
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &mut Ref<EphemeralBannerGeneration>,
+    expire_tx: &UnboundedSender<u64>,
 ) {
     if pending_quit_confirm.get() {
         return;
     }
     pending_quit_confirm.set(true);
-    push_transcript_message(
-        messages,
-        messages_revision,
-        TranscriptMessage::quit_busy_notice(format_quit_while_busy_transcript()),
-    );
+    show_ephemeral_banner(ephemeral_banner, generation, expire_tx, quit_busy_banner());
 }
 
 fn dismiss_pending_quit(
     pending_quit_confirm: &mut Ref<bool>,
     idle_status_notice: &mut Ref<Option<IdleStatusNotice>>,
-    messages: &mut State<Vec<TranscriptMessage>>,
-    messages_revision: &mut State<u64>,
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &mut Ref<EphemeralBannerGeneration>,
 ) {
     if !pending_quit_confirm.get() {
         return;
     }
     pending_quit_confirm.set(false);
+    clear_quit_busy_banner(ephemeral_banner, generation);
     idle_status_notice.set(Some(IdleStatusNotice {
         text: format_quit_canceled_notice(),
         since: Instant::now(),
     }));
-    push_transcript_message(
-        messages,
-        messages_revision,
-        TranscriptMessage::text(format_quit_canceled_notice(), TranscriptStyle::Meta),
-    );
 }
 
-fn confirm_pending_quit(ctx: PendingQuitAction<'_>) {
+fn confirm_pending_quit(
+    ctx: PendingQuitAction<'_>,
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &mut Ref<EphemeralBannerGeneration>,
+) {
     ctx.pending_quit_confirm.set(false);
+    clear_quit_busy_banner(ephemeral_banner, generation);
     if ctx.busy.get() {
         ctx.turn_cancel_requested.set(true);
         ctx.prompt_queue.write().clear();
@@ -338,20 +399,21 @@ fn confirm_pending_quit(ctx: PendingQuitAction<'_>) {
 /// Request application exit. Returns `true` when the shell should exit now.
 fn request_quit(
     ctx: PendingQuitAction<'_>,
-    messages: &mut State<Vec<TranscriptMessage>>,
-    messages_revision: &mut State<u64>,
+    ephemeral_banner: &mut State<Option<EphemeralBanner>>,
+    generation: &mut Ref<EphemeralBannerGeneration>,
+    expire_tx: &UnboundedSender<u64>,
     force: bool,
 ) -> bool {
     if force {
-        confirm_pending_quit(ctx);
+        confirm_pending_quit(ctx, ephemeral_banner, generation);
         return true;
     }
     if ctx.busy.get() {
         if ctx.pending_quit_confirm.get() {
-            confirm_pending_quit(ctx);
+            confirm_pending_quit(ctx, ephemeral_banner, generation);
             true
         } else {
-            arm_pending_quit(ctx.pending_quit_confirm, messages, messages_revision);
+            arm_pending_quit(ctx.pending_quit_confirm, ephemeral_banner, generation, expire_tx);
             false
         }
     } else {
@@ -417,11 +479,16 @@ fn apply_bootstrap_ui_event(
         BootstrapUiEvent::AgentReady(bootstrap) => {
             live_session_id.set(bootstrap.session_id.clone());
             chrome_refresh_pending.set(true);
-            publish_chrome_stats(
+            // Always repaint chrome on AgentReady — stats may equal the bootstrap snapshot
+            // (same model/context), but the footer must still show eagerly without waiting for
+            // the first turn or a manual model pick.
+            if !publish_chrome_stats(
                 chrome_stats,
                 chrome_ui_revision,
                 chrome_stats_from_session(bootstrap.session.as_ref(), fallback_context_limit),
-            );
+            ) {
+                bump_chrome_ui_revision(chrome_ui_revision);
+            }
             agent_session_slot.set(Some(Arc::clone(&bootstrap.session)));
             ui_events_slot.set(Some(Arc::clone(&bootstrap.ui_rx)));
             {
@@ -594,14 +661,17 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         ..ChromeStats::default()
     });
     let mut git_footer = hooks.use_state(|| props.initial_git_footer.clone());
+    // Start at 1 so the first Footer paint depends on chrome_revision (iocraft child identity).
     let mut chrome_ui_revision = hooks.use_state(|| 1u64);
     let mut chrome_tick = hooks.use_ref(|| 0u32);
-    let eager_project_label = props.project_label.clone();
+    // Ensures one forced chrome repaint after the first shell tick (layout size settled).
+    let mut chrome_eager_paint_done = hooks.use_ref(|| false);
     let fallback_context_limit = props.context_limit;
     let fallback_model_label = props.model_label.clone();
     let fallback_model_label_for_chrome = fallback_model_label.clone();
     let fallback_supports_images = props.supports_images;
     let footer_token_display = props.footer_token_display.clone();
+    let colored_status_footer = props.colored_status_footer;
     let session_id = live_session_id.read().clone();
     let mut transcript_pending = hooks.use_ref(|| false);
     let mut last_transcript_publish = hooks.use_ref(|| Instant::now() - Duration::from_millis(TRANSCRIPT_PUBLISH_MS));
@@ -609,7 +679,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut turn_cancel_requested = hooks.use_ref(|| false);
     let mut pending_quit_confirm = hooks.use_ref(|| false);
     let mut turn_token_tracker = hooks.use_ref(|| None::<TurnTokenTracker>);
-    let mut agent_mode_notice_deadline = hooks.use_ref(|| None::<Instant>);
+    // Fixed toast above status row (agent mode, quit-busy) — not in the scrollable transcript.
+    // State (not Ref) so set/clear repaints without waiting for agent busy/stream updates.
+    let mut ephemeral_banner = hooks.use_state(|| None::<EphemeralBanner>);
+    let mut ephemeral_banner_generation = hooks.use_ref(EphemeralBannerGeneration::default);
+    struct EphemeralExpireChannel {
+        tx: UnboundedSender<u64>,
+        rx: UnboundedReceiver<u64>,
+    }
+    let mut ephemeral_expire = hooks.use_ref(|| {
+        let (tx, rx) = unbounded_channel();
+        EphemeralExpireChannel { tx, rx }
+    });
 
     let cwd_for_mention_index = cwd.clone();
     let mut layout_screen_size_for_loop = layout_screen_size;
@@ -704,12 +785,11 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             chrome_tick.set(chrome_tick.get().wrapping_add(1));
             let chrome_due = chrome_refresh_pending.get() || chrome_tick.get() % CHROME_REFRESH_TICKS == 0;
             if chrome_due {
-                let chrome_refresh_was_pending = chrome_refresh_pending.get();
                 let paths = paths.read().clone();
                 let next_git_footer = read_git_footer_info(paths.project_dir());
                 if git_footer.read().clone() != next_git_footer {
                     git_footer.set(next_git_footer);
-                    chrome_ui_revision.set(chrome_ui_revision.get().wrapping_add(1));
+                    bump_chrome_ui_revision(&mut chrome_ui_revision);
                 }
 
                 if let Some(session) = agent_session_for_chrome.as_ref() {
@@ -729,8 +809,19 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     {
                         tracker.sync_baseline(stats.tokens_used);
                     }
-                } else if !chrome_refresh_was_pending {
+                } else {
+                    // No session yet: still finish the pending git/chrome snapshot so the
+                    // bootstrap footer (project + model) paints without waiting for AgentReady.
+                    // Previously pending stayed true forever and re-ran git I/O every tick.
                     chrome_refresh_pending.set(false);
+                }
+
+                // One-shot eager repaint after the first chrome pass (layout size is settled
+                // and bootstrap labels are on the tree). Without this, iocraft can leave the
+                // footer blank until the first stats mutation (model pick / first turn).
+                if !chrome_eager_paint_done.get() {
+                    chrome_eager_paint_done.set(true);
+                    bump_chrome_ui_revision(&mut chrome_ui_revision);
                 }
             }
 
@@ -791,23 +882,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             }
 
-            if agent_mode_notice_expired(agent_mode_notice_deadline.get()) {
-                let removed = {
-                    let mut list = messages.read().clone();
-                    let changed = remove_ephemeral_notice(&mut list, AGENT_MODE_NOTICE_KEY);
-                    if changed {
-                        messages.set(list);
-                    }
-                    changed
-                };
-                if removed {
-                    agent_mode_notice_deadline.set(None);
-                    publish_transcript_now(
-                        &mut messages_revision,
-                        &mut transcript_pending,
-                        &mut last_transcript_publish,
-                    );
-                }
+            {
+                let mut channel = ephemeral_expire.write();
+                poll_ephemeral_banner_expiry(&mut ephemeral_banner, &ephemeral_banner_generation, &mut channel.rx);
             }
 
             let mut transcript_changed = false;
@@ -1002,6 +1079,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
             if run_completed {
                 pending_quit_confirm.set(false);
+                clear_quit_busy_banner(&mut ephemeral_banner, &mut ephemeral_banner_generation);
                 if let Some(turn_elapsed) = run_completed_elapsed {
                     session_elapsed_secs.set(accumulate_session_elapsed(session_elapsed_secs.get(), turn_elapsed));
                 }
@@ -1093,24 +1171,28 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             if pending_quit_confirm.get() && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) {
                 match code {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
-                        confirm_pending_quit(PendingQuitAction {
-                            pending_quit_confirm: &mut pending_quit_confirm,
-                            should_exit: &mut should_exit,
-                            busy: &busy,
-                            turn_cancel_requested: &mut turn_cancel_requested,
-                            prompt_queue: &mut prompt_queue,
-                            pending_tool_approval: &mut pending_tool_approval,
-                            pending_user_question: &mut pending_user_question,
-                            agent_session: &agent_session,
-                        });
+                        confirm_pending_quit(
+                            PendingQuitAction {
+                                pending_quit_confirm: &mut pending_quit_confirm,
+                                should_exit: &mut should_exit,
+                                busy: &busy,
+                                turn_cancel_requested: &mut turn_cancel_requested,
+                                prompt_queue: &mut prompt_queue,
+                                pending_tool_approval: &mut pending_tool_approval,
+                                pending_user_question: &mut pending_user_question,
+                                agent_session: &agent_session,
+                            },
+                            &mut ephemeral_banner,
+                            &mut ephemeral_banner_generation,
+                        );
                         return;
                     }
                     KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                         dismiss_pending_quit(
                             &mut pending_quit_confirm,
                             &mut idle_status_notice,
-                            &mut messages,
-                            &mut messages_revision,
+                            &mut ephemeral_banner,
+                            &mut ephemeral_banner_generation,
                         );
                         return;
                     }
@@ -1994,32 +2076,53 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 (m, KeyCode::Esc) if m.is_empty() && shell_focus.get() == ShellFocus::Transcript => {
                     shell_focus.set(ShellFocus::Prompt);
                 }
+                // Tab: toggle focus between prompt textarea and transcript.
                 (m, KeyCode::Tab) if m.is_empty() && !status_dialog_open && !palette_tab_reserved => {
-                    let next = agent_mode.get().next();
-                    agent_mode.set(next);
-                    persist_session_prefs(&paths, next, thinking_level.get());
-                    messages.set({
-                        let mut list = messages.read().clone();
-                        show_agent_mode_notice(&mut list, next);
-                        list
-                    });
-                    agent_mode_notice_deadline.set(Some(next_agent_mode_notice_deadline()));
-                    publish_transcript_now(
-                        &mut messages_revision,
-                        &mut transcript_pending,
-                        &mut last_transcript_publish,
-                    );
-                    if let Some(session) = agent_session.as_ref() {
-                        let session = Arc::clone(session);
-                        let mode = next;
-                        tokio::spawn(async move {
-                            if let Err(err) = session.set_agent_mode(mode).await {
-                                log::warn!("failed to set agent mode: {err}");
-                            }
-                        });
+                    match shell_focus.get() {
+                        ShellFocus::Prompt => shell_focus.set(ShellFocus::Transcript),
+                        ShellFocus::Transcript => shell_focus.set(ShellFocus::Prompt),
+                        ShellFocus::StatusDialog => {}
                     }
                 }
-                (m, KeyCode::BackTab) if m.contains(KeyModifiers::SHIFT) => {
+                // Shift+Tab: cycle agent mode (BackTab is the usual Shift+Tab code).
+                (m, KeyCode::BackTab) | (m, KeyCode::Tab)
+                    if !status_dialog_open
+                        && !palette_tab_reserved
+                        && (matches!(code, KeyCode::BackTab) || m.contains(KeyModifiers::SHIFT)) =>
+                {
+                    if busy.get() {
+                        // Block mode changes during stream/tool work; toast clears async (TTL).
+                        let expire_tx = ephemeral_expire.read().tx.clone();
+                        show_ephemeral_banner(
+                            &mut ephemeral_banner,
+                            &mut ephemeral_banner_generation,
+                            &expire_tx,
+                            agent_mode_busy_banner(),
+                        );
+                    } else {
+                        let next = agent_mode.get().next();
+                        agent_mode.set(next);
+                        persist_session_prefs(&paths, next, thinking_level.get());
+                        let expire_tx = ephemeral_expire.read().tx.clone();
+                        show_ephemeral_banner(
+                            &mut ephemeral_banner,
+                            &mut ephemeral_banner_generation,
+                            &expire_tx,
+                            agent_mode_banner(next),
+                        );
+                        if let Some(session) = agent_session.as_ref() {
+                            let session = Arc::clone(session);
+                            let mode = next;
+                            tokio::spawn(async move {
+                                if let Err(err) = session.set_agent_mode(mode).await {
+                                    log::warn!("failed to set agent mode: {err}");
+                                }
+                            });
+                        }
+                    }
+                }
+                // Ctrl+` / Ctrl+~: cycle thinking level.
+                (m, KeyCode::Char('`')) | (m, KeyCode::Char('~')) if m.contains(KeyModifiers::CONTROL) => {
                     let next = thinking_level.get().next();
                     thinking_level.set(next);
                     persist_session_prefs(&paths, agent_mode.get(), next);
@@ -2034,6 +2137,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     }
                 }
                 (m, KeyCode::Char('d')) if m.contains(KeyModifiers::CONTROL) => {
+                    let expire_tx = ephemeral_expire.read().tx.clone();
                     let _ = request_quit(
                         PendingQuitAction {
                             pending_quit_confirm: &mut pending_quit_confirm,
@@ -2045,8 +2149,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             pending_user_question: &mut pending_user_question,
                             agent_session: &agent_session,
                         },
-                        &mut messages,
-                        &mut messages_revision,
+                        &mut ephemeral_banner,
+                        &mut ephemeral_banner_generation,
+                        &expire_tx,
                         false,
                     );
                 }
@@ -2148,11 +2253,6 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         .unwrap_or("?")
         .to_string();
     let git = git_footer.read().clone();
-    let footer_project_line = if agent_session.is_none() {
-        eager_project_label.clone()
-    } else {
-        project_footer_label(&paths_snapshot, git.as_ref())
-    };
     let model_label = if chrome.model_label.is_empty() {
         fallback_model_label.clone()
     } else {
@@ -2348,6 +2448,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             margin: 0,
             padding: 0,
             position: Position::Relative,
+            // Keep chrome (incl. footer) inside the terminal; overflow would push the
+            // footer row past the last visible line on short screens / first paint.
+            overflow: Overflow::Hidden,
         ) {
             Header(
                 screen_width: screen_width,
@@ -2541,6 +2644,10 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 turn_elapsed_secs: live_turn_elapsed_secs(busy.get(), &busy_started_at.read()),
                 session_elapsed_secs: session_elapsed_secs.get(),
                 idle_notice: idle_status_notice.read().as_ref().map(|notice| notice.text.clone()),
+                ephemeral_banner: ephemeral_banner
+                    .read()
+                    .as_ref()
+                    .map(|banner| (banner.text.clone(), banner.color())),
                 quit_confirm_pending: pending_quit_confirm.get(),
                 dialog: status_dialog,
                 approval_selected: Some(approval_selected),
@@ -2552,12 +2659,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 agent_mode: agent_mode.get(),
                 thinking_level: thinking_level.get(),
                 has_focus: prompt_focused,
-                project_line: footer_project_line.clone(),
                 project_name: project_name.clone(),
                 git: git.clone(),
                 turn: chrome.turn_count,
                 model_label: model_label.clone(),
                 supports_images: supports_images,
+                colored_status_footer: colored_status_footer,
                 chrome_revision: chrome_ui_revision.get(),
                 draft: Some(draft),
                 live_draft: Some(live_draft),
@@ -2629,6 +2736,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 on_submit: move |text: String| {
                         shell_focus.set(ShellFocus::Prompt);
                         if is_force_quit_command(&text) || is_quit_command(&text) {
+                            let expire_tx = ephemeral_expire.read().tx.clone();
                             let _ = request_quit(
                                 PendingQuitAction {
                                     pending_quit_confirm: &mut pending_quit_confirm,
@@ -2640,8 +2748,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     pending_user_question: &mut pending_user_question,
                                     agent_session: &agent_session,
                                 },
-                                &mut messages,
-                                &mut messages_revision,
+                                &mut ephemeral_banner,
+                                &mut ephemeral_banner_generation,
+                                &expire_tx,
                                 is_force_quit_command(&text),
                             );
                             draft.set(String::new());
@@ -2757,6 +2866,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
                         match outcome {
                             SlashOutcome::Quit => {
+                                let expire_tx = ephemeral_expire.read().tx.clone();
                                 let _ = request_quit(
                                     PendingQuitAction {
                                         pending_quit_confirm: &mut pending_quit_confirm,
@@ -2768,8 +2878,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                         pending_user_question: &mut pending_user_question,
                                         agent_session: &agent_session,
                                     },
-                                    &mut messages,
-                                    &mut messages_revision,
+                                    &mut ephemeral_banner,
+                                    &mut ephemeral_banner_generation,
+                                    &expire_tx,
                                     false,
                                 );
                             }

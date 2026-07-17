@@ -1,6 +1,6 @@
 //! iocraft-based TUI for Elph.
 //!
-//! Zones (top → bottom): Header, Transcript, status row (+ inline dialogs), prompt chrome (editor + footer).
+//! Zones (top → bottom): Header, Transcript, ephemeral banner + status row (+ inline dialogs), prompt chrome.
 
 mod activity;
 mod agent_bridge;
@@ -48,7 +48,7 @@ use crate::platform::{Paths, Settings};
 use crate::types::ThinkingLevel;
 
 use chrome::read_git_footer_info;
-use labels::{model_footer_label, project_footer_label};
+use labels::model_footer_label;
 use shell::MainShell;
 use startup::{TuiBootstrapConfig, initial_startup_messages};
 
@@ -107,7 +107,6 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
 
     let model_label = model_footer_label(Some(&boot_provider), Some(&boot_model_id));
     let git_footer = read_git_footer_info(paths.project_dir());
-    let project_label = project_footer_label(&paths, git_footer.as_ref());
 
     element!(MainShell(
         session_id: session_id,
@@ -116,10 +115,10 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         initial_agent_mode: agent_mode_from_setting(&settings.session.agent_mode),
         initial_thinking_level: ThinkingLevel::from_setting(&settings.session.thinking_level),
         model_label: model_label,
-        project_label: project_label,
         context_limit: context_limit,
         supports_images: supports_images,
         footer_token_display: settings.footer_token_display.clone(),
+        colored_status_footer: settings.colored_status_footer,
         sticky_scroll: settings.sticky_scroll,
         show_thinking: settings.show_thinking,
         agent_session: None,

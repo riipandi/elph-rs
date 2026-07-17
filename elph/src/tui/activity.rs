@@ -146,7 +146,7 @@ pub fn user_shell_activity_label(command: &str) -> String {
     format!("Running shell_exec({})", truncate_status(command.trim(), 28))
 }
 
-/// Transcript notice when quit is requested while a turn is still running.
+/// Banner text when quit is requested while a turn is still running (fixed above StatusRow).
 pub fn format_quit_while_busy_transcript() -> String {
     "Agent is still responding. Press y to quit (cancels the turn), n to keep waiting, or repeat /exit, :q, or Ctrl+D to confirm."
         .to_string()

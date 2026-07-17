@@ -8,13 +8,22 @@ use iocraft::prelude::*;
 const IDLE_ACTION_HINT: &str = "Enter to send · Ctrl+D exit";
 
 const TIPS: &[&str] = &[
-    "Esc scrolls transcript · type to edit",
+    "Tab toggles prompt / transcript focus",
+    "Shift+Tab cycles agent mode (Build · Plan · Ask · Brave)",
+    "Ctrl+~ cycles thinking level (Ctrl+` works too)",
+    "Ctrl+L opens the model picker · /model filters too",
     "Shift+↑↓ scrolls the transcript",
-    "Tab cycles agent mode",
-    "Shift+Tab cycles thinking level",
-    "Ctrl+L opens the model picker",
-    "Shift+Enter inserts a newline",
-    "Click footer labels to change mode",
+    "Esc returns to the prompt · type while reading to jump back",
+    "Shift+Enter or Ctrl+J inserts a newline",
+    "Type / for commands · /help lists them all",
+    "/compact shortens long conversation history",
+    "! runs a shell command with session context",
+    "!! runs a shell command without context",
+    "@ opens the file picker to insert paths",
+    "Ctrl+V pastes an image when the model supports vision",
+    "Brave mode skips tool-approval prompts",
+    "Plan mode is for read-only exploration and planning",
+    "Enter sends · Ctrl+D exits · Ctrl+C cancels a busy turn",
 ];
 
 use crate::tui::activity::{

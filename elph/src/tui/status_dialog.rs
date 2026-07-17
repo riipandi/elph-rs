@@ -166,7 +166,7 @@ pub enum StatusDialogKind {
     ToolApproval { tool_name: String, args_summary: String },
 }
 
-/// Props for [`StatusZone`] — status row plus optional tool-approval dialog.
+/// Props for [`StatusZone`] — optional fixed toast, status row, tool-approval dialog.
 #[derive(Props)]
 pub struct StatusZoneProps {
     pub screen_width: u16,
@@ -179,6 +179,8 @@ pub struct StatusZoneProps {
     pub turn_elapsed_secs: f64,
     pub session_elapsed_secs: f64,
     pub idle_notice: Option<String>,
+    /// Fixed toast above the status row (agent mode, quit-busy, …).
+    pub ephemeral_banner: Option<(String, Color)>,
     pub quit_confirm_pending: bool,
     pub dialog: Option<StatusDialogKind>,
     pub approval_selected: Option<State<usize>>,
@@ -198,12 +200,39 @@ impl Default for StatusZoneProps {
             turn_elapsed_secs: 0.0,
             session_elapsed_secs: 0.0,
             idle_notice: None,
+            ephemeral_banner: None,
             quit_confirm_pending: false,
             dialog: None,
             approval_selected: None,
             approval_has_focus: false,
         }
     }
+}
+
+/// One-line toast pinned above the status row (outside the transcript scroll).
+fn render_ephemeral_banner(screen_width: u16, text: &str, color: Color) -> AnyElement<'static> {
+    let max_w = screen_width.saturating_sub(2).max(1) as usize;
+    let content = elph_tui::utils::truncate_with_ellipsis(text, max_w);
+    element! {
+        View(
+            width: screen_width,
+            height: 1,
+            flex_shrink: 0f32,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Start,
+            padding_left: 1,
+            padding_right: 1,
+            // Breathing room before StatusRow (banner text was flush against tips/activity).
+            margin_bottom: 1,
+        ) {
+            Text(
+                color: color,
+                wrap: TextWrap::NoWrap,
+                content: content,
+            )
+        }
+    }
+    .into()
 }
 
 #[component]
@@ -218,6 +247,10 @@ pub fn StatusZone(props: &mut StatusZoneProps, hooks: Hooks) -> impl Into<AnyEle
     let dialog_element = tool_approval
         .as_ref()
         .map(|(tool_name, args_summary)| render_tool_approval_dialog(props, tool_name, args_summary));
+    let banner = props
+        .ephemeral_banner
+        .as_ref()
+        .map(|(text, color)| render_ephemeral_banner(props.screen_width, text, *color));
 
     element! {
         View(
@@ -225,6 +258,7 @@ pub fn StatusZone(props: &mut StatusZoneProps, hooks: Hooks) -> impl Into<AnyEle
             flex_shrink: 0f32,
             flex_direction: FlexDirection::Column,
         ) {
+            #(banner)
             StatusRow(
                 screen_width: props.screen_width,
                 busy: props.busy,

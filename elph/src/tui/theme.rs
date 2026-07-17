@@ -35,6 +35,10 @@ pub const SKILL_FG: Color = Color::Rgb { r: 149, g: 117, b: 205 };
 /// Dim status lines in the transcript (model changes, slash echoes, agent status).
 pub const META_FG: Color = Color::DarkGrey;
 
+/// Ephemeral transcript toasts (`transient:*`) — soft amber/gold so mode changes and
+/// short-lived notices read clearly against the dark transcript (not as urgent as quit).
+pub const EPHEMERAL_NOTICE_FG: Color = Color::Rgb { r: 234, g: 196, b: 88 };
+
 /// Quit-while-busy confirmation — warm orange (`#fab373`), matches status spinner accent.
 pub const QUIT_BUSY_NOTICE_FG: Color = Color::Rgb { r: 250, g: 179, b: 115 };
 
@@ -66,21 +70,30 @@ pub const FILE_PICKER_FUZZY_MATCH_FG: Color = USER_INPUT_ACCENT;
 /// Dim body text for streamed/final tool output.
 pub const TOOL_OUTPUT_FG: Color = Color::DarkGrey;
 
-/// Pi `toolSuccessBg` (`#283228`).
-pub const TOOL_SUCCESS_BG: Color = Color::Rgb { r: 40, g: 50, b: 40 };
+/// Soft success fill for tool cards (muted green wash).
+pub const TOOL_SUCCESS_BG: Color = Color::Rgb { r: 36, g: 48, b: 40 };
 
-/// Pi `success` / `green` (`#b5bd68`).
-pub const TOOL_SUCCESS_FG: Color = Color::Rgb { r: 181, g: 189, b: 104 };
+/// Success status / tool done — soft clear green (readable, not olive-muddy).
+pub const TOOL_SUCCESS_FG: Color = Color::Rgb { r: 146, g: 196, b: 136 };
 
-/// Pi `toolErrorBg` (`#3c2828`).
-pub const TOOL_FAILED_BG: Color = Color::Rgb { r: 60, g: 40, b: 40 };
+/// Soft error fill for tool cards (muted red wash).
+pub const TOOL_FAILED_BG: Color = Color::Rgb { r: 52, g: 36, b: 38 };
 
-/// Pi `error` / `red` (`#cc6666`).
-pub const TOOL_FAILED_FG: Color = Color::Rgb { r: 204, g: 102, b: 102 };
+/// Failed status / tool error — soft red with clearer contrast on dark bg.
+pub const TOOL_FAILED_FG: Color = Color::Rgb { r: 220, g: 118, b: 118 };
 
 pub const EDITOR_TEXT_FOCUSED: Color = Color::Grey;
 pub const EDITOR_TEXT_DIMMED: Color = Color::DarkGrey;
 pub const EDITOR_CURSOR: Color = Color::White;
+
+/// Footer chrome dim (turn, brackets, separators, IMG).
+pub const FOOTER_DIM_FG: Color = Color::DarkGrey;
+
+/// Soft green for git additions — readable, not as vivid as agent Build green.
+pub const FOOTER_GIT_ADD_FG: Color = Color::Rgb { r: 140, g: 185, b: 130 };
+
+/// Soft red for git deletions — muted, aligned with soft footer accents.
+pub const FOOTER_GIT_DEL_FG: Color = Color::Rgb { r: 200, g: 125, b: 125 };
 
 pub const PROMPT_PREFIX_FG: Color = Color::White;
 pub const PROMPT_BORDER_DEFAULT: Color = BORDER_MUTED;
@@ -120,8 +133,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plan_mode_prompt_border_matches_dark_green_label_rgb() {
-        assert_eq!(AgentMode::Plan.label_rgb(), (22, 101, 52));
+    fn agent_mode_label_rgb_matches_footer_palette() {
+        assert_eq!(AgentMode::Build.label_rgb(), (236, 234, 228));
+        assert_eq!(AgentMode::Plan.label_rgb(), (204, 168, 52));
+        assert_eq!(AgentMode::Ask.label_rgb(), (59, 130, 246));
+        assert_eq!(AgentMode::Brave.label_rgb(), (249, 115, 22));
         let plan_border = rgb_color(AgentMode::Plan.label_rgb());
         assert_eq!(
             prompt_border_color(InputPrefixKind::Default, AgentMode::Plan, true),
@@ -132,6 +148,18 @@ mod tests {
             prompt_border_color(InputPrefixKind::Default, AgentMode::Build, true),
             PROMPT_BORDER_DEFAULT
         );
+    }
+
+    #[test]
+    fn thinking_level_border_rgb_matches_soft_strata() {
+        use crate::types::ThinkingLevel;
+        assert_eq!(ThinkingLevel::Off.border_rgb(), (156, 163, 175));
+        assert_eq!(ThinkingLevel::Minimal.border_rgb(), (94, 200, 212));
+        assert_eq!(ThinkingLevel::Low.border_rgb(), (123, 159, 212));
+        assert_eq!(ThinkingLevel::Medium.border_rgb(), (212, 165, 116));
+        assert_eq!(ThinkingLevel::High.border_rgb(), (220, 110, 118));
+        assert_eq!(ThinkingLevel::Xhigh.border_rgb(), (180, 154, 217));
+        assert_eq!(ThinkingLevel::Max.border_rgb(), (196, 138, 212));
     }
 
     #[test]

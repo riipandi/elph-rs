@@ -241,6 +241,8 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
             } else {
                 BORDER_MUTED
             },
+            // One blank row under the transcript before StatusRow. Transcript flex-shrinks
+            // to absorb it so the footer stays on-screen (root uses Overflow::Hidden).
             margin_bottom: 1,
         ) {
             View(

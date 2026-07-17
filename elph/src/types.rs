@@ -29,13 +29,15 @@ impl AgentMode {
         }
     }
 
-    /// Label color in the TUI (see `docs/tui.md` agent mode palette).
+    /// Label / border accent color in the TUI.
+    ///
+    /// - **Build** white · **Plan** darker soft yellow · **Ask** blue · **Brave** orange
     pub const fn label_rgb(self) -> (u8, u8, u8) {
         match self {
-            Self::Plan => (22, 101, 52),
-            Self::Ask => (59, 130, 246),
-            Self::Brave => (239, 68, 68),
-            Self::Build => (107, 114, 128),
+            Self::Build => (236, 234, 228), // soft warm white (not pure white, not grey)
+            Self::Plan => (204, 168, 52),   // darker soft yellow
+            Self::Ask => (59, 130, 246),    // blue-500
+            Self::Brave => (249, 115, 22),  // orange-500
         }
     }
 
@@ -49,7 +51,7 @@ impl AgentMode {
     }
 }
 
-/// Reasoning / thinking level.
+/// Reasoning / thinking level (aligned with `elph_ai::ThinkingLevel` + TUI-only `Off`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ThinkingLevel {
     #[default]
@@ -59,6 +61,7 @@ pub enum ThinkingLevel {
     Medium,
     High,
     Xhigh,
+    Max,
 }
 
 impl ThinkingLevel {
@@ -70,17 +73,23 @@ impl ThinkingLevel {
             Self::Medium => "medium",
             Self::High => "high",
             Self::Xhigh => "xhigh",
+            Self::Max => "max",
         }
     }
 
-    /// Editor border color in the TUI (see `docs/tui.md` thinking level palette).
+    /// Thinking-level color for footer model group and related chrome.
+    ///
+    /// Readable soft strata, kept clear of agent-mode green / yellow / blue / orange:
+    /// grey → cyan → periwinkle → peach → rose → lavender → soft magenta.
     pub const fn border_rgb(self) -> (u8, u8, u8) {
         match self {
-            Self::Off | Self::Minimal => (107, 114, 128),
-            Self::Low => (34, 197, 94),
-            Self::Medium => (234, 179, 8),
-            Self::High => (249, 115, 22),
-            Self::Xhigh => (239, 68, 68),
+            Self::Off => (156, 163, 175),    // soft grey
+            Self::Minimal => (94, 200, 212), // soft cyan
+            Self::Low => (123, 159, 212),    // periwinkle (not Ask blue)
+            Self::Medium => (212, 165, 116), // soft peach (not Brave orange)
+            Self::High => (220, 110, 118),   // soft but clearer red/rose
+            Self::Xhigh => (180, 154, 217),  // soft lavender
+            Self::Max => (196, 138, 212),    // soft magenta-violet
         }
     }
 
@@ -91,6 +100,7 @@ impl ThinkingLevel {
             "medium" => Self::Medium,
             "high" => Self::High,
             "xhigh" | "x-high" => Self::Xhigh,
+            "max" => Self::Max,
             _ => Self::Off,
         }
     }
@@ -102,7 +112,8 @@ impl ThinkingLevel {
             Self::Low => Self::Medium,
             Self::Medium => Self::High,
             Self::High => Self::Xhigh,
-            Self::Xhigh => Self::Off,
+            Self::Xhigh => Self::Max,
+            Self::Max => Self::Off,
         }
     }
 }
@@ -141,7 +152,16 @@ mod tests {
     #[test]
     fn thinking_levels_cycle() {
         assert_eq!(ThinkingLevel::High.next(), ThinkingLevel::Xhigh);
-        assert_eq!(ThinkingLevel::Xhigh.next(), ThinkingLevel::Off);
+        assert_eq!(ThinkingLevel::Xhigh.next(), ThinkingLevel::Max);
+        assert_eq!(ThinkingLevel::Max.next(), ThinkingLevel::Off);
+    }
+
+    #[test]
+    fn thinking_level_from_setting_accepts_max_and_xhigh() {
+        assert_eq!(ThinkingLevel::from_setting("max"), ThinkingLevel::Max);
+        assert_eq!(ThinkingLevel::from_setting("xhigh"), ThinkingLevel::Xhigh);
+        assert_eq!(ThinkingLevel::from_setting("x-high"), ThinkingLevel::Xhigh);
+        assert_eq!(ThinkingLevel::Max.label(), "max");
     }
 
     #[test]

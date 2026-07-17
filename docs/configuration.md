@@ -120,6 +120,7 @@ Project overrides **per field** for UI preferences.
 | `autoCompactContext`       | `true`          | Auto-compact on context overflow         |
 | `autoCompactLimit`         | `80`            | Compaction target % of history budget    |
 | `footerTokenDisplay`       | `both`          | `both` / `percentage` / `count`          |
+| `coloredStatusFooter`      | `true`          | Color accents on status footer           |
 | `session.providerId`       | —               | Last provider                            |
 | `session.modelId`          | —               | Last model                               |
 | `session.agentMode`        | `build`         | `build` / `plan` / `ask` / `brave`       |
