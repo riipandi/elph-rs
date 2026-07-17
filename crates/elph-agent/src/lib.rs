@@ -120,6 +120,7 @@ pub use agent::harness::to_error;
 pub use agent::harness::truncate_head;
 pub use agent::harness::truncate_line;
 pub use agent::harness::truncate_tail;
+pub use agent::harness::types::SkillsDiscoveryPaths;
 pub use agent::harness::utils::TruncationResult;
 pub use agent::subagent::AgentControl;
 pub use agent::subagent::AgentGraphStore;
@@ -135,22 +136,21 @@ pub use agent::subagent::generate_agent_name;
 pub use agent::{Agent, AgentListener, AgentOptions, AgentSubscription, PartialAgentState};
 pub use builder::InitProgress;
 pub use builder::{AgentBuilder, AgentInit, BuiltinToolsBuilder};
-pub use collaboration::EXPLORATION_BUILTIN_TOOLS;
+pub use collaboration::ToolExposurePolicy;
 pub use collaboration::assistant_message_text;
+pub use collaboration::default_exploration_tools;
 pub use collaboration::extract_proposed_plan;
 pub use collaboration::filter_active_tools;
-pub use collaboration::filter_ask_mode_tools;
 pub use collaboration::implement_prompt;
-pub use collaboration::is_ask_mode_tool;
 pub use collaboration::is_collaboration_tool;
-pub use collaboration::is_exploration_builtin_tool;
+pub use collaboration::is_exploration_tool;
 pub use collaboration::is_mcp_read_only_bridge_tool;
 pub use collaboration::is_mcp_tool;
 pub use collaboration::is_mutating_tool;
+pub use collaboration::is_plan_mode_tool;
 pub use collaboration::is_read_only_mcp_tool;
 pub use collaboration::plan_mode_block_reason;
 pub use collaboration::plan_mode_blocks_tool;
-pub use collaboration::plan_mode_system_prompt;
 pub use collaboration::{CollaborationMode, PlanConfirmationChoice};
 pub use compaction::BranchPreparation;
 pub use compaction::BranchSummaryDetails;
@@ -228,6 +228,13 @@ pub use prompt::load_sourced_prompt_templates;
 pub use prompt::parse_command_args;
 pub use prompt::session_name::generate_session_name;
 pub use prompt::substitute_args;
+pub use prompt::{DEFAULT_SYSTEM_PROMPT, resolve_system_prompt_text};
+#[cfg(feature = "prompt-templates")]
+pub use prompt::{
+    PromptAssemblyMode, PromptRenderError, PromptTemplateEngine, SystemPromptBuildError, SystemPromptBuilder,
+    SystemPromptTemplateContext, ToolByKindContext, ToolNamesContext, custom_prompt_syntax, default_prompt_engine,
+    format_project_context, tool_names_context,
+};
 pub use runtime::event_stream::{AgentEventSink, AgentEventStream};
 pub use runtime::local_env::LocalExecutionEnv;
 pub use runtime::proxy::stream_proxy;

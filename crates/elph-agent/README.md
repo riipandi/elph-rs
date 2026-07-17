@@ -1,7 +1,9 @@
 # elph-agent
 
-Stateful agent runtime with tool execution, event streaming, and session-backed orchestration.
+App-agnostic agent runtime with tool execution, event streaming, and session-backed orchestration.
 Built on [`elph-ai`](../elph-ai) and ported from [@earendil-works/pi-agent](https://github.com/earendil-works/pi/tree/main/packages/agent).
+
+The **Elph coding agent** (`elph` crate) layers product-specific prompts, agent modes, and tools on top of this runtime.
 
 ## Installation
 
@@ -9,17 +11,20 @@ Add both crates to your workspace:
 
 ```toml
 [dependencies]
-elph-agent = { path = "../elph-agent" }
+elph-agent = { path = "../elph-agent", features = ["full"] }
 elph-ai = { path = "../elph-ai" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
+
+Cargo features: `mcp`, `prompt-templates` (MiniJinja), `builtin-tools`, `extensions`. Bundle with `full`.
+Default system prompt: `elph_agent::DEFAULT_SYSTEM_PROMPT`.
 
 ## Quick Start
 
 ```rust
 use std::sync::Arc;
 
-use elph_agent::{Agent, AgentOptions, PartialAgentState};
+use elph_agent::{Agent, AgentOptions, DEFAULT_SYSTEM_PROMPT, PartialAgentState};
 use elph_ai::{builtin_models, Message, UserContent};
 
 #[tokio::main]
@@ -31,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
 
     let agent = Agent::new(AgentOptions {
         initial_state: Some(PartialAgentState {
-            system_prompt: Some("You are a helpful assistant.".into()),
+            system_prompt: Some(DEFAULT_SYSTEM_PROMPT.into()),
             model: Some(model),
             ..Default::default()
         }),

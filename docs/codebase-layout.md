@@ -15,13 +15,13 @@ Implementation detail lives in [openwiki](../openwiki/quickstart.md); this docum
 
 ## Workspace crates
 
-| Crate / binary | Layout intent                                                                                  |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| `elph-agent`   | Runtime: `agent/` (harness + subagent), `runtime/`, `tools/`, `session/`, `goals/`, `plugins/` |
-| `elph-ai`      | Provider layer: `api/`, `auth/`, `models/`, `providers/`, `utils/`                             |
-| `elph-core`    | Shared primitives: `floppy/` (`query/`, `store/`), `logger/`, `scaffold/`, `utils/`            |
-| `elph-tui`     | Reusable widgets: `diff/`, `prompt/`, `chrome/`, `shell/`                                      |
-| `elph`         | Product shell: `agent/`, `shell/`, `cli/`, `platform/`, `extensions/`                          |
+| Crate / binary | Layout intent                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `elph-agent`   | Generic runtime: harness, agent loop, optional MCP/skills, `SystemPromptBuilder` (MiniJinja)    |
+| `elph-ai`      | Provider layer: `api/`, `auth/`, `models/`, `providers/`, `utils/`                              |
+| `elph-core`    | Shared primitives: `floppy/` (`query/`, `store/`), `logger/`, `scaffold/`, `utils/`             |
+| `elph-tui`     | Reusable widgets: `diff/`, `prompt/`, `chrome/`, `shell/`                                       |
+| `elph`         | Coding agent product: `agent/` (prompts, modes, session factory), `shell/`, `cli/`, `platform/` |
 
 ## `elph` module map
 

@@ -35,8 +35,8 @@ fn extract_proposed_plan_parses_block() {
 
 #[test]
 fn plan_mode_blocks_write_tool() {
-    assert!(plan_mode_blocks_tool(CollaborationMode::Plan, "write_file"));
-    assert!(!plan_mode_blocks_tool(CollaborationMode::Default, "write_file"));
+    assert!(plan_mode_blocks_tool(CollaborationMode::Plan, "write_file", None));
+    assert!(!plan_mode_blocks_tool(CollaborationMode::Default, "write_file", None));
 }
 
 #[tokio::test(flavor = "multi_thread")]

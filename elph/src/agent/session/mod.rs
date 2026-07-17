@@ -4,7 +4,7 @@ mod wiring;
 
 use crate::types::AgentMode;
 use anyhow::Result;
-use elph_agent::{AgentHarness, AgentHarnessErrorCode};
+use elph_agent::{AgentHarness, AgentHarnessErrorCode, FileSystem};
 use elph_agent::{GoalRuntime, McpToolRegistry, PlanConfirmationChoice, SessionDirStorage};
 use std::sync::Arc;
 
@@ -18,6 +18,7 @@ use super::model_registry::ModelSelection;
 use super::resource_loader::LoadResourcesResult;
 use super::resource_loader::load_resources;
 
+use super::prompt::{agents_md_for_cwd, build_coding_system_prompt};
 use super::session_manager::SessionManager;
 use super::tool_policy::AgentModePolicy;
 use super::tool_policy::to_agent_thinking;
@@ -149,6 +150,14 @@ impl CodingAgentSession {
         )
     }
 
+    pub fn model_provider(&self) -> &str {
+        &self.selection.provider
+    }
+
+    pub fn model_id(&self) -> &str {
+        &self.selection.model_id
+    }
+
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
@@ -163,6 +172,18 @@ impl CodingAgentSession {
 
     pub fn goal_runtime(&self) -> Arc<GoalRuntime> {
         self.goal_runtime.clone()
+    }
+
+    /// Render the system prompt that would be sent on the next agent turn.
+    pub async fn compiled_system_prompt(&self) -> Result<String> {
+        let cwd_string = self.harness().env().cwd().to_string();
+        let cwd = Path::new(&cwd_string);
+        let resources = self.harness().get_resources().await;
+        let tools = self.harness().get_active_tools().await;
+        let tool_names: Vec<String> = tools.iter().map(|tool| tool.name().to_string()).collect();
+        let agents_md = agents_md_for_cwd(cwd);
+        let mode = *self.mode_state.lock().await;
+        build_coding_system_prompt(cwd, &resources, &tool_names, agents_md.as_deref(), mode)
     }
 
     pub async fn set_agent_mode(&self, mode: AgentMode) -> Result<()> {

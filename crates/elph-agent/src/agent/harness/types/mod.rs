@@ -79,6 +79,7 @@ pub use options::PromptTemplate;
 pub use options::Skill;
 pub use options::SkillLoadOptions;
 pub use options::SkillValidationSettings;
+pub use options::SkillsDiscoveryPaths;
 pub use options::SystemPrompt;
 pub use options::SystemPromptContext;
 pub use options::SystemPromptFn;

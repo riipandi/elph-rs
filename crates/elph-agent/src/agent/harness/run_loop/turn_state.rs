@@ -2,8 +2,8 @@
 
 use crate::agent::harness::types::SystemPrompt;
 use crate::agent::harness::types::clone_stream_options;
-use crate::collaboration::CollaborationMode;
-use crate::collaboration::plan_mode_system_prompt;
+
+use crate::prompt::resolve_system_prompt_text;
 use crate::session::types::HasSessionId;
 use crate::types::AgentTool;
 
@@ -51,14 +51,11 @@ where
             }
         };
 
-        let mut system_prompt = system_prompt;
-        if *self.shared.collaboration_mode.lock().await == CollaborationMode::Plan {
-            system_prompt.push_str(plan_mode_system_prompt());
-        }
+        let system_prompt = resolve_system_prompt_text(Some(&system_prompt));
 
         let base_tools: Vec<AgentTool> = active_tools
             .iter()
-            .filter(|tool| !crate::collaboration::is_collaboration_tool(tool.name()))
+            .filter(|tool| !crate::collaboration::is_collaboration_tool(tool.name(), None))
             .cloned()
             .collect();
         self.shared

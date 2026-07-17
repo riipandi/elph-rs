@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use elph_agent::{LocalExecutionEnv, PromptTemplate, Skill};
+use elph_tui::components::{scroll_view_down, scroll_view_up};
 use elph_tui::rgb;
 use elph_tui::{
     InputPrefixKind, PromptPrefixConfig, absorb_inline_triggers, compose_palette_draft, resolve_submit_draft,
@@ -31,11 +32,13 @@ use crate::tui::activity::{
 };
 use crate::tui::agent_bridge::{PromptQueue, TranscriptEventApplier, TurnDispatcher};
 use crate::tui::chrome::{ChromeStats, Header};
-use crate::tui::chrome::{format_elapsed_secs, read_git_footer_info, refresh_chrome_stats};
+use crate::tui::chrome::{chrome_stats_from_session, format_elapsed_secs, read_git_footer_info, refresh_chrome_stats};
 use crate::tui::focus::ShellFocus;
 use crate::tui::focus::{prompt_focus_char, shell_global_shortcut};
 use crate::tui::labels::GitFooterInfo;
+use crate::tui::labels::project_footer_label;
 
+use crate::tui::confetti::{ConfettiOverlay, OpenConfettiArgs, PendingConfetti, close_confetti, open_confetti};
 use crate::tui::file_picker::FilePickerKeyAction;
 use crate::tui::file_picker::{
     FilePickerApplyContext, FilePickerSnapshot, active_mention_at_cursor, apply_file_picker_key,
@@ -67,6 +70,10 @@ use crate::tui::startup::{
     mark_agent_startup_ready, mark_mcp_startup_failed, mcp_server_status_label, spawn_bootstrap_worker,
 };
 use crate::tui::status_dialog::{StatusZone, build_status_dialog_kind};
+use crate::tui::system_prompt_dialog::{
+    OpenSystemPromptDialogArgs, PendingSystemPromptDialog, SystemPromptDialogOverlay, close_system_prompt_dialog,
+    open_system_prompt_dialog, system_prompt_dialog_chrome,
+};
 use crate::tui::tool_approval::PendingToolApproval;
 use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
 use crate::tui::transcript::{
@@ -95,6 +102,49 @@ const MAX_UI_EVENTS_PER_TICK: usize = 64;
 const MAX_BOOTSTRAP_EVENTS_PER_TICK: usize = 32;
 /// How long the status row shows turn elapsed after completion before returning to tips.
 const TURN_COMPLETE_NOTICE_MS: u64 = 5_000;
+const FALLBACK_TERMINAL_WIDTH: u16 = 80;
+const FALLBACK_TERMINAL_HEIGHT: u16 = 24;
+
+fn initial_layout_screen_size() -> (u16, u16) {
+    crossterm::terminal::size()
+        .map(|(width, height)| (width.max(1), height.max(1)))
+        .unwrap_or((FALLBACK_TERMINAL_WIDTH, FALLBACK_TERMINAL_HEIGHT))
+}
+
+fn merge_layout_screen_size(layout_size: &mut State<(u16, u16)>, hook_width: u16, hook_height: u16) {
+    let polled = crossterm::terminal::size()
+        .map(|(width, height)| (width.max(1), height.max(1)))
+        .unwrap_or((0, 0));
+    let current = layout_size.get();
+    let next = (
+        hook_width.max(polled.0).max(current.0).max(1),
+        hook_height.max(polled.1).max(current.1).max(1),
+    );
+    if next != current {
+        layout_size.set(next);
+    }
+}
+
+fn poll_layout_screen_size(layout_size: &mut State<(u16, u16)>) {
+    if let Ok((width, height)) = crossterm::terminal::size() {
+        let next = (width.max(1), height.max(1));
+        if layout_size.get() != next {
+            layout_size.set(next);
+        }
+    }
+}
+
+fn publish_chrome_stats(
+    chrome_stats: &mut State<ChromeStats>,
+    chrome_ui_revision: &mut State<u64>,
+    stats: ChromeStats,
+) {
+    if *chrome_stats.read() == stats {
+        return;
+    }
+    chrome_stats.set(stats);
+    chrome_ui_revision.set(chrome_ui_revision.get().wrapping_add(1));
+}
 
 struct IdleStatusNotice {
     text: String,
@@ -242,7 +292,7 @@ fn arm_pending_quit(
     push_transcript_message(
         messages,
         messages_revision,
-        TranscriptMessage::text(format_quit_while_busy_transcript(), TranscriptStyle::Meta),
+        TranscriptMessage::quit_busy_notice(format_quit_while_busy_transcript()),
     );
 }
 
@@ -355,6 +405,9 @@ fn apply_bootstrap_ui_event(
     activity_started_at: &mut Ref<Option<Instant>>,
     live_session_id: &mut State<String>,
     chrome_refresh_pending: &mut State<bool>,
+    chrome_stats: &mut State<ChromeStats>,
+    chrome_ui_revision: &mut State<u64>,
+    fallback_context_limit: u64,
     palette_refresh_pending: &mut State<bool>,
     agent_session_slot: &mut Ref<Option<Arc<CodingAgentSession>>>,
     ui_events_slot: &mut Ref<Option<Arc<Mutex<UnboundedReceiver<AgentUiEvent>>>>>,
@@ -364,6 +417,11 @@ fn apply_bootstrap_ui_event(
         BootstrapUiEvent::AgentReady(bootstrap) => {
             live_session_id.set(bootstrap.session_id.clone());
             chrome_refresh_pending.set(true);
+            publish_chrome_stats(
+                chrome_stats,
+                chrome_ui_revision,
+                chrome_stats_from_session(bootstrap.session.as_ref(), fallback_context_limit),
+            );
             agent_session_slot.set(Some(Arc::clone(&bootstrap.session)));
             ui_events_slot.set(Some(Arc::clone(&bootstrap.ui_rx)));
             {
@@ -429,7 +487,10 @@ fn apply_bootstrap_ui_event(
 
 #[component]
 pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyElement<'static>> {
-    let (screen_width, screen_height) = hooks.use_terminal_size();
+    let (hook_screen_width, hook_screen_height) = hooks.use_terminal_size();
+    let mut layout_screen_size = hooks.use_state(initial_layout_screen_size);
+    merge_layout_screen_size(&mut layout_screen_size, hook_screen_width, hook_screen_height);
+    let (screen_width, screen_height) = layout_screen_size.get();
     let mut system = hooks.use_context_mut::<SystemContext>();
     let mut should_exit = hooks.use_state(|| false);
     let mut agent_mode = hooks.use_state(|| props.initial_agent_mode);
@@ -489,6 +550,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut model_selected_index = hooks.use_state(|| 0usize);
     let mut model_filter = hooks.use_state(String::new);
     let mut model_input_focus = hooks.use_state(ModelSelectorFocus::default);
+    let mut pending_system_prompt = hooks.use_ref(|| None::<PendingSystemPromptDialog>);
+    let system_prompt_scroll = hooks.use_ref_default::<ScrollViewHandle>();
+    let mut system_prompt_scroll_tick = hooks.use_ref(|| 0u32);
+    let mut pending_confetti = hooks.use_ref(|| None::<PendingConfetti>);
+    let mut confetti_runtime = hooks.use_ref(|| None::<crate::tui::confetti::ConfettiRuntime>);
+    let mut confetti_frame = hooks.use_ref(|| 0u32);
 
     let extension_host = props.extension_host.clone();
     let cwd = props.cwd.clone();
@@ -527,7 +594,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         ..ChromeStats::default()
     });
     let mut git_footer = hooks.use_state(|| props.initial_git_footer.clone());
+    let mut chrome_ui_revision = hooks.use_state(|| 1u64);
     let mut chrome_tick = hooks.use_ref(|| 0u32);
+    let eager_project_label = props.project_label.clone();
     let fallback_context_limit = props.context_limit;
     let fallback_model_label = props.model_label.clone();
     let fallback_model_label_for_chrome = fallback_model_label.clone();
@@ -543,9 +612,12 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut agent_mode_notice_deadline = hooks.use_ref(|| None::<Instant>);
 
     let cwd_for_mention_index = cwd.clone();
+    let mut layout_screen_size_for_loop = layout_screen_size;
     hooks.use_future(async move {
         loop {
             tokio::time::sleep(Duration::from_millis(SHELL_TICK_MS)).await;
+
+            poll_layout_screen_size(&mut layout_screen_size_for_loop);
 
             if bootstrap_phase.get() == BootstrapPhase::Pending && !bootstrap_worker_started.get() {
                 if let Some(config) = bootstrap_config.read().clone() {
@@ -585,6 +657,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         &mut activity_started_at,
                         &mut live_session_id,
                         &mut chrome_refresh_pending,
+                        &mut chrome_stats,
+                        &mut chrome_ui_revision,
+                        fallback_context_limit,
                         &mut palette_refresh_pending,
                         &mut agent_session_slot,
                         &mut ui_events_slot,
@@ -627,12 +702,18 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             }
 
             chrome_tick.set(chrome_tick.get().wrapping_add(1));
-            if chrome_refresh_pending.get() || chrome_tick.get() % CHROME_REFRESH_TICKS == 0 {
-                chrome_refresh_pending.set(false);
+            let chrome_due = chrome_refresh_pending.get() || chrome_tick.get() % CHROME_REFRESH_TICKS == 0;
+            if chrome_due {
+                let chrome_refresh_was_pending = chrome_refresh_pending.get();
                 let paths = paths.read().clone();
-                git_footer.set(read_git_footer_info(paths.project_dir()));
+                let next_git_footer = read_git_footer_info(paths.project_dir());
+                if git_footer.read().clone() != next_git_footer {
+                    git_footer.set(next_git_footer);
+                    chrome_ui_revision.set(chrome_ui_revision.get().wrapping_add(1));
+                }
 
                 if let Some(session) = agent_session_for_chrome.as_ref() {
+                    chrome_refresh_pending.set(false);
                     let resources = session.harness().get_resources().await;
                     skills_count.set(resources.skills.len());
                     let stats = refresh_chrome_stats(
@@ -642,12 +723,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         fallback_supports_images,
                     )
                     .await;
-                    chrome_stats.set(stats.clone());
+                    publish_chrome_stats(&mut chrome_stats, &mut chrome_ui_revision, stats.clone());
                     if busy.get()
                         && let Some(tracker) = turn_token_tracker.write().as_mut()
                     {
                         tracker.sync_baseline(stats.tokens_used);
                     }
+                } else if !chrome_refresh_was_pending {
+                    chrome_refresh_pending.set(false);
                 }
             }
 
@@ -684,6 +767,28 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 .is_some_and(|notice| notice.since.elapsed() >= Duration::from_millis(TURN_COMPLETE_NOTICE_MS));
             if idle_notice_expired {
                 idle_status_notice.set(None);
+            }
+
+            if pending_confetti.read().is_some() {
+                let (frame_changed, should_close) = {
+                    if let Some(runtime) = confetti_runtime.write().as_mut() {
+                        let frame_changed = runtime.tick();
+                        (frame_changed, runtime.should_close())
+                    } else {
+                        (false, false)
+                    }
+                };
+                if should_close {
+                    close_confetti(
+                        &mut pending_confetti,
+                        &mut confetti_runtime,
+                        &mut draft,
+                        &mut live_draft,
+                        &mut shell_focus,
+                    );
+                } else if frame_changed {
+                    confetti_frame.set(confetti_frame.get().wrapping_add(1));
+                }
             }
 
             if agent_mode_notice_expired(agent_mode_notice_deadline.get()) {
@@ -1013,12 +1118,74 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             }
 
+            let system_prompt_open = pending_system_prompt.read().is_some();
+            let confetti_open = pending_confetti.read().is_some();
             let model_selector_open = pending_model_selector.read().is_some();
-            let status_dialog_open =
-                pending_tool_approval.read().is_some() || pending_user_question.read().is_some() || model_selector_open;
+            let status_dialog_open = pending_tool_approval.read().is_some()
+                || pending_user_question.read().is_some()
+                || model_selector_open
+                || system_prompt_open
+                || confetti_open;
 
             if status_dialog_open {
-                if model_selector_open && pending_user_question.read().is_none() {
+                if confetti_open {
+                    return;
+                }
+
+                if system_prompt_open {
+                    let mut pending_system_prompt = pending_system_prompt;
+                    let mut draft = draft;
+                    let mut live_draft = live_draft;
+                    let mut shell_focus = shell_focus;
+                    let mut system_prompt_scroll = system_prompt_scroll;
+
+                    if modifiers.is_empty() && code == KeyCode::Esc {
+                        close_system_prompt_dialog(
+                            &mut pending_system_prompt,
+                            &mut draft,
+                            &mut live_draft,
+                            &mut shell_focus,
+                            &mut force_editor_clear,
+                        );
+                        return;
+                    }
+
+                    if modifiers.is_empty() {
+                        match code {
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                scroll_view_up(&mut system_prompt_scroll.write(), 1);
+                                system_prompt_scroll_tick.set(system_prompt_scroll_tick.get().wrapping_add(1));
+                                return;
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                scroll_view_down(&mut system_prompt_scroll.write(), 1);
+                                system_prompt_scroll_tick.set(system_prompt_scroll_tick.get().wrapping_add(1));
+                                return;
+                            }
+                            KeyCode::PageUp => {
+                                scroll_view_up(&mut system_prompt_scroll.write(), 10);
+                                system_prompt_scroll_tick.set(system_prompt_scroll_tick.get().wrapping_add(1));
+                                return;
+                            }
+                            KeyCode::PageDown => {
+                                scroll_view_down(&mut system_prompt_scroll.write(), 10);
+                                system_prompt_scroll_tick.set(system_prompt_scroll_tick.get().wrapping_add(1));
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if !shell_global_shortcut(modifiers, code) {
+                        return;
+                    }
+                }
+
+                if model_selector_open
+                    && pending_user_question.read().is_none()
+                    && !system_prompt_open
+                    && !confetti_open
+                {
                     let mut pending_model_selector = pending_model_selector;
                     let mut model_provider_index = model_provider_index;
                     let mut model_selected_index = model_selected_index;
@@ -1138,7 +1305,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                             let mut stats = chrome_stats.read().clone();
                             match apply_model_selection_locally(&value, &paths_snapshot, &mut stats) {
                                 Ok(label) => {
-                                    chrome_stats.set(stats);
+                                    publish_chrome_stats(&mut chrome_stats, &mut chrome_ui_revision, stats);
                                     chrome_refresh_pending.set(true);
                                     push_transcript_message(
                                         &mut messages,
@@ -1172,7 +1339,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     }
                 }
 
-                if model_selector_open && pending_user_question.read().is_none() {
+                if (model_selector_open || system_prompt_open || confetti_open)
+                    && pending_user_question.read().is_none()
+                {
                     return;
                 }
 
@@ -1655,6 +1824,23 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
                                 });
                             }
+                            SlashOutcome::OpenSystemPromptDialog { text } => {
+                                open_system_prompt_dialog(OpenSystemPromptDialogArgs {
+                                    pending: &mut pending_system_prompt,
+                                    shell_focus: &mut shell_focus,
+                                    text,
+                                });
+                            }
+                            SlashOutcome::PlayConfetti { mode } => {
+                                open_confetti(OpenConfettiArgs {
+                                    pending: &mut pending_confetti,
+                                    state: &mut confetti_runtime,
+                                    draft: &mut draft,
+                                    live_draft: &mut live_draft,
+                                    shell_focus: &mut shell_focus,
+                                    mode,
+                                });
+                            }
                             SlashOutcome::OverlayDeferred(overlay) => {
                                 push_transcript_message(
                                     &mut messages,
@@ -1770,29 +1956,39 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 (m, KeyCode::Char('l')) | (m, KeyCode::Char('L'))
                     if m.contains(KeyModifiers::CONTROL) && pending_user_question.read().is_none() =>
                 {
-                    if pending_model_selector.read().is_some() {
-                        close_model_selector(
-                            &mut pending_model_selector,
-                            &mut draft,
-                            &mut live_draft,
-                            &mut shell_focus,
-                        );
-                    } else {
-                        let settings = Settings::load(&paths).ok();
-                        open_model_selector(OpenModelSelectorArgs {
-                            pending: &mut pending_model_selector,
-                            provider_index: &mut model_provider_index,
-                            model_index: &mut model_selected_index,
-                            filter: &mut model_filter,
-                            input_focus: &mut model_input_focus,
-                            draft: &mut draft,
-                            live_draft: &mut live_draft,
-                            shell_focus: &mut shell_focus,
-                            initial_filter: String::new(),
-                            paths: &paths,
-                            provider_id: settings.as_ref().and_then(|s| s.session.provider_id.as_deref()),
-                            model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
-                        });
+                    if pending_confetti.read().is_none() {
+                        if pending_system_prompt.read().is_some() {
+                            close_system_prompt_dialog(
+                                &mut pending_system_prompt,
+                                &mut draft,
+                                &mut live_draft,
+                                &mut shell_focus,
+                                &mut force_editor_clear,
+                            );
+                        } else if pending_model_selector.read().is_some() {
+                            close_model_selector(
+                                &mut pending_model_selector,
+                                &mut draft,
+                                &mut live_draft,
+                                &mut shell_focus,
+                            );
+                        } else {
+                            let settings = Settings::load(&paths).ok();
+                            open_model_selector(OpenModelSelectorArgs {
+                                pending: &mut pending_model_selector,
+                                provider_index: &mut model_provider_index,
+                                model_index: &mut model_selected_index,
+                                filter: &mut model_filter,
+                                input_focus: &mut model_input_focus,
+                                draft: &mut draft,
+                                live_draft: &mut live_draft,
+                                shell_focus: &mut shell_focus,
+                                initial_filter: String::new(),
+                                paths: &paths,
+                                provider_id: settings.as_ref().and_then(|s| s.session.provider_id.as_deref()),
+                                model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
+                            });
+                        }
                     }
                 }
                 (m, KeyCode::Esc) if m.is_empty() && shell_focus.get() == ShellFocus::Transcript => {
@@ -1911,7 +2107,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     });
 
     if should_exit.get() {
-        let chrome = chrome_stats.read();
+        let chrome = chrome_stats.read().clone();
         let api_duration_secs = accumulate_session_elapsed(
             session_elapsed_secs.get(),
             live_turn_elapsed_secs(busy.get(), &busy_started_at.read()),
@@ -1938,20 +2134,25 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
     let (accent_r, accent_g, accent_b) = agent_mode.get().label_rgb();
     let scanner_accent = rgb(accent_r, accent_g, accent_b);
-    let chrome = chrome_stats.read();
+    let chrome = chrome_stats.read().clone();
     let mcp_connected = agent_session
         .as_ref()
         .and_then(|session| session.mcp_registry())
         .map(|registry| registry.load_report().servers_ok)
         .unwrap_or(0);
-    let project_name = paths
-        .read()
+    let paths_snapshot = paths.read().clone();
+    let project_name = paths_snapshot
         .project_dir()
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("?")
         .to_string();
     let git = git_footer.read().clone();
+    let footer_project_line = if agent_session.is_none() {
+        eager_project_label.clone()
+    } else {
+        project_footer_label(&paths_snapshot, git.as_ref())
+    };
     let model_label = if chrome.model_label.is_empty() {
         fallback_model_label.clone()
     } else {
@@ -1960,13 +2161,24 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let supports_images = chrome.supports_images;
     let user_question_open = pending_user_question.read().is_some();
     let model_selector_open = pending_model_selector.read().is_some();
-    let status_dialog_open = pending_tool_approval.read().is_some() || user_question_open || model_selector_open;
+    let system_prompt_open = pending_system_prompt.read().is_some();
+    let confetti_open = pending_confetti.read().is_some();
+    let status_dialog_open = pending_tool_approval.read().is_some()
+        || user_question_open
+        || model_selector_open
+        || system_prompt_open
+        || confetti_open;
     let prompt_focused =
         !status_dialog_open && matches!(shell_focus.get(), ShellFocus::Prompt | ShellFocus::StatusDialog);
     let transcript_focused = !status_dialog_open && shell_focus.get() == ShellFocus::Transcript;
     let question_has_focus = user_question_open;
-    let model_selector_has_focus = model_selector_open && !user_question_open;
-    let approval_has_focus = pending_tool_approval.read().is_some() && !user_question_open && !model_selector_open;
+    let model_selector_has_focus = model_selector_open && !user_question_open && !system_prompt_open && !confetti_open;
+    let system_prompt_has_focus = system_prompt_open && !confetti_open;
+    let approval_has_focus = pending_tool_approval.read().is_some()
+        && !user_question_open
+        && !model_selector_open
+        && !system_prompt_open
+        && !confetti_open;
     if let Some(pending) = pending_model_selector.write().as_mut() {
         let next_filter = model_selector_sanitize_filter(&model_filter.read());
         if next_filter != model_filter.read().as_str() {
@@ -2022,6 +2234,42 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         }
         .into()
     });
+    let _confetti_frame = confetti_frame.get();
+    let confetti_overlay = pending_confetti.read().as_ref().map(|_| -> AnyElement<'static> {
+        let plane = if let Some(runtime) = confetti_runtime.write().as_mut() {
+            runtime.resize(screen_width, screen_height);
+            runtime.system.render_plane()
+        } else {
+            Vec::new()
+        };
+        element! {
+            ConfettiOverlay(
+                screen_width: screen_width,
+                screen_height: screen_height,
+                plane: plane,
+            )
+        }
+        .into()
+    });
+    let system_prompt_overlay = pending_system_prompt
+        .read()
+        .as_ref()
+        .map(|pending| -> AnyElement<'static> {
+            let (chrome, body_height) = system_prompt_dialog_chrome(screen_width, screen_height);
+            element! {
+                SystemPromptDialogOverlay(
+                    screen_width: screen_width,
+                    screen_height: screen_height,
+                    text: pending.text.clone(),
+                    body_height: body_height,
+                    chrome: chrome,
+                    scroll_handle: Some(system_prompt_scroll),
+                    scroll_tick: system_prompt_scroll_tick.get(),
+                    has_focus: system_prompt_has_focus,
+                )
+            }
+            .into()
+        });
     let user_question_view = pending_user_question.read().as_ref().map(|pending| {
         UserQuestionView::from_pending(
             pending,
@@ -2099,6 +2347,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             align_items: AlignItems::Center,
             margin: 0,
             padding: 0,
+            position: Position::Relative,
         ) {
             Header(
                 screen_width: screen_width,
@@ -2303,11 +2552,13 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 agent_mode: agent_mode.get(),
                 thinking_level: thinking_level.get(),
                 has_focus: prompt_focused,
+                project_line: footer_project_line.clone(),
                 project_name: project_name.clone(),
                 git: git.clone(),
                 turn: chrome.turn_count,
                 model_label: model_label.clone(),
                 supports_images: supports_images,
+                chrome_revision: chrome_ui_revision.get(),
                 draft: Some(draft),
                 live_draft: Some(live_draft),
                 input_prefix_kind: Some(input_prefix_kind),
@@ -2325,7 +2576,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 file_picker_selected: Some(file_picker_index),
                 file_picker_show_hidden: file_picker_show_hidden.get(),
                 editor_overlay: model_selector_overlay,
-                blocked_hint: if user_question_open {
+                blocked_hint: if system_prompt_open {
+                    Some("Viewing system prompt — Esc to close".to_string())
+                } else if user_question_open {
                     Some("Answer the question above".to_string())
                 } else if model_selector_open {
                     Some("Select a model above".to_string())
@@ -2562,6 +2815,32 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 suppress_enter_newline.set(true);
                                 return;
                             }
+                            SlashOutcome::OpenSystemPromptDialog { text } => {
+                                open_system_prompt_dialog(OpenSystemPromptDialogArgs {
+                                    pending: &mut pending_system_prompt,
+                                    shell_focus: &mut shell_focus,
+                                    text,
+                                });
+                                draft.set(String::new());
+                                live_draft.set(String::new());
+                                force_editor_clear.set(true);
+                                suppress_enter_newline.set(true);
+                                return;
+                            }
+                            SlashOutcome::PlayConfetti { mode } => {
+                                open_confetti(OpenConfettiArgs {
+                                    pending: &mut pending_confetti,
+                                    state: &mut confetti_runtime,
+                                    draft: &mut draft,
+                                    live_draft: &mut live_draft,
+                                    shell_focus: &mut shell_focus,
+                                    mode,
+                                });
+                                draft.set(String::new());
+                                live_draft.set(String::new());
+                                suppress_enter_newline.set(true);
+                                return;
+                            }
                             SlashOutcome::OverlayDeferred(overlay) => {
                                 push_transcript_message(
                                     &mut messages,
@@ -2632,6 +2911,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     suppress_enter_newline.set(true);
                 },
             )
+            #(confetti_overlay)
+            #(system_prompt_overlay)
         }
     }
 }

@@ -1,3 +1,10 @@
+---
+type: Reference
+title: Architecture Overview
+description: Layered crate architecture for the Elph AI agent workspace — module map, design principles, and key architectural decisions.
+tags: [architecture, elph, crate-layout, design]
+---
+
 # Architecture Overview
 
 Elph is a Rust workspace of layered crates designed for building AI agent applications. The primary product is a coding agent CLI + TUI, but the runtime libraries are app-agnostic.
@@ -53,7 +60,7 @@ Key modules:
 
 - `src/cli/` — Subcommands: `run`, `acp`, `codegraph`, `completions`, `doctor`, `export`, `import`, `mcp`, `memory`, `models`, `provider`, `server`, `session`, `stats`, `update`, `worktree` (`/elph/src/cli/mod.rs`)
 - `src/tui/` — Modular iocraft-based interactive shell: `shell.rs`, `focus.rs`, `tool_approval.rs`, `user_question.rs`, `activity.rs`, `agent_bridge.rs`, `chrome/`, `prompt/`, `transcript/`, `slash_palette/`, `theme.rs`, and more (`/elph/src/tui/mod.rs`)
-- `src/agent/` — Pi coding-agent equivalent: session orchestration, runtime wiring, diagnostics tool, ask_user tool, slash commands, tool policy, run mode, skills loading (`skills_load.rs`), tools catalog reconciliation (`tools_catalog.rs`) (`/elph/src/agent/mod.rs`)
+- `src/agent/` — Pi coding-agent equivalent: session orchestration, runtime wiring, diagnostics tool, ask_user tool, slash commands, tool policy, run mode, skills loading (`skills_load.rs`), tools catalog reconciliation (`tools_catalog.rs`), system prompt rendering (`system_prompt_slash.rs`), and the `prompt/` subdirectory (`agents_md.rs`, `builder.rs`, `modes.rs`) (`/elph/src/agent/mod.rs`)
 - `src/platform/` — Host environment: paths, settings, bootstrap, datastore, MCP config, migrations, hooks, interrupt handling (`/elph/src/platform/mod.rs`)
 - `src/extensions/` — WASM extension host (`/elph/src/extensions/mod.rs`)
 
@@ -154,6 +161,7 @@ Multi-agent coordination. Early stage — minimal public API.
 | Prompt module restructure | `97158ee`           | Split `prompt_templates/` into `prompt/{builtin,external,invoke}`               |
 | STRICT SQLite tables      | `cc72e6b`           | Correct column types for Turso/SQLite compatibility                             |
 | Subagent orchestration    | `1384531`           | Rename goal tools to snake_case, refactor ask_user                              |
+| Prompt template engine       | `fdbede4`           | Replace ad-hoc string formatting with MiniJinja-based layered templates (`base.md`, `coding_base.md`, mode-specific appendixes) |
 | Session tree persistence  | `95ff396`           | Tree-structured sessions with fork/branch/resume                                |
 
 ## Path resolution
