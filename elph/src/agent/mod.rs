@@ -7,6 +7,7 @@ pub(crate) mod goal_slash;
 pub mod mcp_bootstrap;
 mod model_registry;
 mod overlays;
+mod prompt;
 mod provider;
 mod resource_loader;
 mod run_mode;
@@ -15,7 +16,7 @@ mod session;
 mod session_manager;
 mod skills_load;
 mod slash_commands;
-mod system_prompt;
+mod system_prompt_slash;
 mod tool_policy;
 mod tools_catalog;
 mod tools_slash;
@@ -43,5 +44,6 @@ pub use slash_commands::{
     slash_unimplemented_message,
 };
 pub use slash_commands::{dispatch_slash_command, format_help_message};
+pub use system_prompt_slash::system_prompt_slash_message;
 pub use tool_policy::agent_mode_from_setting;
 pub use tools_slash::tools_slash_message;

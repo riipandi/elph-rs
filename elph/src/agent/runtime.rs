@@ -13,10 +13,10 @@ use tokio::sync::Mutex;
 
 use super::mcp_bootstrap::{discover_mcp_registry, start_mcp_notifications};
 use super::model_registry::resolve_model;
+use super::prompt::{agents_md_for_cwd, build_coding_system_prompt};
 use super::resource_loader::{LoadResourcesResult, load_resources};
 use super::session::{CodingAgentSession, CodingAgentSessionParams};
 use super::session_manager::SessionManager;
-use super::system_prompt::{agents_md_for_cwd, build_system_prompt};
 use super::tool_policy::{agent_mode_from_setting, thinking_level_from_setting, to_agent_thinking};
 use crate::platform::{Paths, Settings};
 pub struct CreateSessionOptions<'a> {
@@ -97,7 +97,12 @@ pub async fn create_coding_session_with_events(
         Box::pin(async move {
             let mode = *mode_state.lock().await;
             let tool_names: Vec<String> = ctx.active_tools.iter().map(|t| t.name().to_string()).collect();
-            build_system_prompt(&cwd, &ctx.resources, &tool_names, agents_md.as_deref(), mode)
+            build_coding_system_prompt(&cwd, &ctx.resources, &tool_names, agents_md.as_deref(), mode).unwrap_or_else(
+                |error| {
+                    log::warn!("coding system prompt render failed: {error}");
+                    elph_agent::DEFAULT_SYSTEM_PROMPT.to_string()
+                },
+            )
         })
     }));
 

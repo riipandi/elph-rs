@@ -1,7 +1,9 @@
 # elph-agent
 
-Stateful agent runtime with tool execution, event streaming, and session-backed orchestration.
+App-agnostic agent runtime with tool execution, event streaming, and session-backed orchestration.
 Built on [`elph-ai`](../elph-ai) and ported from [@earendil-works/pi-agent](https://github.com/earendil-works/pi/tree/main/packages/agent).
+
+The **Elph coding agent** (`elph` crate) layers product-specific prompts, agent modes, and tools on top of this runtime.
 
 ## Installation
 
@@ -9,17 +11,20 @@ Add both crates to your workspace:
 
 ```toml
 [dependencies]
-elph-agent = { path = "../elph-agent" }
+elph-agent = { path = "../elph-agent", features = ["full"] }
 elph-ai = { path = "../elph-ai" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
+
+Cargo features: `mcp`, `prompt-templates` (MiniJinja), `builtin-tools`, `extensions`. Bundle with `full`.
+Default system prompt: `elph_agent::DEFAULT_SYSTEM_PROMPT`.
 
 ## Quick Start
 
 ```rust
 use std::sync::Arc;
 
-use elph_agent::{Agent, AgentOptions, PartialAgentState};
+use elph_agent::{Agent, AgentOptions, DEFAULT_SYSTEM_PROMPT, PartialAgentState};
 use elph_ai::{builtin_models, Message, UserContent};
 
 #[tokio::main]
@@ -31,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
 
     let agent = Agent::new(AgentOptions {
         initial_state: Some(PartialAgentState {
-            system_prompt: Some("You are a helpful assistant.".into()),
+            system_prompt: Some(DEFAULT_SYSTEM_PROMPT.into()),
             model: Some(model),
             ..Default::default()
         }),
@@ -745,28 +750,28 @@ Your skill content here...
 
 ## Examples
 
-| Example                   | Description                                                     |
-| ------------------------- | --------------------------------------------------------------- |
-| `basic_agent`             | OpenCode Zen `big-pickle` through `Agent`                       |
-| `agent_coding_tools`      | Live coding tools demo with real API (read_file, bash, etc.)    |
-| `agent_coding_workflow`   | Multi-step coding workflow with real API                        |
-| `agent_web_tools`         | Web search and fetch tools with real API                        |
-| `agent_search_tools`      | Read & Search tools demo (faux, no API key)                     |
-| `agent_filesystem_tools`  | Edit tools demo: create_dir, copy_path, delete_path, move_path  |
-| `agent_list_tools`        | list_available_tools introspection (faux, no API key)           |
-| `agent_collaboration`     | Collaboration mode policy and tool filtering                    |
-| `agent_subagent`          | Subagent spawn, message, followup, wait, list                   |
-| `agent_goals`             | Goal management tools                                           |
-| `agent_skills`            | Comprehensive skills demo with all spec fields                  |
-| `agent_skill_math`        | Math expert skill with real AI model call                       |
-| `agent_tools`             | Custom tools, steering, and follow-up (faux)                    |
-| `agent_harness`           | AgentHarness lifecycle demo                                     |
-| `toon_no_tools`           | TOON in user prompt (no tool calling)                           |
-| `toon_tool_call`          | TOON on custom tool JSON results                                |
-| `toon_mcp_deepwiki`       | TOON on DeepWiki MCP tool results                               |
-| `default_no_tools`        | Baseline (encoding off) — pair with `toon_no_tools`             |
-| `default_tool_call`       | Baseline (encoding off) — pair with `toon_tool_call`            |
-| `default_mcp_deepwiki`    | Baseline (encoding off) — pair with `toon_mcp_deepwiki`         |
+| Example                  | Description                                                    |
+| ------------------------ | -------------------------------------------------------------- |
+| `basic_agent`            | OpenCode Zen `big-pickle` through `Agent`                      |
+| `agent_coding_tools`     | Live coding tools demo with real API (read_file, bash, etc.)   |
+| `agent_coding_workflow`  | Multi-step coding workflow with real API                       |
+| `agent_web_tools`        | Web search and fetch tools with real API                       |
+| `agent_search_tools`     | Read & Search tools demo (faux, no API key)                    |
+| `agent_filesystem_tools` | Edit tools demo: create_dir, copy_path, delete_path, move_path |
+| `agent_list_tools`       | list_available_tools introspection (faux, no API key)          |
+| `agent_collaboration`    | Collaboration mode policy and tool filtering                   |
+| `agent_subagent`         | Subagent spawn, message, followup, wait, list                  |
+| `agent_goals`            | Goal management tools                                          |
+| `agent_skills`           | Comprehensive skills demo with all spec fields                 |
+| `agent_skill_math`       | Math expert skill with real AI model call                      |
+| `agent_tools`            | Custom tools, steering, and follow-up (faux)                   |
+| `agent_harness`          | AgentHarness lifecycle demo                                    |
+| `toon_no_tools`          | TOON in user prompt (no tool calling)                          |
+| `toon_tool_call`         | TOON on custom tool JSON results                               |
+| `toon_mcp_deepwiki`      | TOON on DeepWiki MCP tool results                              |
+| `default_no_tools`       | Baseline (encoding off) — pair with `toon_no_tools`            |
+| `default_tool_call`      | Baseline (encoding off) — pair with `toon_tool_call`           |
+| `default_mcp_deepwiki`   | Baseline (encoding off) — pair with `toon_mcp_deepwiki`        |
 
 ```bash
 # Faux provider examples (no API key needed)

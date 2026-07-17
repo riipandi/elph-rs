@@ -90,13 +90,15 @@ test: ## Run all workspace tests
 	@$(CARGO) nextest run --no-fail-fast $(or $(_RESIDUAL_),$(ARGS))
 
 test-elph: ## Run tests for elph and its workspace deps
-	@$(CARGO) nextest run --no-fail-fast -p elph-ai -p elph-agent -p elph-core -p elph $(ARGS)
+	@$(CARGO) nextest run --no-fail-fast -p elph-ai -p elph-core -p elph $(ARGS)
+	@$(CARGO) nextest run --no-fail-fast -p elph-agent --features full $(ARGS)
 
 test-elph-tui: ## Run elph-tui tests
 	@$(CARGO) nextest run --no-fail-fast -p elph-tui $(ARGS)
 
 check-elph: ## Check elph and its workspace deps compile
-	@$(CARGO) check -p elph-ai -p elph-agent -p elph-core -p elph 2>&1
+	@$(CARGO) check -p elph-ai -p elph-core -p elph 2>&1
+	@$(CARGO) check -p elph-agent --features full --all-targets 2>&1
 
 check-elph-tui: ## Check elph-tui compiles (lib, tests, examples)
 	@$(CARGO) check -p elph-tui --all-targets 2>&1

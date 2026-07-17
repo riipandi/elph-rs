@@ -239,7 +239,7 @@ where
             Arc::new(move |model, context, opts| models_for_stream.stream_simple(model, context, opts));
         let base_tools: Vec<AgentTool> = tools_map
             .values()
-            .filter(|tool| !crate::collaboration::is_collaboration_tool(tool.name()))
+            .filter(|tool| !crate::collaboration::is_collaboration_tool(tool.name(), None))
             .cloned()
             .collect();
         let shared_registry = options
@@ -284,7 +284,7 @@ where
             options.active_tool_names
         };
         validate_unique_names(baseline_active_tool_names.clone(), "Duplicate active tool name(s)")?;
-        let active_tool_names = filter_active_tools(collaboration_mode, &baseline_active_tool_names);
+        let active_tool_names = filter_active_tools(collaboration_mode, &baseline_active_tool_names, None);
         validate_tool_names(&active_tool_names, &tools_map)?;
 
         Ok(Self {

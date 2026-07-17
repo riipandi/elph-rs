@@ -117,6 +117,7 @@ impl SlashDispatcher {
                 SlashDispatch::Quit
                 | SlashDispatch::Help
                 | SlashDispatch::Tools { .. }
+                | SlashDispatch::SystemPrompt
                 | SlashDispatch::Unimplemented(_)
                 | SlashDispatch::OverlayNeeded(_) => {}
             }

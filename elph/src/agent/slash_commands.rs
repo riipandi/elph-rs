@@ -50,6 +50,7 @@ pub fn builtin_slash_commands() -> Vec<BuiltinSlashCommand> {
         builtin("quit", "Quit Elph"),
         builtin("help", "List commands"),
         builtin_with_args("tools", "Show active tools", "[json|list|table]"),
+        builtin("system-prompt", "Show compiled system prompt"),
         builtin("exit", "Quit Elph"),
         builtin_with_args("goal", "Manage session goals", "<subcommand>"),
     ]
@@ -112,6 +113,7 @@ pub enum SlashDispatch {
     Goal { args: String },
     Help,
     Tools { args: String },
+    SystemPrompt,
     Reload,
     Extension { name: String, args: String },
     PromptTemplate { name: String, args: String },
@@ -213,6 +215,7 @@ fn builtin_dispatch(name: &str, args: String) -> Option<SlashDispatch> {
         "goal" | "goals" => Some(SlashDispatch::Goal { args }),
         "help" | "h" | "?" => Some(SlashDispatch::Help),
         "tools" => Some(SlashDispatch::Tools { args }),
+        "system-prompt" | "systemprompt" | "prompt" => Some(SlashDispatch::SystemPrompt),
         "reload" => Some(SlashDispatch::Reload),
         "model" => Some(SlashDispatch::OverlayNeeded(OverlayCommand::Model { filter: args })),
         "tree" => Some(SlashDispatch::OverlayNeeded(OverlayCommand::Tree)),
@@ -320,6 +323,14 @@ mod tests {
         assert_eq!(
             dispatch_slash_command("/tools table", None, None, None),
             Some(SlashDispatch::Tools { args: "table".into() })
+        );
+        assert_eq!(
+            dispatch_slash_command("/system-prompt", None, None, None),
+            Some(SlashDispatch::SystemPrompt)
+        );
+        assert_eq!(
+            dispatch_slash_command("/prompt", None, None, None),
+            Some(SlashDispatch::SystemPrompt)
         );
         assert_eq!(dispatch_slash_command("/reload", None, None, None), Some(SlashDispatch::Reload));
     }

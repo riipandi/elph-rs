@@ -105,7 +105,7 @@ where
                 };
                 Box::pin(async move {
                     let mode = *plan_shared.collaboration_mode.lock().await;
-                    if plan_mode_blocks_tool(mode, &tool_name) {
+                    if plan_mode_blocks_tool(mode, &tool_name, None) {
                         return Some(BeforeToolCallResult {
                             block: true,
                             reason: Some(plan_mode_block_reason(&tool_name)),

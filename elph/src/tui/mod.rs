@@ -22,6 +22,7 @@ mod slash_handler;
 mod slash_palette;
 mod startup;
 mod status_dialog;
+mod system_prompt_dialog;
 mod theme;
 mod tool_approval;
 mod tool_params;

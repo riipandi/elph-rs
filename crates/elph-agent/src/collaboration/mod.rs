@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-/// Session collaboration mode (distinct from TUI `AgentMode` labels).
+/// Session collaboration mode (distinct from product agent mode labels).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CollaborationMode {
@@ -40,12 +40,11 @@ impl FromStr for CollaborationMode {
 
 pub use plan::PlanConfirmationChoice;
 pub use plan::{assistant_message_text, extract_proposed_plan, implement_prompt};
-pub use policy::EXPLORATION_BUILTIN_TOOLS;
+pub use policy::ToolExposurePolicy;
+pub use policy::default_exploration_tools;
 pub use policy::filter_active_tools;
-pub use policy::filter_ask_mode_tools;
-pub use policy::is_ask_mode_tool;
 pub use policy::is_collaboration_tool;
-pub use policy::is_exploration_builtin_tool;
+pub use policy::is_exploration_tool;
 pub use policy::is_mcp_read_only_bridge_tool;
 pub use policy::is_mcp_tool;
 pub use policy::is_mutating_tool;
@@ -53,4 +52,3 @@ pub use policy::is_plan_mode_tool;
 pub use policy::is_read_only_mcp_tool;
 pub use policy::plan_mode_block_reason;
 pub use policy::plan_mode_blocks_tool;
-pub use policy::plan_mode_system_prompt;

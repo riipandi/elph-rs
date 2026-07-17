@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use elph_agent::{LocalExecutionEnv, PromptTemplate, Skill};
+use elph_tui::components::{scroll_view_down, scroll_view_up};
 use elph_tui::rgb;
 use elph_tui::{
     InputPrefixKind, PromptPrefixConfig, absorb_inline_triggers, compose_palette_draft, resolve_submit_draft,
@@ -67,6 +68,10 @@ use crate::tui::startup::{
     mark_agent_startup_ready, mark_mcp_startup_failed, mcp_server_status_label, spawn_bootstrap_worker,
 };
 use crate::tui::status_dialog::{StatusZone, build_status_dialog_kind};
+use crate::tui::system_prompt_dialog::{
+    OpenSystemPromptDialogArgs, PendingSystemPromptDialog, SystemPromptDialogOverlay, close_system_prompt_dialog,
+    open_system_prompt_dialog, system_prompt_dialog_chrome,
+};
 use crate::tui::tool_approval::PendingToolApproval;
 use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
 use crate::tui::transcript::{
@@ -489,6 +494,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut model_selected_index = hooks.use_state(|| 0usize);
     let mut model_filter = hooks.use_state(String::new);
     let mut model_input_focus = hooks.use_state(ModelSelectorFocus::default);
+    let mut pending_system_prompt = hooks.use_ref(|| None::<PendingSystemPromptDialog>);
+    let system_prompt_scroll = hooks.use_ref_default::<ScrollViewHandle>();
 
     let extension_host = props.extension_host.clone();
     let cwd = props.cwd.clone();
@@ -1013,12 +1020,59 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 }
             }
 
+            let system_prompt_open = pending_system_prompt.read().is_some();
             let model_selector_open = pending_model_selector.read().is_some();
-            let status_dialog_open =
-                pending_tool_approval.read().is_some() || pending_user_question.read().is_some() || model_selector_open;
+            let status_dialog_open = pending_tool_approval.read().is_some()
+                || pending_user_question.read().is_some()
+                || model_selector_open
+                || system_prompt_open;
 
             if status_dialog_open {
-                if model_selector_open && pending_user_question.read().is_none() {
+                if system_prompt_open {
+                    let mut pending_system_prompt = pending_system_prompt;
+                    let mut draft = draft;
+                    let mut live_draft = live_draft;
+                    let mut shell_focus = shell_focus;
+                    let mut system_prompt_scroll = system_prompt_scroll;
+
+                    if modifiers.is_empty() && code == KeyCode::Esc {
+                        close_system_prompt_dialog(
+                            &mut pending_system_prompt,
+                            &mut draft,
+                            &mut live_draft,
+                            &mut shell_focus,
+                        );
+                        return;
+                    }
+
+                    if modifiers.is_empty() {
+                        match code {
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                scroll_view_up(&mut system_prompt_scroll.write(), 1);
+                                return;
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                scroll_view_down(&mut system_prompt_scroll.write(), 1);
+                                return;
+                            }
+                            KeyCode::PageUp => {
+                                scroll_view_up(&mut system_prompt_scroll.write(), 10);
+                                return;
+                            }
+                            KeyCode::PageDown => {
+                                scroll_view_down(&mut system_prompt_scroll.write(), 10);
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if !shell_global_shortcut(modifiers, code) {
+                        return;
+                    }
+                }
+
+                if model_selector_open && pending_user_question.read().is_none() && !system_prompt_open {
                     let mut pending_model_selector = pending_model_selector;
                     let mut model_provider_index = model_provider_index;
                     let mut model_selected_index = model_selected_index;
@@ -1172,7 +1226,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     }
                 }
 
-                if model_selector_open && pending_user_question.read().is_none() {
+                if (model_selector_open || system_prompt_open) && pending_user_question.read().is_none() {
                     return;
                 }
 
@@ -1655,6 +1709,15 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
                                 });
                             }
+                            SlashOutcome::OpenSystemPromptDialog { text } => {
+                                open_system_prompt_dialog(OpenSystemPromptDialogArgs {
+                                    pending: &mut pending_system_prompt,
+                                    draft: &mut draft,
+                                    live_draft: &mut live_draft,
+                                    shell_focus: &mut shell_focus,
+                                    text,
+                                });
+                            }
                             SlashOutcome::OverlayDeferred(overlay) => {
                                 push_transcript_message(
                                     &mut messages,
@@ -1770,7 +1833,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 (m, KeyCode::Char('l')) | (m, KeyCode::Char('L'))
                     if m.contains(KeyModifiers::CONTROL) && pending_user_question.read().is_none() =>
                 {
-                    if pending_model_selector.read().is_some() {
+                    if pending_system_prompt.read().is_some() {
+                        close_system_prompt_dialog(
+                            &mut pending_system_prompt,
+                            &mut draft,
+                            &mut live_draft,
+                            &mut shell_focus,
+                        );
+                    } else if pending_model_selector.read().is_some() {
                         close_model_selector(
                             &mut pending_model_selector,
                             &mut draft,
@@ -1960,13 +2030,17 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let supports_images = chrome.supports_images;
     let user_question_open = pending_user_question.read().is_some();
     let model_selector_open = pending_model_selector.read().is_some();
-    let status_dialog_open = pending_tool_approval.read().is_some() || user_question_open || model_selector_open;
+    let system_prompt_open = pending_system_prompt.read().is_some();
+    let status_dialog_open =
+        pending_tool_approval.read().is_some() || user_question_open || model_selector_open || system_prompt_open;
     let prompt_focused =
         !status_dialog_open && matches!(shell_focus.get(), ShellFocus::Prompt | ShellFocus::StatusDialog);
     let transcript_focused = !status_dialog_open && shell_focus.get() == ShellFocus::Transcript;
     let question_has_focus = user_question_open;
-    let model_selector_has_focus = model_selector_open && !user_question_open;
-    let approval_has_focus = pending_tool_approval.read().is_some() && !user_question_open && !model_selector_open;
+    let model_selector_has_focus = model_selector_open && !user_question_open && !system_prompt_open;
+    let system_prompt_has_focus = system_prompt_open;
+    let approval_has_focus =
+        pending_tool_approval.read().is_some() && !user_question_open && !model_selector_open && !system_prompt_open;
     if let Some(pending) = pending_model_selector.write().as_mut() {
         let next_filter = model_selector_sanitize_filter(&model_filter.read());
         if next_filter != model_filter.read().as_str() {
@@ -2022,6 +2096,24 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         }
         .into()
     });
+    let system_prompt_overlay = pending_system_prompt
+        .read()
+        .as_ref()
+        .map(|pending| -> AnyElement<'static> {
+            let (chrome, body_height) = system_prompt_dialog_chrome(screen_width, screen_height);
+            element! {
+                SystemPromptDialogOverlay(
+                    screen_width: screen_width,
+                    screen_height: screen_height,
+                    text: pending.text.clone(),
+                    body_height: body_height,
+                    chrome: chrome,
+                    scroll_handle: Some(system_prompt_scroll),
+                    has_focus: system_prompt_has_focus,
+                )
+            }
+            .into()
+        });
     let user_question_view = pending_user_question.read().as_ref().map(|pending| {
         UserQuestionView::from_pending(
             pending,
@@ -2099,6 +2191,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             align_items: AlignItems::Center,
             margin: 0,
             padding: 0,
+            position: Position::Relative,
         ) {
             Header(
                 screen_width: screen_width,
@@ -2325,7 +2418,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 file_picker_selected: Some(file_picker_index),
                 file_picker_show_hidden: file_picker_show_hidden.get(),
                 editor_overlay: model_selector_overlay,
-                blocked_hint: if user_question_open {
+                blocked_hint: if system_prompt_open {
+                    Some("Viewing system prompt — Esc to close".to_string())
+                } else if user_question_open {
                     Some("Answer the question above".to_string())
                 } else if model_selector_open {
                     Some("Select a model above".to_string())
@@ -2562,6 +2657,19 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 suppress_enter_newline.set(true);
                                 return;
                             }
+                            SlashOutcome::OpenSystemPromptDialog { text } => {
+                                open_system_prompt_dialog(OpenSystemPromptDialogArgs {
+                                    pending: &mut pending_system_prompt,
+                                    draft: &mut draft,
+                                    live_draft: &mut live_draft,
+                                    shell_focus: &mut shell_focus,
+                                    text,
+                                });
+                                draft.set(String::new());
+                                live_draft.set(String::new());
+                                suppress_enter_newline.set(true);
+                                return;
+                            }
                             SlashOutcome::OverlayDeferred(overlay) => {
                                 push_transcript_message(
                                     &mut messages,
@@ -2632,6 +2740,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     suppress_enter_newline.set(true);
                 },
             )
+            #(system_prompt_overlay)
         }
     }
 }

@@ -76,6 +76,7 @@ Elph re-implements concepts from several open-source projects in Rust:
 - **[OpenAI Codex CLI](https://github.com/openai/codex)** — Agent workflow inspiration: exit summary, goals, subagent orchestration (Apache 2.0).
 - **[memelord](https://github.com/glommer/memelord)** by Glauber Costa — `floppy` memory module port (MIT).
 - **[code-review-graph](https://github.com/tirth8205/code-review-graph)** by Tirth Kanani — `elph codegraph` integration (MIT).
+- **[Grok Build](https://github.com/xai-org/grok-build)** by SpaceXAI — coding-agent system prompt (Apache 2.0).
 
 See [NOTICE.md](./NOTICE.md) for details and license texts.
 

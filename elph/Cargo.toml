@@ -27,7 +27,7 @@ chrono.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
 crossterm.workspace = true
-elph-agent = { workspace = true, features = ["tracing", "builtin-tools"] }
+elph-agent = { workspace = true, features = ["tracing", "builtin-tools", "mcp", "prompt-templates", "extensions"] }
 elph-ai = { workspace = true, features = ["tracing"] }
 elph-core = { workspace = true, features = ["embed", "git", "tracing"] }
 elph-tui = { workspace = true }
@@ -45,7 +45,7 @@ tokio-util = { workspace = true }
 libc.workspace = true
 
 [dev-dependencies]
-elph-agent = { workspace = true, features = ["builtin-tools"] }
+elph-agent = { workspace = true, features = ["full"] }
 elph-core.workspace = true
 libc.workspace = true
 tempfile.workspace = true

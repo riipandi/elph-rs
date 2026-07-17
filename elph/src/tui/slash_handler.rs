@@ -6,7 +6,10 @@ use std::sync::Arc;
 use elph_agent::{ExtensionRegistry, PromptTemplate, Skill};
 
 use crate::agent::{OverlayCommand, SlashDispatch};
-use crate::agent::{dispatch_slash_command, format_help_message, slash_unimplemented_message, tools_slash_message};
+use crate::agent::{
+    dispatch_slash_command, format_help_message, slash_unimplemented_message, system_prompt_slash_message,
+    tools_slash_message,
+};
 use crate::extensions::ExtensionHost;
 use crate::platform::Paths;
 
@@ -20,6 +23,7 @@ pub enum SlashOutcome {
     SpawnAgentTurn,
     OverlayDeferred(OverlayCommand),
     OpenModelSelector { filter: String },
+    OpenSystemPromptDialog { text: String },
 }
 
 pub struct SlashContext<'a> {
@@ -45,6 +49,10 @@ pub fn handle_slash_submit(ctx: SlashContext<'_>) -> SlashOutcome {
         }
         SlashDispatch::Tools { args } => match tools_slash_message(ctx.agent_session.as_deref(), &args) {
             Ok(message) => SlashOutcome::Assistant(message),
+            Err(message) => SlashOutcome::Status(message),
+        },
+        SlashDispatch::SystemPrompt => match system_prompt_slash_message(ctx.agent_session.as_deref()) {
+            Ok(text) => SlashOutcome::OpenSystemPromptDialog { text },
             Err(message) => SlashOutcome::Status(message),
         },
         SlashDispatch::Unimplemented(command) => SlashOutcome::Unimplemented(slash_unimplemented_message(&command)),
@@ -147,6 +155,9 @@ mod tests {
         assert!(!slash_echoes_prompt_in_transcript(&SlashOutcome::OpenModelSelector {
             filter: String::new()
         }));
+        assert!(!slash_echoes_prompt_in_transcript(&SlashOutcome::OpenSystemPromptDialog {
+            text: String::new()
+        }));
         assert!(slash_echoes_prompt_in_transcript(&SlashOutcome::SpawnAgentTurn));
     }
 
@@ -208,6 +219,24 @@ mod tests {
                 if message.contains("## Available tools")
                     && message.contains("| Tool | Group | Description |")
                     && message.contains("Agent session unavailable")
+        ));
+    }
+
+    #[test]
+    fn system_prompt_without_session_returns_status() {
+        let outcome = handle_slash_submit(SlashContext {
+            input: "/system-prompt",
+            extensions: None,
+            prompt_templates: None,
+            skills: None,
+            agent_session: None,
+            extension_host: None,
+            paths: None,
+            cwd: None,
+        });
+        assert!(matches!(
+            outcome,
+            SlashOutcome::Status(message) if message == "Agent session required for this command."
         ));
     }
 
