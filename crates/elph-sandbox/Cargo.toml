@@ -1,8 +1,8 @@
 [package]
-name = "elph-swarm"
-version = "0.0.10"
+name = "elph-sandbox"
+version = "0.0.1"
 license = "MIT"
-description = "Orchestration library for elph AI coding agents"
+description = "Sandbox library for Elph, powered by zerobox"
 homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true

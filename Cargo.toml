@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/elph-agent", "crates/elph-ai", "crates/elph-core", "crates/elph-exec", "crates/elph-tui", "elph"]
-exclude = ["extensions/say-hello", "crates/elph-swarm"]
+members = ["crates/elph-*", "elph"]
+exclude = ["extensions/say-hello"]
 
 [workspace.package]
 homepage = "https://elph.space"
@@ -57,14 +57,14 @@ libc = "0.2.186"
 linkify = "0.11.0"
 log = "0.4.33"
 logforth = { version = "0.30.1", features = [
-  "starter-log",
   "append-async",
   "append-fastrace",
   "append-file",
+  "diagnostic-fastrace",
+  "filter-rustlog",
   "layout-json",
   "layout-text",
-  "filter-rustlog",
-  "diagnostic-fastrace",
+  "starter-log",
 ] }
 memchr = "2.8.3"
 memorable-ids = "0.1.1"

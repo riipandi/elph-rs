@@ -2987,6 +2987,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "elph-sandbox"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "memorable-ids",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "elph-swarm"
+version = "0.0.10"
+dependencies = [
+ "anyhow",
+ "memorable-ids",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "elph-tui"
 version = "0.0.26"
 dependencies = [
