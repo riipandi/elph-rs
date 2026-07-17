@@ -60,7 +60,7 @@ pub fn detect_compat(model: &Model) -> ResolvedOpenAICompletionsCompat {
         || is_nvidia
         || is_ant_ling;
 
-    let is_grok = provider == "xai" || base_url.contains("api.x.ai");
+    let is_xai = provider == "xai" || base_url.contains("api.x.ai");
     let is_deepseek = provider == "deepseek" || base_url.contains("deepseek.com");
     let is_openrouter_developer_role_model =
         is_openrouter && (model.id.starts_with("anthropic/") || model.id.starts_with("openai/"));
@@ -87,7 +87,7 @@ pub fn detect_compat(model: &Model) -> ResolvedOpenAICompletionsCompat {
     ResolvedOpenAICompletionsCompat {
         supports_store: !is_non_standard,
         supports_developer_role: is_openrouter_developer_role_model || (!is_non_standard && !is_openrouter),
-        supports_reasoning_effort: !is_grok
+        supports_reasoning_effort: !is_xai
             && !is_zai
             && !is_moonshot
             && !is_together

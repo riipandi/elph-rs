@@ -181,7 +181,24 @@ pub struct SkillLoadOptions {
     pub validation: SkillValidationSettings,
 }
 
+/// Explicit skill discovery paths supplied by the host application.
+#[derive(Debug, Clone, Default)]
+pub struct SkillsDiscoveryPaths {
+    pub user_dirs: Vec<String>,
+    pub project_dirs: Vec<String>,
+}
+
+impl SkillsDiscoveryPaths {
+    pub fn all_dirs(&self) -> Vec<String> {
+        let mut dirs = self.user_dirs.clone();
+        dirs.extend(self.project_dirs.clone());
+        dirs
+    }
+}
+
 /// Resolve user-level skill directories based on app name.
+///
+/// Prefer [`SkillsDiscoveryPaths`] with host-specific paths in new integrations.
 /// Returns: `["~/.agents/skills", "~/.{app_name}/skills", "~/.{app_name}/bundled/skills"]`
 pub fn resolve_user_skills_dirs(app_name: &str) -> Vec<String> {
     let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());

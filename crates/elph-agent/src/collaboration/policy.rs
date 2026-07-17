@@ -1,43 +1,77 @@
 //! Tool exposure policy per collaboration mode.
 
+use std::sync::OnceLock;
+
 use super::CollaborationMode;
 
-/// Built-in tools for read-only exploration (Plan + Ask modes).
-pub const EXPLORATION_BUILTIN_TOOLS: &[&str] = &[
-    "read_file",
-    "grep",
-    "find_path",
-    "list_dir",
-    "web_fetch",
-    "web_search",
-    "diagnostics",
-    "ask_user_question",
-    "list_available_tools",
-];
+/// Host-configurable tool exposure lists.
+#[derive(Debug, Clone)]
+pub struct ToolExposurePolicy {
+    pub exploration_tools: Vec<String>,
+    pub mutating_tools: Vec<String>,
+    pub collaboration_tools: Vec<String>,
+}
 
-/// Tools that mutate workspace state or spawn work — blocked in Plan mode.
-const MUTATING_TOOLS: &[&str] = &[
-    "write_file",
-    "edit_file",
-    "bash",
-    "create_dir",
-    "copy_path",
-    "delete_path",
-    "move_path",
-    "spawn_agent",
-    "send_message",
-    "followup_task",
-    "wait_agent",
-];
+/// Default exploration tools for generic Plan mode (read-only builtins).
+pub fn default_exploration_tools() -> Vec<String> {
+    vec![
+        "read_file".into(),
+        "grep".into(),
+        "find_path".into(),
+        "list_dir".into(),
+        "web_fetch".into(),
+        "web_search".into(),
+        "list_available_tools".into(),
+    ]
+}
 
-const COLLABORATION_TOOLS: &[&str] = &[
-    "ask_user_question",
-    "spawn_agent",
-    "send_message",
-    "followup_task",
-    "wait_agent",
-    "list_agents",
-];
+fn default_mutating_tools() -> Vec<String> {
+    vec![
+        "write_file".into(),
+        "edit_file".into(),
+        "bash".into(),
+        "create_dir".into(),
+        "copy_path".into(),
+        "delete_path".into(),
+        "move_path".into(),
+        "spawn_agent".into(),
+        "send_message".into(),
+        "followup_task".into(),
+        "wait_agent".into(),
+    ]
+}
+
+fn default_collaboration_tools() -> Vec<String> {
+    vec![
+        "spawn_agent".into(),
+        "send_message".into(),
+        "followup_task".into(),
+        "wait_agent".into(),
+        "list_agents".into(),
+    ]
+}
+
+impl Default for ToolExposurePolicy {
+    fn default() -> Self {
+        Self {
+            exploration_tools: default_exploration_tools(),
+            mutating_tools: default_mutating_tools(),
+            collaboration_tools: default_collaboration_tools(),
+        }
+    }
+}
+
+fn runtime_default_policy() -> &'static ToolExposurePolicy {
+    static POLICY: OnceLock<ToolExposurePolicy> = OnceLock::new();
+    POLICY.get_or_init(ToolExposurePolicy::default)
+}
+
+fn active_policy(policy: Option<&ToolExposurePolicy>) -> &ToolExposurePolicy {
+    match policy {
+        Some(policy) => policy,
+        None => runtime_default_policy(),
+    }
+}
 
 pub fn is_mcp_tool(name: &str) -> bool {
     name.starts_with("mcp_")
@@ -47,8 +81,8 @@ pub fn is_goal_tool(name: &str) -> bool {
     matches!(name, "create_goal" | "get_goal" | "update_goal" | "set_goal_budget")
 }
 
-pub fn is_exploration_builtin_tool(name: &str) -> bool {
-    EXPLORATION_BUILTIN_TOOLS.contains(&name)
+pub fn is_exploration_tool(name: &str, policy: Option<&ToolExposurePolicy>) -> bool {
+    active_policy(policy).exploration_tools.iter().any(|tool| tool == name)
 }
 
 /// MCP tools that only read or list remote state (safe in Plan / Ask).
@@ -69,44 +103,14 @@ pub fn is_read_only_mcp_tool(name: &str) -> bool {
         || lower.ends_with("_read")
 }
 
-pub fn is_plan_mode_tool(name: &str) -> bool {
-    is_exploration_builtin_tool(name) || is_goal_tool(name) || is_read_only_mcp_tool(name)
+pub fn is_plan_mode_tool(name: &str, policy: Option<&ToolExposurePolicy>) -> bool {
+    is_exploration_tool(name, policy) || is_goal_tool(name) || is_read_only_mcp_tool(name)
 }
 
-/// Filter tool names for Ask mode (read-only; optional MCP registry for approval hints).
-pub fn filter_ask_mode_tools(
-    all_names: &[String],
-    mcp_registry: Option<&crate::tools::mcp::McpToolRegistry>,
-) -> Vec<String> {
-    all_names
-        .iter()
-        .filter(|name| is_ask_mode_tool(name, mcp_registry))
-        .cloned()
-        .collect()
-}
-
-pub fn is_ask_mode_tool(name: &str, mcp_registry: Option<&crate::tools::mcp::McpToolRegistry>) -> bool {
-    if is_exploration_builtin_tool(name) {
+pub fn is_mutating_tool(name: &str, policy: Option<&ToolExposurePolicy>) -> bool {
+    if active_policy(policy).mutating_tools.iter().any(|tool| tool == name) {
         return true;
     }
-    if matches!(name, "get_goal") {
-        return true;
-    }
-    if is_read_only_mcp_tool(name) {
-        return true;
-    }
-    if let Some(reg) = mcp_registry {
-        return is_mcp_tool(name) && !reg.tool_requires_approval(name);
-    }
-    false
-}
-
-pub fn is_mutating_tool(name: &str) -> bool {
-    if MUTATING_TOOLS.contains(&name) {
-        return true;
-    }
-    // MCP tools are treated as potentially mutating unless they are read-only bridge tools.
-    // Product-level policy may refine this via `McpToolRegistry::tool_requires_approval`.
     if is_mcp_tool(name) {
         return !is_mcp_read_only_bridge_tool(name);
     }
@@ -118,25 +122,32 @@ pub fn is_mcp_read_only_bridge_tool(name: &str) -> bool {
     name.ends_with("__list_resources") || name.ends_with("__list_prompts") || name.ends_with("__read_resource")
 }
 
-pub fn is_collaboration_tool(name: &str) -> bool {
-    COLLABORATION_TOOLS.contains(&name)
+pub fn is_collaboration_tool(name: &str, policy: Option<&ToolExposurePolicy>) -> bool {
+    active_policy(policy)
+        .collaboration_tools
+        .iter()
+        .any(|tool| tool == name)
 }
 
 /// Filter active tool names for the given collaboration mode.
-pub fn filter_active_tools(mode: CollaborationMode, all_names: &[String]) -> Vec<String> {
+pub fn filter_active_tools(
+    mode: CollaborationMode,
+    all_names: &[String],
+    policy: Option<&ToolExposurePolicy>,
+) -> Vec<String> {
     match mode {
         CollaborationMode::Default => all_names.to_vec(),
         CollaborationMode::Plan => all_names
             .iter()
-            .filter(|name| is_plan_mode_tool(name))
+            .filter(|name| is_plan_mode_tool(name, policy))
             .cloned()
             .collect(),
     }
 }
 
 /// Whether a tool call should be blocked in Plan mode.
-pub fn plan_mode_blocks_tool(mode: CollaborationMode, tool_name: &str) -> bool {
-    mode == CollaborationMode::Plan && (is_mutating_tool(tool_name) || !is_plan_mode_tool(tool_name))
+pub fn plan_mode_blocks_tool(mode: CollaborationMode, tool_name: &str, policy: Option<&ToolExposurePolicy>) -> bool {
+    mode == CollaborationMode::Plan && (is_mutating_tool(tool_name, policy) || !is_plan_mode_tool(tool_name, policy))
 }
 
 pub fn plan_mode_block_reason(tool_name: &str) -> String {
@@ -146,8 +157,6 @@ pub fn plan_mode_block_reason(tool_name: &str) -> String {
     )
 }
 
-pub use crate::prompt::builtin::plan::plan_mode_system_prompt;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,36 +164,24 @@ mod tests {
     #[test]
     fn plan_mode_filters_mutating_tools() {
         let all = vec!["read_file".into(), "bash".into(), "write_file".into(), "grep".into()];
-        let filtered = filter_active_tools(CollaborationMode::Plan, &all);
+        let filtered = filter_active_tools(CollaborationMode::Plan, &all, None);
         assert_eq!(filtered, vec!["read_file".to_string(), "grep".to_string()]);
     }
 
     #[test]
     fn blocks_bash_in_plan_mode() {
-        assert!(plan_mode_blocks_tool(CollaborationMode::Plan, "bash"));
-        assert!(!plan_mode_blocks_tool(CollaborationMode::Default, "bash"));
+        assert!(plan_mode_blocks_tool(CollaborationMode::Plan, "bash", None));
+        assert!(!plan_mode_blocks_tool(CollaborationMode::Default, "bash", None));
     }
 
     #[test]
     fn plan_mode_includes_list_available_tools() {
-        assert!(is_plan_mode_tool("list_available_tools"));
+        assert!(is_plan_mode_tool("list_available_tools", None));
     }
 
     #[test]
     fn plan_mode_excludes_mutating_mcp_by_default() {
-        assert!(!is_plan_mode_tool("mcp_fs__write_file"));
-        assert!(is_plan_mode_tool("mcp_wiki__read_wiki"));
-    }
-
-    #[test]
-    fn ask_mode_includes_exploration_and_excludes_write() {
-        let all = vec![
-            "read_file".into(),
-            "write_file".into(),
-            "list_available_tools".into(),
-            "mcp_x__write".into(),
-        ];
-        let filtered = filter_ask_mode_tools(&all, None);
-        assert_eq!(filtered, vec!["read_file".to_string(), "list_available_tools".to_string()]);
+        assert!(!is_plan_mode_tool("mcp_fs__write_file", None));
+        assert!(is_plan_mode_tool("mcp_wiki__read_wiki", None));
     }
 }

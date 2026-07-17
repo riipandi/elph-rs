@@ -5,15 +5,31 @@
 //! - [`invoke`] — slash-command argument parsing and placeholder substitution
 
 pub mod builtin;
+pub mod defaults;
 pub mod encoding;
 pub mod external;
+
+#[cfg(feature = "prompt-templates")]
+pub mod context;
+#[cfg(feature = "prompt-templates")]
+pub mod system_builder;
+#[cfg(feature = "prompt-templates")]
+pub mod template;
 
 pub mod session_name;
 
 mod invoke;
 
+pub use defaults::{DEFAULT_SYSTEM_PROMPT, resolve_system_prompt_text};
 pub use external::{load_prompt_templates, load_sourced_prompt_templates};
 pub use invoke::{format_prompt_template_invocation, parse_command_args, substitute_args};
+
+#[cfg(feature = "prompt-templates")]
+pub use context::{SystemPromptTemplateContext, ToolByKindContext, ToolNamesContext, tool_names_context};
+#[cfg(feature = "prompt-templates")]
+pub use system_builder::{PromptAssemblyMode, SystemPromptBuildError, SystemPromptBuilder, format_project_context};
+#[cfg(feature = "prompt-templates")]
+pub use template::{PromptRenderError, PromptTemplateEngine, custom_prompt_syntax, default_prompt_engine};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptTemplateDiagnosticCode {

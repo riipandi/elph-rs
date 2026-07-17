@@ -45,7 +45,7 @@ where
 
         *self.shared.collaboration_mode.lock().await = mode;
         let baseline = self.shared.baseline_active_tool_names.lock().await.clone();
-        let filtered = filter_active_tools(mode, &baseline);
+        let filtered = filter_active_tools(mode, &baseline, None);
         self.set_active_tools(filtered).await?;
         Ok(())
     }

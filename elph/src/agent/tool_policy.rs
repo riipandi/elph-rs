@@ -1,14 +1,64 @@
 //! Tool exposure and approval policy for TUI agent modes.
 
-use crate::types::AgentMode;
-use elph_agent::{CollaborationMode, McpToolRegistry};
-use elph_agent::{filter_active_tools, filter_ask_mode_tools, is_mcp_tool, is_mutating_tool};
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
 use tokio::sync::Mutex;
+
+use elph_agent::{
+    CollaborationMode, McpToolRegistry, ToolExposurePolicy, filter_active_tools, is_exploration_tool, is_mcp_tool,
+    is_mutating_tool, is_read_only_mcp_tool,
+};
+
+use crate::types::AgentMode;
 
 use super::events::AgentUiEvent;
 use super::events::{ToolApprovalChoice, ToolApprovalRequest};
+
+/// Exploration tools available to the Elph coding agent in Plan and Ask modes.
+pub fn coding_tool_exposure_policy() -> &'static ToolExposurePolicy {
+    static POLICY: OnceLock<ToolExposurePolicy> = OnceLock::new();
+    POLICY.get_or_init(|| ToolExposurePolicy {
+        exploration_tools: vec![
+            "read_file".into(),
+            "grep".into(),
+            "find_path".into(),
+            "list_dir".into(),
+            "web_fetch".into(),
+            "web_search".into(),
+            "diagnostics".into(),
+            "ask_user_question".into(),
+            "list_available_tools".into(),
+        ],
+        ..ToolExposurePolicy::default()
+    })
+}
+
+/// Filter tool names for Ask mode (read-only; optional MCP registry for approval hints).
+pub fn filter_ask_mode_tools(all_names: &[String], mcp_registry: Option<&McpToolRegistry>) -> Vec<String> {
+    let policy = coding_tool_exposure_policy();
+    all_names
+        .iter()
+        .filter(|name| is_ask_mode_tool(name, mcp_registry, policy))
+        .cloned()
+        .collect()
+}
+
+fn is_ask_mode_tool(name: &str, mcp_registry: Option<&McpToolRegistry>, policy: &ToolExposurePolicy) -> bool {
+    if is_exploration_tool(name, Some(policy)) {
+        return true;
+    }
+    if matches!(name, "get_goal") {
+        return true;
+    }
+    if is_read_only_mcp_tool(name) {
+        return true;
+    }
+    if let Some(reg) = mcp_registry {
+        return is_mcp_tool(name) && !reg.tool_requires_approval(name);
+    }
+    false
+}
 
 pub struct AgentModePolicy {
     pub mode: AgentMode,
@@ -48,9 +98,10 @@ impl AgentModePolicy {
         all_registered: &[String],
         mcp_registry: Option<&McpToolRegistry>,
     ) -> Vec<String> {
+        let policy = coding_tool_exposure_policy();
         let names = match mode {
             AgentMode::Build | AgentMode::Brave => all_registered.to_vec(),
-            AgentMode::Plan => filter_active_tools(CollaborationMode::Plan, all_registered),
+            AgentMode::Plan => filter_active_tools(CollaborationMode::Plan, all_registered, Some(policy)),
             AgentMode::Ask => filter_ask_mode_tools(all_registered, mcp_registry),
         };
         Self::ensure_list_available_tool(names)
@@ -76,9 +127,9 @@ impl AgentModePolicy {
             if let Some(reg) = &self.mcp_registry {
                 return reg.tool_requires_approval(tool_name);
             }
-            return is_mutating_tool(tool_name);
+            return is_mutating_tool(tool_name, None);
         }
-        is_mutating_tool(tool_name)
+        is_mutating_tool(tool_name, None)
     }
 
     pub async fn request_approval(
@@ -136,23 +187,6 @@ pub fn to_agent_thinking(level: crate::types::ThinkingLevel) -> elph_agent::Agen
     }
 }
 
-pub fn mode_tool_guidance(mode: AgentMode) -> &'static str {
-    match mode {
-        AgentMode::Build => {
-            "Mode: Build — full tool access. Mutating tools (write, edit, bash, create_dir, etc.) may require user approval."
-        }
-        AgentMode::Brave => "Mode: Brave — full tool access without approval prompts. Use mutating tools responsibly.",
-        AgentMode::Plan => {
-            "Mode: Plan — read-only exploration only. Use web_search, read_file, grep, and similar tools to research. \
-             Wrap your implementation plan in <proposed_plan>...</proposed_plan> for user confirmation before editing."
-        }
-        AgentMode::Ask => {
-            "Mode: Ask — read-only exploration. Do not attempt write_file, edit_file, bash, create_dir, or other mutating tools; \
-             they are not available in this mode."
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,13 +216,12 @@ mod tests {
     }
 
     #[test]
-    fn ask_mode_matches_exploration_surface() {
-        let all: Vec<String> = elph_agent::EXPLORATION_BUILTIN_TOOLS
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect();
+    fn ask_mode_includes_coding_exploration_tools() {
+        let mut all = coding_tool_exposure_policy().exploration_tools.clone();
+        all.extend(["write_file".to_string(), "bash".to_string()]);
         let active = AgentModePolicy::active_tool_names_for_mode(AgentMode::Ask, &all, None);
         assert!(active.contains(&"read_file".to_string()));
+        assert!(active.contains(&"diagnostics".to_string()));
         assert!(!active.contains(&"write_file".to_string()));
     }
 
