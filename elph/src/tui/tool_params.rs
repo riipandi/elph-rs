@@ -178,6 +178,196 @@ fn shorten_path(path: &str) -> String {
     truncate_chars(basename, 44)
 }
 
+/// Max display width for collapsed path / target segments.
+const COLLAPSED_TARGET_MAX_CHARS: usize = 40;
+
+/// Human-readable verb for transcript tool headers (`read_file` → `Read`).
+pub fn tool_display_verb(tool_name: &str) -> String {
+    match tool_base_name(tool_name) {
+        "read_file" => "Read".to_string(),
+        "edit_file" => "Edit".to_string(),
+        "write_file" => "Write".to_string(),
+        "shell_exec" => "Shell".to_string(),
+        "list_dir" => "List".to_string(),
+        "delete_path" => "Delete".to_string(),
+        "create_dir" => "Mkdir".to_string(),
+        "grep" => "Grep".to_string(),
+        "find_path" => "Find".to_string(),
+        "copy_path" => "Copy".to_string(),
+        "move_path" => "Move".to_string(),
+        "web_search" => "Search".to_string(),
+        "web_fetch" => "Fetch".to_string(),
+        "spawn_agent" => "Agent".to_string(),
+        "ask_user" | "ask_user_question" => "Ask".to_string(),
+        other => title_case_snake(other),
+    }
+}
+
+fn title_case_snake(name: &str) -> String {
+    name.split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Compact path for collapsed headers: `/Users/ariss/Dev/elph/src/main.rs` → `/U/a/D/elph/src/main.rs`.
+///
+/// Intermediate directories become a single character; basename stays full. Caps total length.
+pub fn abbreviate_path(path: &str, max_chars: usize) -> String {
+    let max_chars = max_chars.max(8);
+    let path = path.trim().replace('\\', "/");
+    if path.is_empty() {
+        return String::new();
+    }
+    // Short relative paths stay readable as-is.
+    if !path.contains('/') && path.chars().count() <= max_chars {
+        return path;
+    }
+    if path.chars().count() <= 24 && path.matches('/').count() <= 2 {
+        return truncate_chars(&path, max_chars);
+    }
+
+    let absolute = path.starts_with('/');
+    let parts: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
+    if parts.is_empty() {
+        return truncate_chars(&path, max_chars);
+    }
+    if parts.len() == 1 {
+        return truncate_chars(parts[0], max_chars);
+    }
+
+    let file = parts[parts.len() - 1];
+    let dirs = &parts[..parts.len() - 1];
+    let mut out = String::new();
+    if absolute {
+        out.push('/');
+    }
+    for (index, dir) in dirs.iter().enumerate() {
+        if index > 0 {
+            out.push('/');
+        }
+        if let Some(ch) = dir.chars().next() {
+            out.push(ch);
+        }
+    }
+    out.push('/');
+    out.push_str(file);
+
+    if out.chars().count() <= max_chars {
+        return out;
+    }
+    // Fall back: ellipsis + basename so the file identity survives.
+    let file_budget = max_chars.saturating_sub(2).max(4);
+    format!("…/{}", truncate_chars(file, file_budget))
+}
+
+fn collapsed_tool_target(tool_name: &str, params: &[ToolParam]) -> String {
+    match tool_base_name(tool_name) {
+        "read_file" | "edit_file" | "write_file" | "list_dir" | "delete_path" | "create_dir" => {
+            find_param(params, &["path", "file"])
+                .map(|path| abbreviate_path(path, COLLAPSED_TARGET_MAX_CHARS))
+                .unwrap_or_default()
+        }
+        "shell_exec" => find_param(params, &["command", "cmd"])
+            .map(|command| {
+                let line = shorten_command(command);
+                line.trim_start_matches("$ ").to_string()
+            })
+            .unwrap_or_default(),
+        "grep" => {
+            let pattern = find_param(params, &["pattern", "query"]).map(|p| truncate_chars(p, 24));
+            let path = find_param(params, &["path", "glob", "file"]).map(|p| abbreviate_path(p, 28));
+            match (pattern, path) {
+                (Some(pattern), Some(path)) => format!("{pattern} in {path}"),
+                (Some(pattern), None) => pattern,
+                (None, Some(path)) => path,
+                (None, None) => String::new(),
+            }
+        }
+        "find_path" => {
+            let pattern = find_param(params, &["pattern", "glob", "query"]).map(|p| truncate_chars(p, 24));
+            let root = find_param(params, &["path", "root", "directory"]).map(|p| abbreviate_path(p, 28));
+            match (pattern, root) {
+                (Some(pattern), Some(root)) => format!("{pattern} in {root}"),
+                (Some(pattern), None) => pattern,
+                (None, Some(root)) => root,
+                (None, None) => String::new(),
+            }
+        }
+        "copy_path" | "move_path" => {
+            let from = find_param(params, &["from", "source", "src", "path"])
+                .map(|p| abbreviate_path(p, 18))
+                .unwrap_or_default();
+            let to = find_param(params, &["to", "destination", "dest", "target"])
+                .map(|p| abbreviate_path(p, 18))
+                .unwrap_or_default();
+            if from.is_empty() && to.is_empty() {
+                String::new()
+            } else if to.is_empty() {
+                from
+            } else if from.is_empty() {
+                to
+            } else {
+                format!("{from} → {to}")
+            }
+        }
+        "web_search" => find_param(params, &["query", "q", "search"])
+            .map(|q| truncate_chars(q, COLLAPSED_TARGET_MAX_CHARS))
+            .unwrap_or_default(),
+        "web_fetch" => find_param(params, &["url", "uri"])
+            .map(|url| truncate_chars(url, COLLAPSED_TARGET_MAX_CHARS))
+            .unwrap_or_default(),
+        "spawn_agent" => find_param(params, &["prompt", "task", "message", "goal"])
+            .map(|text| truncate_chars(&collapse_whitespace(text), COLLAPSED_TARGET_MAX_CHARS))
+            .unwrap_or_default(),
+        "ask_user" | "ask_user_question" => find_param(params, &["question", "questions"])
+            .map(|text| truncate_chars(text, COLLAPSED_TARGET_MAX_CHARS))
+            .unwrap_or_default(),
+        _ => {
+            // Prefer a known summary path; otherwise first scalar value.
+            if let Some(summary) = summarize_known_tool(tool_name, params) {
+                return truncate_chars(&summary, COLLAPSED_TARGET_MAX_CHARS);
+            }
+            params
+                .first()
+                .map(|param| {
+                    let value = param.value.as_str();
+                    if value.contains('/') || value.contains('\\') {
+                        abbreviate_path(value, COLLAPSED_TARGET_MAX_CHARS)
+                    } else {
+                        truncate_chars(value, COLLAPSED_TARGET_MAX_CHARS)
+                    }
+                })
+                .unwrap_or_default()
+        }
+    }
+}
+
+/// Collapsed transcript parts: task verb (for bold) + optional target (normal weight).
+pub fn format_collapsed_tool_parts(tool_name: &str, args_raw: &str) -> (String, String) {
+    let verb = tool_display_verb(tool_name);
+    let params = parse_tool_params(args_raw);
+    let target = collapsed_tool_target(tool_name, &params);
+    (verb, target)
+}
+
+/// Collapsed transcript header: `Edit /U/a/D/elph/src/main.rs` (verb + concise target).
+pub fn format_collapsed_tool_label(tool_name: &str, args_raw: &str) -> String {
+    let (verb, target) = format_collapsed_tool_parts(tool_name, args_raw);
+    if target.is_empty() {
+        verb
+    } else {
+        format!("{verb} {target}")
+    }
+}
+
 fn shorten_command(command: &str) -> String {
     let line = command.lines().next().unwrap_or(command).trim();
     let collapsed = collapse_whitespace(line);
@@ -687,6 +877,39 @@ mod tests {
         let truncated = truncate_param_value(&long);
         assert!(truncated.chars().count() <= MAX_PARAM_VALUE_CHARS);
         assert!(truncated.ends_with('…'));
+    }
+
+    #[test]
+    fn tool_display_verb_humanizes_known_tools() {
+        assert_eq!(tool_display_verb("read_file"), "Read");
+        assert_eq!(tool_display_verb("edit_file"), "Edit");
+        assert_eq!(tool_display_verb("shell_exec"), "Shell");
+        assert_eq!(tool_display_verb("mcp__ctx__read_file"), "Read");
+        assert_eq!(tool_display_verb("custom_thing"), "Custom Thing");
+    }
+
+    #[test]
+    fn abbreviate_path_shortens_intermediate_dirs() {
+        let path = "/Users/ariss/Developer/github.com/riipandi/elph/src/main.rs";
+        let short = abbreviate_path(path, 40);
+        assert!(short.ends_with("/main.rs"), "{short}");
+        assert!(short.starts_with("/U/"), "{short}");
+        assert!(short.chars().count() <= 40, "{short}");
+        assert!(!short.contains("Users"), "{short}");
+    }
+
+    #[test]
+    fn format_collapsed_tool_label_uses_verb_and_target() {
+        let label = format_collapsed_tool_label(
+            "edit_file",
+            r#"{"path":"/Users/ariss/Developer/elph/nama-file.ext"}"#,
+        );
+        assert!(label.starts_with("Edit "), "{label}");
+        assert!(label.contains("nama-file.ext"), "{label}");
+        assert!(!label.contains("edit_file"), "{label}");
+
+        let shell = format_collapsed_tool_label("shell_exec", r#"{"command":"cargo test -p elph"}"#);
+        assert_eq!(shell, "Shell cargo test -p elph");
     }
 
     #[test]

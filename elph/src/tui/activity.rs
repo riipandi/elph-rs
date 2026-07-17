@@ -70,7 +70,18 @@ pub fn activity_label_for_event(event: &AgentUiEvent, show_thinking: bool) -> Op
         AgentUiEvent::ThinkingDelta(_) if show_thinking => Some("Thinking".to_string()),
         AgentUiEvent::ToolStart { name, .. } => Some(format!("Running {name}")),
         AgentUiEvent::ToolEnd { .. } => Some("Thinking".to_string()),
-        AgentUiEvent::SubagentStatus { message, .. } => Some(format!("Subagent · {message}")),
+        AgentUiEvent::SubagentStatus {
+            agent_id,
+            agent_path,
+            task_name,
+            message,
+            ..
+        } => Some(crate::tui::subagent_display::format_subagent_activity_label(
+            task_name,
+            agent_path,
+            agent_id,
+            message,
+        )),
         AgentUiEvent::PlanConfirmationRequired(_) => Some("Awaiting plan approval".to_string()),
         AgentUiEvent::ToolApprovalRequired(_) => Some("Awaiting tool approval".to_string()),
         AgentUiEvent::UserQuestionRequired(_) => Some("Awaiting your answer".to_string()),

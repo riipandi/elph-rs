@@ -6,6 +6,7 @@ mod activity;
 mod agent_bridge;
 mod ask_user_tool_card;
 mod chrome;
+mod subagent_display;
 mod confetti;
 mod file_picker;
 mod focus;
@@ -121,6 +122,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         colored_status_footer: settings.colored_status_footer,
         sticky_scroll: settings.sticky_scroll,
         show_thinking: settings.show_thinking,
+        auto_expand_thinking: settings.auto_expand_thinking,
         agent_session: None,
         ui_events: None,
         extension_host: extension_host,

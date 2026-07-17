@@ -84,6 +84,7 @@ pub use slider::{Slider, SliderProps};
 pub use status_indicator::{
     ProcessActivityTrail, ProcessActivityTrailProps, ProcessStatus, ProcessStatusIndicator,
     ProcessStatusIndicatorProps, ProcessStatusRow, ProcessStatusRowProps, process_status_color, process_status_glyph,
+    process_status_word,
 };
 pub use tab_select::{TabSelect, TabSelectProps};
 pub use text::{StyledText, StyledTextProps};

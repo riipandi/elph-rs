@@ -8,7 +8,7 @@ use elph_tui::{
 };
 use iocraft::prelude::*;
 
-use super::card::{build_transcript_bubbles, transcript_sticky_overlay};
+use super::card::{CollapsibleToggleCtx, build_transcript_bubbles, transcript_sticky_overlay};
 use super::layout::layout_transcript_rows;
 use super::markdown::{
     apply_markdown_parse_result, collect_markdown_parse_jobs, parse_markdown_on_worker, partition_assistant_markdown,
@@ -28,7 +28,8 @@ pub struct TranscriptPanelProps {
     pub screen_width: u16,
     pub messages: Option<State<Vec<TranscriptMessage>>>,
     /// Bumped when `messages` changes — avoids re-hashing on scroll-only re-renders.
-    pub messages_revision: u64,
+    /// Also written by clickable process headers when expand/collapse toggles.
+    pub messages_revision: Option<State<u64>>,
     pub sticky_scroll: bool,
     pub has_focus: bool,
 }
@@ -86,7 +87,12 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
 
     let messages = messages_state.read();
     let _scroll_generation = scroll_generation.get();
-    let cache_key = (props.messages_revision, markdown_layout_revision.get(), props.screen_width);
+    let messages_revision_value = props.messages_revision.map(|s| s.get()).unwrap_or(0);
+    let cache_key = (
+        messages_revision_value,
+        markdown_layout_revision.get(),
+        props.screen_width,
+    );
 
     if render_cache.read().as_ref().is_none_or(|c| {
         c.messages_revision != cache_key.0 || c.markdown_layout_revision != cache_key.1 || c.screen_width != cache_key.2
@@ -129,7 +135,14 @@ pub fn TranscriptPanel(props: &TranscriptPanelProps, mut hooks: Hooks) -> impl I
     };
     let suppress_sticky_source =
         sticky_source_bubble_suppressed(row_layouts, sticky_idx, effective_scroll_offset, scroll_zone);
-    let bubbles = build_transcript_bubbles(props.screen_width, &messages, suppress_sticky_source);
+    let toggle = match (props.messages, props.messages_revision) {
+        (Some(messages), Some(messages_revision)) => Some(CollapsibleToggleCtx {
+            messages,
+            messages_revision,
+        }),
+        _ => None,
+    };
+    let bubbles = build_transcript_bubbles(props.screen_width, &messages, suppress_sticky_source, toggle);
     let panel_height = panel_viewport;
     let sticky_header = sticky_idx.and_then(|idx| {
         if !messages[idx].style.is_sticky_prompt() {

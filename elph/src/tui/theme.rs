@@ -29,6 +29,12 @@ pub const USER_INPUT_BG: Color = BUBBLE_BG;
 /// Left accent on user-input transcript cards — aligns with elph-tui `UiTheme.accent`.
 pub const USER_INPUT_ACCENT: Color = Color::Rgb { r: 129, g: 161, b: 193 };
 
+/// Process-row **task** title (Thinking / Edit / Subagent …) — white for clear scan.
+pub const TOOL_TASK_LABEL_FG: Color = Color::White;
+
+/// Process-row **parameter / target** (paths, patterns) — soft accent highlight only.
+pub const TOOL_PARAM_HIGHLIGHT_FG: Color = USER_INPUT_ACCENT;
+
 /// Pi `customMessageLabel` (`#9575cd`).
 pub const SKILL_FG: Color = Color::Rgb { r: 149, g: 117, b: 205 };
 

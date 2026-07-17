@@ -17,8 +17,9 @@ use crate::tui::transcript::{TranscriptMessage, TranscriptStyle};
 pub const STARTUP_SEP: &str = " · ";
 /// Unicode ellipsis for in-progress startup lines.
 pub const STARTUP_ELLIPSIS: &str = "…";
-/// Indent for per-server MCP rows under the section header.
-pub const STARTUP_MCP_INDENT: &str = "  ";
+/// Nest indent (cells) for per-server MCP rows under the section header.
+/// Applied as whole-row `status_indent` so the status glyph stays tight to the label.
+pub const STARTUP_MCP_INDENT_CELLS: u16 = 2;
 /// Indent for dimmed configuration warnings under MCP summary.
 pub const STARTUP_WARN_INDENT: &str = "    ";
 
@@ -191,7 +192,8 @@ pub fn format_mcp_loading_header(enabled_servers: usize) -> String {
 }
 
 fn format_mcp_server_line(name: &str, detail: &str) -> String {
-    format!("{STARTUP_MCP_INDENT}MCP server \"{name}\"{STARTUP_SEP}{detail}")
+    // No leading spaces — nesting is `status_indent` on the transcript row.
+    format!("MCP server \"{name}\"{STARTUP_SEP}{detail}")
 }
 
 /// Transcript text for one MCP server progress event.
@@ -268,6 +270,13 @@ pub fn apply_mcp_server_progress(messages: &mut Vec<TranscriptMessage>, progress
     let content = format_mcp_server_transcript(progress);
     let style = mcp_server_transcript_style(progress);
     upsert_startup_line(messages, &key, content, style);
+    if let Some(row) = messages
+        .iter_mut()
+        .find(|message| message.startup_key.as_deref() == Some(key.as_str()))
+    {
+        // Indent glyph+label together under the MCP summary header.
+        row.status_indent = STARTUP_MCP_INDENT_CELLS;
+    }
 }
 
 /// Classify a line emitted from [`format_mcp_load_footer`] after the summary row.
@@ -447,7 +456,7 @@ mod tests {
             index: 1,
             total: 3,
         });
-        assert_eq!(started, "  MCP server \"code-review-graph\" · connecting…");
+        assert_eq!(started, "MCP server \"code-review-graph\" · connecting…");
 
         let ok = format_mcp_server_transcript(&McpServerLoadProgress::Finished {
             name: "deepwiki".into(),
@@ -456,7 +465,7 @@ mod tests {
             tool_count: 3,
             message: "discovered 3 tools".into(),
         });
-        assert_eq!(ok, "  MCP server \"deepwiki\" · 3 tools · http");
+        assert_eq!(ok, "MCP server \"deepwiki\" · 3 tools · http");
 
         let fail = format_mcp_server_transcript(&McpServerLoadProgress::Finished {
             name: "lightpanda".into(),
@@ -465,7 +474,7 @@ mod tests {
             tool_count: 0,
             message: "MCP error - Connection closed".into(),
         });
-        assert_eq!(fail, "  MCP server \"lightpanda\" · MCP error - Connection closed");
+        assert_eq!(fail, "MCP server \"lightpanda\" · MCP error - Connection closed");
     }
 
     #[test]
@@ -482,6 +491,8 @@ mod tests {
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].style, TranscriptStyle::StatusRunning);
         assert_eq!(messages[0].startup_key.as_deref(), Some("startup:mcp:context7"));
+        assert_eq!(messages[0].status_indent, STARTUP_MCP_INDENT_CELLS);
+        assert!(!messages[0].content.starts_with(' '));
 
         apply_mcp_server_progress(
             &mut messages,
@@ -495,7 +506,8 @@ mod tests {
         );
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].style, TranscriptStyle::StatusSuccess);
-        assert_eq!(messages[0].content, "  MCP server \"context7\" · 2 tools · http");
+        assert_eq!(messages[0].content, "MCP server \"context7\" · 2 tools · http");
+        assert_eq!(messages[0].status_indent, STARTUP_MCP_INDENT_CELLS);
     }
 
     #[test]

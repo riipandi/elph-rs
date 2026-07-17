@@ -73,11 +73,13 @@ use crate::tui::system_prompt_dialog::{
     open_system_prompt_dialog, system_prompt_dialog_chrome,
 };
 use crate::tui::tool_approval::PendingToolApproval;
-use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key};
+use crate::tui::tool_approval::{choice_at_index, pick_tool_approval_index_from_key, tool_approval_transcript_key};
+use crate::tui::tool_params::tool_display_verb;
 use crate::tui::transcript::{
     EphemeralBanner, EphemeralBannerGeneration, QUIT_BUSY_NOTICE_KEY, TranscriptMessage, TranscriptPanel,
     TranscriptStyle, agent_mode_banner, agent_mode_busy_banner, clear_ephemeral_banner,
     clear_ephemeral_banner_if_generation, expire_ephemeral_banner, publish_ephemeral_banner, quit_busy_banner,
+    toggle_latest_collapsible_detail,
 };
 use crate::tui::user_question::PendingUserQuestion;
 use crate::tui::user_question::{
@@ -204,6 +206,7 @@ pub struct MainShellProps {
     pub colored_status_footer: bool,
     pub sticky_scroll: bool,
     pub show_thinking: bool,
+    pub auto_expand_thinking: bool,
     pub agent_session: Option<Arc<CodingAgentSession>>,
     pub ui_events: Option<Arc<Mutex<UnboundedReceiver<AgentUiEvent>>>>,
     pub extension_host: ExtensionHost,
@@ -232,6 +235,7 @@ impl Default for MainShellProps {
             colored_status_footer: true,
             sticky_scroll: false,
             show_thinking: false,
+            auto_expand_thinking: false,
             agent_session: None,
             ui_events: None,
             extension_host: ExtensionHost::new(),
@@ -587,7 +591,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut activity_started_at = hooks.use_ref(|| None::<Instant>);
     let mut last_activity_label = hooks.use_ref(String::new);
     let mut prompt_queue = hooks.use_ref(PromptQueue::default);
-    let mut event_applier = hooks.use_ref(|| TranscriptEventApplier::new(props.show_thinking));
+    let mut event_applier =
+        hooks.use_ref(|| TranscriptEventApplier::new(props.show_thinking, props.auto_expand_thinking));
     let mut pending_tool_approval = hooks.use_ref(|| None::<PendingToolApproval>);
     let mut pending_user_question = hooks.use_ref(|| None::<PendingUserQuestion>);
     let mut slash_commands = hooks.use_state(|| props.slash_commands.clone());
@@ -943,16 +948,32 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
 
                     if let AgentUiEvent::ToolApprovalRequired(req) = event {
                         let tool_name = req.tool_name.clone();
-                        activity_label.set(format!("Approve: {tool_name}"));
+                        let tool_call_id = req.tool_call_id.clone();
+                        let verb = tool_display_verb(&tool_name);
+                        activity_label.set(format!("Approve: {verb}"));
                         approval_selected.set(0);
                         shell_focus.set(ShellFocus::StatusDialog);
                         pending_tool_approval.set(Some(PendingToolApproval::from_request(req)));
                         {
                             let mut msgs = messages.write();
-                            msgs.push(TranscriptMessage::text(
-                                format!("Tool approval required: {tool_name}"),
-                                TranscriptStyle::Meta,
-                            ));
+                            // Process status line (colored, consistent gaps) — not a flush Meta dump.
+                            let key = tool_approval_transcript_key(&tool_call_id);
+                            if let Some(existing) = msgs
+                                .iter_mut()
+                                .find(|m| m.startup_key.as_deref() == Some(key.as_str()))
+                            {
+                                existing.content = "Tool approval".to_string();
+                                existing.status_detail = Some(verb.clone());
+                                existing.style = TranscriptStyle::StatusRunning;
+                            } else {
+                                let mut row = TranscriptMessage::startup_status(
+                                    key,
+                                    "Tool approval".to_string(),
+                                    TranscriptStyle::StatusRunning,
+                                );
+                                row.status_detail = Some(verb);
+                                msgs.push(row);
+                            }
                         }
                         transcript_changed = true;
                         continue;
@@ -1610,6 +1631,31 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 };
                 if let Some(choice) = approval_choice {
                     if let Some(pending) = pending_tool_approval.write().take() {
+                        let key = pending.transcript_key();
+                        let verb = tool_display_verb(&pending.tool_name);
+                        let (style, detail) = match choice {
+                            ToolApprovalChoice::Approve => {
+                                (TranscriptStyle::StatusSuccess, format!("{verb} · allowed once"))
+                            }
+                            ToolApprovalChoice::AllowSession => {
+                                (TranscriptStyle::StatusSuccess, format!("{verb} · allowed session"))
+                            }
+                            ToolApprovalChoice::Reject => {
+                                (TranscriptStyle::StatusFailed, format!("{verb} · denied"))
+                            }
+                        };
+                        {
+                            let mut msgs = messages.write();
+                            if let Some(row) = msgs
+                                .iter_mut()
+                                .find(|m| m.startup_key.as_deref() == Some(key.as_str()))
+                            {
+                                row.content = "Tool approval".to_string();
+                                row.status_detail = Some(detail);
+                                row.style = style;
+                            }
+                        }
+                        messages_revision.set(messages_revision.get().wrapping_add(1));
                         pending.respond(choice);
                     }
                     shell_focus.set(ShellFocus::Prompt);
@@ -2136,6 +2182,17 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         });
                     }
                 }
+                // Ctrl+O: expand/collapse the most recent finished thinking / tool / response block.
+                // Click a process header to toggle that specific older result (iocraft Button hit-test).
+                (m, KeyCode::Char(c))
+                    if m.contains(KeyModifiers::CONTROL) && matches!(c, 'o' | 'O') =>
+                {
+                    let mut msgs = messages.write();
+                    if toggle_latest_collapsible_detail(&mut msgs) {
+                        drop(msgs);
+                        messages_revision.set(messages_revision.get().wrapping_add(1));
+                    }
+                }
                 (m, KeyCode::Char('d')) if m.contains(KeyModifiers::CONTROL) => {
                     let expire_tx = ephemeral_expire.read().tx.clone();
                     let _ = request_quit(
@@ -2466,7 +2523,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             TranscriptPanel(
                 screen_width: screen_width,
                 messages: Some(messages),
-                messages_revision: messages_revision.get(),
+                messages_revision: Some(messages_revision),
                 sticky_scroll: props.sticky_scroll,
                 has_focus: transcript_focused,
             )

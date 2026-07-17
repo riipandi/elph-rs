@@ -12,4 +12,4 @@ pub use ephemeral::{
     clear_ephemeral_banner_if_generation, expire_ephemeral_banner, publish_ephemeral_banner, quit_busy_banner,
 };
 pub use panel::TranscriptPanel;
-pub use types::{QUIT_BUSY_NOTICE_KEY, TranscriptMessage, TranscriptStyle};
+pub use types::{QUIT_BUSY_NOTICE_KEY, TranscriptMessage, TranscriptStyle, toggle_latest_collapsible_detail};

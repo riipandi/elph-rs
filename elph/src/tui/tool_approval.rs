@@ -10,6 +10,7 @@ pub const TOOL_APPROVAL_OPTION_COUNT: usize = 3;
 
 /// Pending approval retained in shell state until the user responds.
 pub struct PendingToolApproval {
+    pub tool_call_id: String,
     pub tool_name: String,
     pub args_summary: String,
     pub response_tx: tokio::sync::oneshot::Sender<ToolApprovalChoice>,
@@ -18,15 +19,26 @@ pub struct PendingToolApproval {
 impl PendingToolApproval {
     pub fn from_request(req: ToolApprovalRequest) -> Self {
         Self {
+            tool_call_id: req.tool_call_id,
             tool_name: req.tool_name,
             args_summary: req.args_summary,
             response_tx: req.response_tx,
         }
     }
 
+    /// Stable transcript key for the process-status approval row.
+    pub fn transcript_key(&self) -> String {
+        format!("tool-approval:{}", self.tool_call_id)
+    }
+
     pub fn respond(self, choice: ToolApprovalChoice) {
         let _ = self.response_tx.send(choice);
     }
+}
+
+/// Transcript key for a pending/resolved tool-approval status line.
+pub fn tool_approval_transcript_key(tool_call_id: &str) -> String {
+    format!("tool-approval:{tool_call_id}")
 }
 
 /// Footer hint for the tool-permission dialog (keyboard shortcuts live here, not on each row).

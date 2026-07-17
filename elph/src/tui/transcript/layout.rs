@@ -15,7 +15,15 @@ pub fn layout_transcript_rows(messages: &[TranscriptMessage], screen_width: u16)
             .saturating_sub(message.style.content_chrome_cols())
             .max(1);
         let row_count = if message.style == TranscriptStyle::Assistant {
-            assistant_row_count(&message.content, message.markdown.as_ref(), wrap_width) as u32
+            if message.is_response_collapsed() {
+                // Header-only when the reply body is folded.
+                1
+            } else {
+                let body = assistant_row_count(&message.content, message.markdown.as_ref(), wrap_width) as u32;
+                // Process header (`◌/✓ Response` + right-rail); gap when body present.
+                let header_and_gap = if body > 0 { 2 } else { 1 };
+                body.saturating_add(header_and_gap)
+            }
         } else if message.style.is_user_input_card() {
             let right_rail = user_input_right_rail(message.submitted_at, message.duration_secs);
             layout_user_input_lines(&message.content, right_rail.as_deref(), wrap_width).len() as u32
@@ -32,8 +40,7 @@ pub fn layout_transcript_rows(messages: &[TranscriptMessage], screen_width: u16)
         });
         cursor = cursor.saturating_add(row_count);
         if index + 1 < messages.len() {
-            let next_style = messages.get(index + 1).map(|m| m.style);
-            cursor = cursor.saturating_add(message.transcript_margin_bottom(next_style) as u32);
+            cursor = cursor.saturating_add(message.transcript_margin_bottom(messages.get(index + 1)) as u32);
         }
     }
     layouts

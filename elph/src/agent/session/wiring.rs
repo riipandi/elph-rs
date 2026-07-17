@@ -82,12 +82,51 @@ impl CodingAgentSession {
         let forwarder: SubagentEventForwarder = Arc::new({
             let ui_tx = ui_tx.clone();
             move |event, info: &SubagentInfo| {
-                if let AgentEvent::ToolExecutionStart { tool_name, .. } = &event {
-                    let _ = ui_tx.send(AgentUiEvent::SubagentStatus {
-                        agent_id: info.id.clone(),
-                        agent_path: info.agent_path.clone(),
-                        message: format!("tool: {tool_name}"),
-                    });
+                use crate::agent::SubagentUiPhase;
+                match event {
+                    // Lifecycle: clear status words (not every token/tool delta).
+                    AgentEvent::AgentStart => {
+                        let _ = ui_tx.send(AgentUiEvent::SubagentStatus {
+                            agent_id: info.id.clone(),
+                            agent_path: info.agent_path.clone(),
+                            task_name: info.task_name.clone(),
+                            phase: SubagentUiPhase::Running,
+                            message: String::new(),
+                        });
+                    }
+                    AgentEvent::AgentEnd { .. } => {
+                        let _ = ui_tx.send(AgentUiEvent::SubagentStatus {
+                            agent_id: info.id.clone(),
+                            agent_path: info.agent_path.clone(),
+                            task_name: info.task_name.clone(),
+                            phase: SubagentUiPhase::Done,
+                            message: String::new(),
+                        });
+                    }
+                    // Tool activity: upsert running row with human verb (low noise via upsert).
+                    AgentEvent::ToolExecutionStart { tool_name, .. } => {
+                        let _ = ui_tx.send(AgentUiEvent::SubagentStatus {
+                            agent_id: info.id.clone(),
+                            agent_path: info.agent_path.clone(),
+                            task_name: info.task_name.clone(),
+                            phase: SubagentUiPhase::Running,
+                            message: format!("tool:{tool_name}"),
+                        });
+                    }
+                    AgentEvent::ToolExecutionEnd {
+                        tool_name,
+                        is_error: true,
+                        ..
+                    } => {
+                        let _ = ui_tx.send(AgentUiEvent::SubagentStatus {
+                            agent_id: info.id.clone(),
+                            agent_path: info.agent_path.clone(),
+                            task_name: info.task_name.clone(),
+                            phase: SubagentUiPhase::Error,
+                            message: format!("tool:{tool_name}"),
+                        });
+                    }
+                    _ => {}
                 }
             }
         });
