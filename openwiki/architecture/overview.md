@@ -87,7 +87,7 @@ Key modules:
 - `messages/` — Message conversion helpers (`/crates/elph-agent/src/messages/mod.rs`)
 - `types/` — Core agent types: loop config, messages, tools, enums (`/crates/elph-agent/src/types/mod.rs`)
 
-Features: `mcp` (default), `extensions` (default), `obscura` (optional), `tracing` (optional — fastrace spans), plus individual tool feature flags (`tools-read-file`, `tools-shell-exec`, `tools-edit-file`, `tools-write-file`, `tools-grep`, `tools-find-path`, `tools-list-dir`, `tools-create-dir`, `tools-copy-path`, `tools-delete-path`, `tools-move-path`, `tools-web`, `tools-collaboration`) and convenience groups (`tools-search`, `tools-edit-tools`, `builtin-tools`).
+Features: `mcp` (default), `extensions` (default), `obscura` (optional), `tracing` (optional — fastrace spans), plus individual tool feature flags (`tools-read-file`, `tools-shell-exec`, `tools-edit-file`, `tools-write-file`, `tools-grep`, `tools-find-path`, `tools-list-dir`, `tools-create-dir`, `tools-copy-path`, `tools-delete-path`, `tools-move-path`, `tools-web`, `tools-collaboration`) and convenience groups (`tools-search`, `tools-edit`, `builtin-tools`).
 
 ### `elph-ai` (library crate)
 

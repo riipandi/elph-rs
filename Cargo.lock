@@ -2976,6 +2976,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "elph-cron"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "memorable-ids",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "elph-exec"
 version = "0.0.1"
 dependencies = [
