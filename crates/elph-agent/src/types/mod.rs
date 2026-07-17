@@ -9,7 +9,7 @@ pub mod enums;
 
 pub use enums::{AgentThinkingLevel, QueueMode, ToolExecutionMode};
 
-// Re-export from domain modules for backward compatibility.
+// Re-export from domain modules for a unified public API surface.
 pub use crate::messages::types::assistant_message_to_agent;
 pub use crate::messages::types::extract_tool_calls;
 pub use crate::messages::types::llm_message_to_agent;
@@ -31,7 +31,6 @@ pub use crate::runtime::loop_config::GetApiKeyFn;
 pub use crate::runtime::loop_config::GetQueuedMessagesFn;
 pub use crate::runtime::loop_config::PrepareNextTurnContext;
 pub use crate::runtime::loop_config::PrepareNextTurnFn;
-pub use crate::runtime::loop_config::PrepareNextTurnLegacyFn;
 pub use crate::runtime::loop_config::ShouldStopAfterTurnContext;
 pub use crate::runtime::loop_config::ShouldStopAfterTurnFn;
 pub use crate::runtime::loop_config::StreamFn;

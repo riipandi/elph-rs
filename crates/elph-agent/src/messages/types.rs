@@ -39,7 +39,9 @@ impl AgentMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "role", rename_all = "camelCase")]
 pub enum CustomAgentMessage {
-    BashExecution {
+    /// User/agent shell command result (wire role `shellExecExecution`).
+    #[serde(rename = "shellExecExecution")]
+    ShellExecExecution {
         command: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         output: Option<String>,
@@ -82,7 +84,7 @@ pub enum CustomAgentMessage {
 impl CustomAgentMessage {
     pub fn role(&self) -> &str {
         match self {
-            Self::BashExecution { .. } => "bashExecution",
+            Self::ShellExecExecution { .. } => "shellExecExecution",
             Self::BranchSummary { .. } => "branchSummary",
             Self::CompactionSummary { .. } => "compactionSummary",
             Self::Custom { .. } => "custom",

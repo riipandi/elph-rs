@@ -145,7 +145,7 @@ pub async fn execute_shell_with_capture<E: ExecutionEnv>(
     if truncation.truncated || total > DEFAULT_MAX_BYTES {
         let temp_file = match env
             .create_temp_file(Some(CreateTempFileOptions {
-                prefix: "bash-".to_string(),
+                prefix: "shell-exec-".to_string(),
                 suffix: ".log".to_string(),
                 abort_token: options.abort_token.clone(),
             }))

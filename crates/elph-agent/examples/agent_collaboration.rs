@@ -5,7 +5,7 @@
 //! `filter_active_tools`, `extract_proposed_plan`, `assistant_message_text`,
 //! `implement_prompt`, `is_mcp_tool`, `is_collaboration_tool`, `is_mutating_tool`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_collaboration
 //! ```
 
@@ -58,7 +58,7 @@ fn main() {
     println!("\n=== Tool Filtering ===");
     let tool_names: Vec<String> = vec![
         "read_file".into(),
-        "bash".into(),
+        "shell_exec".into(),
         "edit_file".into(),
         "write_file".into(),
         "mcp_server__search".into(),
@@ -91,7 +91,7 @@ fn main() {
 
     // ── 6. plan_mode_block_reason ──
     println!("\n=== Block Reasons ===");
-    println!("  bash: {:?}", plan_mode_block_reason("bash"));
+    println!("  shell_exec: {:?}", plan_mode_block_reason("shell_exec"));
     println!("  edit_file: {:?}", plan_mode_block_reason("edit_file"));
     println!("  read_file: {:?}", plan_mode_block_reason("read_file"));
     println!("  write_file: {:?}", plan_mode_block_reason("write_file"));

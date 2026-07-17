@@ -4,7 +4,7 @@
 //! tool group. Shows how the agent reads files, searches content, finds files
 //! by glob, and lists directories.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --features builtin-tools --example agent_search_tools
 //! ```
 

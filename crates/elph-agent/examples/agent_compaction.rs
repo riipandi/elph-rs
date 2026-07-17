@@ -2,7 +2,7 @@
 //!
 //! Demonstrates: `estimate_context_tokens`, `should_compact`, `CompactionSettings`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_compaction
 //! ```
 

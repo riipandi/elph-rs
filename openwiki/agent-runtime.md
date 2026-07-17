@@ -14,7 +14,7 @@ User Input → CLI/TUI
         ┌───────┴────────┬───────────┐
         ↓                ↓           ↓
      Tools           Skills      MCP Servers
-  (read_file, bash, (SKILL.md   (external tools
+  (read_file, shell_exec, (SKILL.md   (external tools
    edit_file, grep,  files)      via rmcp)
    web_search, ...)
 ```
@@ -174,7 +174,7 @@ name: my-skill
 description: What this skill does
 license: MIT
 compatibility: Requires git
-allowed-tools: read grep bash
+allowed-tools: read grep shell_exec
 argument-hint: <file-path>
 ---
 ```
@@ -195,22 +195,22 @@ Key files:
 
 **File**: `/crates/elph-agent/src/tools/`
 
-| Helper                        | Tools                                                                                    |
-| ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `create_edit_tools`           | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
-| `create_search_tools`         | `read_file`, `grep`, `find_path`, `list_dir`                                             |
-| `create_all_tools`            | All enabled filesystem tools (11 tools)                                                  |
-| `create_web_tools`            | `web_search`, `web_fetch`                                                                |
-| `create_all_tools_with_web`   | Filesystem + web tools                                                                   |
-| `create_collaboration_tools`  | Collaboration tools (spawn, send_message, followup_task, wait_agent, list_agents)        |
-| `create_list_available_tools` | Meta-tool listing all available tools with descriptions and parameters                   |
+| Helper                        | Tools                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `create_edit_tools`           | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `create_search_tools`         | `read_file`, `grep`, `find_path`, `list_dir`                                                   |
+| `create_all_tools`            | All enabled filesystem tools (11 tools)                                                        |
+| `create_web_tools`            | `web_search`, `web_fetch`                                                                      |
+| `create_all_tools_with_web`   | Filesystem + web tools                                                                         |
+| `create_collaboration_tools`  | Collaboration tools (spawn, send_message, followup_task, wait_agent, list_agents)              |
+| `create_list_available_tools` | Meta-tool listing all available tools with descriptions and parameters                         |
 
 All filesystem tools resolve paths through `ExecutionEnv` and run on blocking thread pools. Web tools do not use `ExecutionEnv`.
 
 Key source files (each tool in its own module):
 
 - `/crates/elph-agent/src/tools/read_file.rs`
-- `/crates/elph-agent/src/tools/bash.rs`
+- `/crates/elph-agent/src/tools/shell_exec.rs`
 - `/crates/elph-agent/src/tools/edit_file.rs`
 - `/crates/elph-agent/src/tools/write_file.rs`
 - `/crates/elph-agent/src/tools/create_dir.rs`

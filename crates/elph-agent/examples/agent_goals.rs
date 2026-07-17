@@ -3,7 +3,7 @@
 //! Demonstrates: `Goal`, `GoalStore`, `GoalStatus`, `GoalRuntime`, `GoalTurnStart`, `GoalTurnFinish`,
 //! `create_goal_tools` tool definitions.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_goals --features builtin-tools
 //! ```
 

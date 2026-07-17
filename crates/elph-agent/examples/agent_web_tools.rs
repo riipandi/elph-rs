@@ -2,7 +2,7 @@
 //!
 //! Uses OpenCode big-pickle with web_search and web_fetch tools.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example agent_web_tools
 //!
@@ -50,7 +50,9 @@ async fn main() -> anyhow::Result<()> {
 
     println!("Provider: OpenCode Zen");
     println!("Model:    {} ({})", model.name, model.id);
-    println!("Tools:    web_search, web_fetch, read_file, bash, edit_file, write_file, grep, find_path, list_dir");
+    println!(
+        "Tools:    web_search, web_fetch, read_file, shell_exec, edit_file, write_file, grep, find_path, list_dir"
+    );
     println!();
 
     let setup = progress_spinner("Resolving auth...");

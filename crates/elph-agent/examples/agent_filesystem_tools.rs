@@ -3,7 +3,7 @@
 //! Uses the faux provider (no API key needed) to demonstrate the Edit Tools
 //! that operate on directories and paths.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --features builtin-tools --example agent_filesystem_tools
 //! ```
 

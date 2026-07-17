@@ -6,7 +6,7 @@
 //!
 //! These tests hit the network. Run explicitly:
 //!
-//! ```bash
+//! ```sh
 //! ELPH_MCP_LIVE=1 cargo test -p elph-agent --features mcp --test mcp_deepwiki -- --nocapture
 //! ```
 //!

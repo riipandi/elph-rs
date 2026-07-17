@@ -1,4 +1,4 @@
-//! MCP client connectivity via rmcp (stdio + streamable HTTP + legacy SSE + OAuth).
+//! MCP client connectivity via rmcp (stdio + streamable HTTP + SSE + OAuth).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

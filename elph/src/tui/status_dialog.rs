@@ -264,7 +264,7 @@ mod tests {
     fn layout_plan_keeps_summary_compact_on_short_screen() {
         let body_width = inline_body_width(80);
         let raw = long_args_json();
-        let summary = format_tool_approval_summary("bash", &raw);
+        let summary = format_tool_approval_summary("shell_exec", &raw);
         let summary_rows = tool_approval_summary_row_count_for_summary(&summary, body_width);
         let plan = tool_approval_layout_plan(80, 24, &summary, body_width);
         assert!(summary_rows <= TOOL_PARAMS_MAX_VIEWPORT);
@@ -288,7 +288,7 @@ mod tests {
         let theme = UiTheme::default();
         let options = tool_approval_select_options();
         let list_rows = select_list_total_rows(&options, false, body_width, theme, true) as u16;
-        let summary = format_tool_approval_summary("bash", &long_args_json());
+        let summary = format_tool_approval_summary("shell_exec", &long_args_json());
         let plan = tool_approval_layout_plan(80, 24, &summary, body_width);
         assert!(plan.list_height == SELECT_LIST_AUTO_HEIGHT || plan.list_height >= list_rows.min(3));
     }

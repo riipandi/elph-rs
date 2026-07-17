@@ -194,7 +194,6 @@ pub use elph_exec::{PtySize, open_pty};
 pub use goals::create_goal_tools;
 pub use goals::{Goal, GoalRuntime, GoalStatus, GoalStore};
 pub use messages::CustomMessageContent;
-pub use messages::bash_execution_to_text;
 pub use messages::create_branch_summary_message;
 pub use messages::create_compaction_summary_message;
 pub use messages::create_custom_message;
@@ -202,6 +201,7 @@ pub use messages::default_convert_to_llm;
 pub use messages::default_convert_to_llm as convert_to_llm;
 pub use messages::default_convert_to_llm_fn;
 pub use messages::now_iso_timestamp;
+pub use messages::shell_exec_execution_to_text;
 #[cfg(feature = "extensions")]
 pub use plugins::{ExtensionCommand, ExtensionManifest, ExtensionRegistry, ExtensionSlashResult, ExtensionsSettings};
 #[cfg(feature = "extensions")]
@@ -291,8 +291,6 @@ pub use skills::skill_requires_arguments;
 pub use tools::create_all_tools;
 #[cfg(any(feature = "tools-edit-tools", feature = "tools-search", feature = "tools-web"))]
 pub use tools::create_all_tools_with_web;
-#[cfg(feature = "tools-bash")]
-pub use tools::create_bash_tool;
 #[cfg(feature = "tools-collaboration")]
 pub use tools::create_collaboration_tools;
 #[cfg(feature = "tools-copy-path")]
@@ -318,6 +316,8 @@ pub use tools::create_move_path_tool;
 pub use tools::create_read_file_tool;
 #[cfg(feature = "tools-search")]
 pub use tools::create_search_tools;
+#[cfg(feature = "tools-shell-exec")]
+pub use tools::create_shell_exec_tool;
 #[cfg(feature = "tools-write-file")]
 pub use tools::create_write_file_tool;
 #[cfg(feature = "mcp")]

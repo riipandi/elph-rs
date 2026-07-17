@@ -29,7 +29,7 @@ const GROUPS: &[(&str, &str, &[&str])] = &[
         &[
             "edit_file",
             "write_file",
-            "bash",
+            "shell_exec",
             "create_dir",
             "copy_path",
             "delete_path",

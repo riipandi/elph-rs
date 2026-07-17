@@ -4,7 +4,7 @@
 //! credential storage, and API-key auth builder — then runs a real
 //! completion against opencode/big-pickle.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-ai --example auth_custom
 //! ```

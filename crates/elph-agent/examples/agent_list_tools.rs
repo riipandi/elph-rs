@@ -3,7 +3,7 @@
 //! Uses the faux provider (no API key needed) to demonstrate `list_available_tools`,
 //! a meta tool that returns the full tool catalog with descriptions and parameters.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --features builtin-tools --example agent_list_tools
 //! ```
 

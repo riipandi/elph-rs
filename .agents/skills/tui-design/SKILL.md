@@ -276,7 +276,7 @@ When implementing or fixing a TUI:
 5. **Test layout** at small and large terminal sizes mentally: does the grow region still clip?
 6. **Run the accessibility checklist** — keyboard-only path, focus visibility, sticky/scroll traps, color+text labels.
 7. **Verify** compile the affected crate/example:
-    ```bash
+    ```sh
     cargo check -p <crate>
     cargo check -p <crate> --example <name>   # if applicable
     ```

@@ -1,6 +1,6 @@
 //! Demo: Input and Textarea components.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_input
 //! ```
 

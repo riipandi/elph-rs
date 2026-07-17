@@ -252,7 +252,7 @@ let env = Arc::new(LocalExecutionEnv::new(cwd));
 
 Built-in tool wiring:
 
-- `read`, `write`, `edit`, `bash` — `ExecutionEnv` file and shell APIs
+- `read`, `write`, `edit`, `shell_exec` — `ExecutionEnv` file and shell APIs
 - `ls` — path resolution via `ExecutionEnv`, listing via `walkdir` on a blocking thread
 - `grep`, `find` — resolve paths via `ExecutionEnv`, then search the real filesystem with [`fff-search`](https://crates.io/crates/fff-search) (`FilePicker::collect_files`, `watch: false`)
 - `websearch`, `webfetch` — outbound HTTP (and optional [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) browser fallback); no `ExecutionEnv` required. Enable the `tools-web` feature and register via `BuiltinToolsBuilder::all(env).build()` or `create_web_tools()`.
@@ -273,7 +273,7 @@ Use the `elph-ai` faux provider (`faux_provider`, `faux_assistant_message`) for 
 
 Run harness tests:
 
-```bash
+```sh
 cargo test -p elph-agent --test harness
 ```
 
@@ -290,7 +290,7 @@ cargo test -p elph-agent --test harness
 - Provider hooks: `before_provider_request`, `before_provider_payload`, `after_provider_response`
 - Typed hook handlers with result chaining
 - `ExecutionEnv` with typed `Result` returns
-- Built-in coding and exploration tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`)
+- Built-in coding and exploration tools (`read`, `shell_exec`, `edit`, `write`, `grep`, `find`, `ls`)
 - Web tools (`websearch`, `webfetch`) with multi-engine ranking and Obscura fallback
 - `grep` / `find` backed by `fff-search`; filesystem tools use `ExecutionEnv` directly
 - Collaboration mode (`Default` / `Plan`) with plan proposal extraction and confirmation API

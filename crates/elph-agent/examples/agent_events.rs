@@ -4,7 +4,7 @@
 //! `TurnStart`/`TurnEnd`, `MessageStart`/`MessageUpdate`/`MessageEnd`,
 //! `ToolExecutionStart`/`ToolExecutionEnd`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_events
 //! ```
 

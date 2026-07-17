@@ -88,7 +88,7 @@ fn message_preview(message: &elph_agent::AgentMessage) -> String {
         elph_agent::AgentMessage::Custom(custom) => match custom {
             elph_agent::CustomAgentMessage::BranchSummary { summary, .. } => summary.clone(),
             elph_agent::CustomAgentMessage::CompactionSummary { summary, .. } => summary.clone(),
-            elph_agent::CustomAgentMessage::BashExecution { command, .. } => command.clone(),
+            elph_agent::CustomAgentMessage::ShellExecExecution { command, .. } => command.clone(),
             elph_agent::CustomAgentMessage::Custom { kind, .. } => kind.clone(),
         },
     }

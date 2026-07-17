@@ -90,7 +90,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 Or from the workspace:
 
-```bash
+```sh
 cargo add elph-ai
 ```
 
@@ -969,7 +969,7 @@ let _stream = api.stream_with_options(
 
 Vertex AI supports either an API key or Application Default Credentials:
 
-```bash
+```sh
 # Local ADC
 gcloud auth application-default login
 export GOOGLE_CLOUD_PROJECT="my-project"
@@ -985,7 +985,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 
 Chat and image model catalogs are generated from [pi-ai](https://github.com/earendil-works/pi/tree/main/packages/ai) scripts:
 
-```bash
+```sh
 # From the repo root (requires upstream catalog checkout and npm deps)
 make generate-models ELPH_AI_CATALOG_DIR=/path/to/catalog/packages/ai
 
@@ -1015,7 +1015,7 @@ Subcommands:
 
 ### Running Tests
 
-```bash
+```sh
 # Unit and integration tests (default — skips #[ignore] live tests)
 cargo nextest run -p elph-ai
 

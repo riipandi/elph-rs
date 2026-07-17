@@ -1,6 +1,6 @@
 //! Dialog shell gallery — cycles presets and header variants.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_dialog_shell
 //! ```
 //!

@@ -20,7 +20,7 @@ const GROUPS: &[(&str, &[&str])] = &[
         &[
             "edit_file",
             "write_file",
-            "bash",
+            "shell_exec",
             "create_dir",
             "copy_path",
             "delete_path",
@@ -345,7 +345,7 @@ mod tests {
     fn sample_tools() -> Vec<AgentTool> {
         vec![
             sample_tool("read_file", "Read file contents from disk."),
-            sample_tool("bash", "Execute shell commands."),
+            sample_tool("shell_exec", "Execute shell commands."),
         ]
     }
 
@@ -366,7 +366,7 @@ mod tests {
         assert!(message.contains("### Read & Search"));
         assert!(message.contains("**`read_file`**"));
         assert!(message.contains("### Edit"));
-        assert!(message.contains("**`bash`**"));
+        assert!(message.contains("**`shell_exec`**"));
     }
 
     #[test]
@@ -382,7 +382,7 @@ mod tests {
         let message = format_tools_message(AgentMode::Plan, &sample_tools(), true, ToolsOutputFormat::Table);
         assert!(message.contains("| Tool | Group | Description |"));
         assert!(message.contains("| `read_file` | Read & Search |"));
-        assert!(message.contains("| `bash` | Edit |"));
+        assert!(message.contains("| `shell_exec` | Edit |"));
     }
 
     #[test]

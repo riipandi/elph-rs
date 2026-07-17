@@ -98,7 +98,7 @@ let models: Arc<Models> = models.into_arc();
 The agent works with `AgentMessage`, a flexible enum that can include:
 
 - Standard LLM messages (`user`, `assistant`, `toolResult`) via `AgentMessage::Llm`
-- Built-in custom roles (`bashExecution`, `branchSummary`, `compactionSummary`, `custom`) via `AgentMessage::Custom`
+- Built-in custom roles (`shellExecExecution`, `branchSummary`, `compactionSummary`, `custom`) via `AgentMessage::Custom`
 
 LLMs only understand `user`, `assistant`, and `toolResult`. The `convert_to_llm` function bridges this gap by filtering and transforming messages before each LLM call.
 
@@ -425,7 +425,7 @@ let agent = Agent::new(AgentOptions {
 });
 ```
 
-Built-in custom roles (`bashExecution`, `branchSummary`, `compactionSummary`) are converted by `default_convert_to_llm` into user messages with formatted summaries.
+Built-in custom roles (`shellExecExecution`, `branchSummary`, `compactionSummary`) are converted by `default_convert_to_llm` into user messages with formatted summaries.
 
 ## Tools
 
@@ -458,14 +458,14 @@ let read_file_tool = simple_tool(
 
 Built-in tools are optional Cargo features. Enable `builtin-tools` for the full catalog, or pick groups (`tools-edit-tools`, `tools-search`, `tools-web`, `tools-collaboration`). See [docs/tools.md](./docs/tools.md).
 
-| Helper / builder            | Tools                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------- |
-| `BuiltinToolsBuilder::all`  | all enabled built-in tools (incl. `list_available_tools`)                                |
-| `create_edit_tools`         | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
-| `create_search_tools`       | `read_file`, `grep`, `find_path`, `list_dir`                                             |
-| `create_all_tools`          | all filesystem tools above                                                               |
-| `create_web_tools`          | `web_search`, `web_fetch`                                                                |
-| `create_all_tools_with_web` | filesystem tools + web tools                                                             |
+| Helper / builder            | Tools                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `BuiltinToolsBuilder::all`  | all enabled built-in tools (incl. `list_available_tools`)                                      |
+| `create_edit_tools`         | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `create_search_tools`       | `read_file`, `grep`, `find_path`, `list_dir`                                                   |
+| `create_all_tools`          | all filesystem tools above                                                                     |
+| `create_web_tools`          | `web_search`, `web_fetch`                                                                      |
+| `create_all_tools_with_web` | filesystem tools + web tools                                                                   |
 
 ```rust
 use elph_agent::{BuiltinToolsBuilder, LocalExecutionEnv};
@@ -475,7 +475,7 @@ let env = Arc::new(LocalExecutionEnv::new(cwd));
 let tools = BuiltinToolsBuilder::all(env).build();
 ```
 
-`grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `ls` uses [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool. `read`, `write`, `edit`, and `bash` use `ExecutionEnv` directly.
+`grep` and `find` use [`fff-search`](https://crates.io/crates/fff-search) for fast filesystem indexing and content search. `ls` uses [`walkdir`](https://crates.io/crates/walkdir) on a blocking thread pool. `read`, `write`, `edit`, and `shell_exec` use `ExecutionEnv` directly.
 
 `websearch` and `webfetch` query the public web via HTTP. They support multiple search providers with automatic ranking and fallback, and optionally use the [Obscura](https://docs.obscura.sh/guides/use-as-a-rust-library) headless browser for scraping when HTTP alone is insufficient. Web tools do not require an `ExecutionEnv`.
 
@@ -491,19 +491,19 @@ Set provider API keys via environment variables (`BRAVE_SEARCH_API_KEY`, `EXA_AP
 
 ### Cargo features
 
-| Feature               | Default | Description                                                                              |
-| --------------------- | ------- | ---------------------------------------------------------------------------------------- |
-| `builtin-tools`       | no      | All built-in tool groups (enabled by `elph` binary)                                      |
-| `tools-edit-tools`    | no      | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
-| `tools-search`        | no      | `read_file`, `grep`, `find_path`, `list_dir`                                             |
-| `tools-web`           | no      | `web_search`, `web_fetch`                                                                |
-| `tools-collaboration` | no      | `spawn_agent`, `send_message`, …                                                         |
-| `mcp`                 | yes     | MCP client                                                                               |
-| `extensions`          | yes     | WASM extension host                                                                      |
-| `obscura`             | no      | Obscura browser fallback for web tools                                                   |
-| `tracing`             | no      | `fastrace` instrumentation                                                               |
+| Feature               | Default | Description                                                                                    |
+| --------------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `builtin-tools`       | no      | All built-in tool groups (enabled by `elph` binary)                                            |
+| `tools-edit-tools`    | no      | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `tools-search`        | no      | `read_file`, `grep`, `find_path`, `list_dir`                                                   |
+| `tools-web`           | no      | `web_search`, `web_fetch`                                                                      |
+| `tools-collaboration` | no      | `spawn_agent`, `send_message`, …                                                               |
+| `mcp`                 | yes     | MCP client                                                                                     |
+| `extensions`          | yes     | WASM extension host                                                                            |
+| `obscura`             | no      | Obscura browser fallback for web tools                                                         |
+| `tracing`             | no      | `fastrace` instrumentation                                                                     |
 
-```bash
+```sh
 # Minimal agent runtime (no built-in tools, no MCP)
 cargo build -p elph-agent --no-default-features
 
@@ -735,7 +735,7 @@ compatibility: Requires git and rust-analyzer
 metadata:
     author: your-org
     version: "1.0"
-allowed-tools: read grep bash
+allowed-tools: read grep shell_exec
 ---
 
 # Skill Instructions
@@ -745,30 +745,30 @@ Your skill content here...
 
 ## Examples
 
-| Example                   | Description                                                     |
-| ------------------------- | --------------------------------------------------------------- |
-| `basic_agent`             | OpenCode Zen `big-pickle` through `Agent`                       |
-| `agent_coding_tools`      | Live coding tools demo with real API (read_file, bash, etc.)    |
-| `agent_coding_workflow`   | Multi-step coding workflow with real API                        |
-| `agent_web_tools`         | Web search and fetch tools with real API                        |
-| `agent_search_tools`      | Read & Search tools demo (faux, no API key)                     |
-| `agent_filesystem_tools`  | Edit tools demo: create_dir, copy_path, delete_path, move_path  |
-| `agent_list_tools`        | list_available_tools introspection (faux, no API key)           |
-| `agent_collaboration`     | Collaboration mode policy and tool filtering                    |
-| `agent_subagent`          | Subagent spawn, message, followup, wait, list                   |
-| `agent_goals`             | Goal management tools                                           |
-| `agent_skills`            | Comprehensive skills demo with all spec fields                  |
-| `agent_skill_math`        | Math expert skill with real AI model call                       |
-| `agent_tools`             | Custom tools, steering, and follow-up (faux)                    |
-| `agent_harness`           | AgentHarness lifecycle demo                                     |
-| `toon_no_tools`           | TOON in user prompt (no tool calling)                           |
-| `toon_tool_call`          | TOON on custom tool JSON results                                |
-| `toon_mcp_deepwiki`       | TOON on DeepWiki MCP tool results                               |
-| `default_no_tools`        | Baseline (encoding off) — pair with `toon_no_tools`             |
-| `default_tool_call`       | Baseline (encoding off) — pair with `toon_tool_call`            |
-| `default_mcp_deepwiki`    | Baseline (encoding off) — pair with `toon_mcp_deepwiki`         |
+| Example                  | Description                                                        |
+| ------------------------ | ------------------------------------------------------------------ |
+| `basic_agent`            | OpenCode Zen `big-pickle` through `Agent`                          |
+| `agent_coding_tools`     | Live coding tools demo with real API (read_file, shell_exec, etc.) |
+| `agent_coding_workflow`  | Multi-step coding workflow with real API                           |
+| `agent_web_tools`        | Web search and fetch tools with real API                           |
+| `agent_search_tools`     | Read & Search tools demo (faux, no API key)                        |
+| `agent_filesystem_tools` | Edit tools demo: create_dir, copy_path, delete_path, move_path     |
+| `agent_list_tools`       | list_available_tools introspection (faux, no API key)              |
+| `agent_collaboration`    | Collaboration mode policy and tool filtering                       |
+| `agent_subagent`         | Subagent spawn, message, followup, wait, list                      |
+| `agent_goals`            | Goal management tools                                              |
+| `agent_skills`           | Comprehensive skills demo with all spec fields                     |
+| `agent_skill_math`       | Math expert skill with real AI model call                          |
+| `agent_tools`            | Custom tools, steering, and follow-up (faux)                       |
+| `agent_harness`          | AgentHarness lifecycle demo                                        |
+| `toon_no_tools`          | TOON in user prompt (no tool calling)                              |
+| `toon_tool_call`         | TOON on custom tool JSON results                                   |
+| `toon_mcp_deepwiki`      | TOON on DeepWiki MCP tool results                                  |
+| `default_no_tools`       | Baseline (encoding off) — pair with `toon_no_tools`                |
+| `default_tool_call`      | Baseline (encoding off) — pair with `toon_tool_call`               |
+| `default_mcp_deepwiki`   | Baseline (encoding off) — pair with `toon_mcp_deepwiki`            |
 
-```bash
+```sh
 # Faux provider examples (no API key needed)
 cargo run -p elph-agent --features builtin-tools --example agent_search_tools
 cargo run -p elph-agent --features builtin-tools --example agent_filesystem_tools

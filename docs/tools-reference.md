@@ -16,7 +16,7 @@ Daftar lengkap tools yang tersedia dan cara menggunakannya.
 8. [list_dir](#list_dir)
 9. [copy_path](#copy_path)
 10. [move_path](#move_path)
-11. [bash](#bash)
+11. [shell_exec](#shell_exec)
 12. [web_search](#web_search)
 13. [web_fetch](#web_fetch)
 14. [spawn_agent](#spawn_agent)
@@ -324,29 +324,29 @@ move_path source="old_dir/" destination="new_dir/"
 
 ---
 
-## bash
+## shell_exec
 
-Menjalankan perintah bash di working directory. Output dibatasi hingga 2000 baris atau 50 KB.
+Menjalankan perintah shell di working directory. Output dibatasi hingga 2000 baris atau 50 KB.
 
 **Parameter:**
 
 | Parameter | Tipe | Wajib | Deskripsi |
 |-----------|------|-------|-----------|
-| `command` | string | ✅ | Perintah bash yang akan dijalankan |
+| `command` | string | ✅ | Perintah shell yang akan dijalankan |
 | `timeout` | number | ❌ | Timeout dalam detik (default: sistem) |
 
 **Contoh:**
 
 ```
-bash command="cargo build"
+shell_exec command="cargo build"
 ```
 
 ```
-bash command="ls -la" timeout=10
+shell_exec command="ls -la" timeout=10
 ```
 
 ```
-bash command="cargo test -- --nocapture" timeout=120
+shell_exec command="cargo test -- --nocapture" timeout=120
 ```
 
 **Catatan:** Tool ini berguna untuk menjalankan build, test, linting, git operations, dan perintah shell lainnya.
@@ -441,7 +441,7 @@ spawn_agent task_name="refactor-auth" message="Refactor auth module to use new m
 | `list_dir` | Lihat isi direktori |
 | `copy_path` | Salin file/direktori |
 | `move_path` | Pindahkan/renama file/direktori |
-| `bash` | Jalankan perintah shell |
+| `shell_exec` | Jalankan perintah shell |
 | `web_search` | Cari informasi di web |
 | `web_fetch` | Ambil konten URL |
 | `spawn_agent` | Buat sub-agent untuk tugas terisolasi |

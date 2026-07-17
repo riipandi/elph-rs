@@ -52,7 +52,7 @@ Use these inline in prose (not table cells):
 3. Diff against the timeline / remaining sections in this folder (prose, not tables).
 4. Port + regenerate catalogs when needed:
 
-    ```bash
+    ```sh
     cargo run -p elph-ai --bin generate-models -- chat \
       --catalog-dir /path/to/pi/packages/ai --skip-scripts
     # Then re-add Elph-only Hyper define_catalog + index entry if wiped.

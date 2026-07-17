@@ -1,6 +1,6 @@
 //! Basic chat completion — pick a built-in model, authenticate, stream tokens.
 //!
-//! ```bash
+//! ```sh
 //! # Requires a provider API key (see example header for which one)
 //! cargo run -p elph-ai --example basic
 //!

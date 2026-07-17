@@ -2,7 +2,7 @@
 //!
 //! Run alongside `toon_no_tools` with identical flags to compare token usage.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example default_no_tools
 //! cargo run -p elph-agent --example toon_no_tools

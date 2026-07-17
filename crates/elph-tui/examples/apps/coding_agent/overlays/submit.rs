@@ -171,7 +171,7 @@ pub fn handle_submit(
             record_skill_and_open(messages, messages_revision, overlay, trimmed, OverlayKind::UserInput);
             clear_draft(draft, live_draft, suppress_enter);
         }
-        "demo-confirm" | "bash" => {
+        "demo-confirm" | "shell_exec" => {
             record_skill_and_open(messages, messages_revision, overlay, trimmed, OverlayKind::Confirm);
             clear_draft(draft, live_draft, suppress_enter);
         }

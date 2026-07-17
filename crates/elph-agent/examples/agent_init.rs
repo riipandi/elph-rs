@@ -3,7 +3,7 @@
 //! Demonstrates: `AgentBuilder`, `AgentInit`, `BuiltinToolsBuilder` (with feature gates),
 //! `InitProgress`, `LoggingOptions`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_init --features builtin-tools
 //! ```
 

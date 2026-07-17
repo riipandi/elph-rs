@@ -1,6 +1,6 @@
 //! TUI demo - basic form
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example basic_form
 //! ```
 

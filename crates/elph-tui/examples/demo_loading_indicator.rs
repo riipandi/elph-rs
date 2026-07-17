@@ -1,6 +1,6 @@
 //! Demo: loading indicators — braille spinner and KITT scanner widgets.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_loading_indicator
 //! ```
 //!

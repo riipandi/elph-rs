@@ -1,9 +1,9 @@
 //! Connect to the public DeepWiki MCP server (Streamable HTTP, no auth).
 //!
-//! DeepWiki tools: `read_wiki_structure`, `read_wiki_contents`, `ask_question`  
+//! DeepWiki tools: `read_wiki_structure`, `read_wiki_contents`, `ask_question`
 //! Endpoint: <https://mcp.deepwiki.com/mcp>
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --features mcp --example mcp_deepwiki
 //!
 //! cargo run -p elph-agent --features mcp --example mcp_deepwiki -- \

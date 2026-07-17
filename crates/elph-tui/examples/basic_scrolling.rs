@@ -1,6 +1,6 @@
 //! TUI demo - basic scrolling
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example basic_scrolling
 //! ```
 

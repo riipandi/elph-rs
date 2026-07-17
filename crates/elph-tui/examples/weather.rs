@@ -1,6 +1,6 @@
 //! TUI demo - asynchronous loading of data from remote APIs in response to user input.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example weather
 //! ```
 

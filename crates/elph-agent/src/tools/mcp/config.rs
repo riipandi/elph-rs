@@ -2,8 +2,8 @@
 //!
 //! Supports:
 //! - **stdio** — spawn a local MCP server process
-//! - **http** / **streamableHttp** — streamable HTTP MCP endpoint
-//! - **sse** — legacy HTTP+SSE MCP endpoint
+//! - **http** — streamable HTTP MCP endpoint
+//! - **sse** — HTTP+SSE MCP endpoint (2024-11-05 protocol)
 //! - **policy** — allow / deny / requireApproval for tools
 //! - **oauth** — OAuth 2.1 for remote servers (credentials via `mcp auth`)
 
@@ -87,10 +87,10 @@ pub enum McpServerConfig {
     /// Local process speaking MCP over stdio.
     #[serde(rename = "stdio")]
     Stdio(McpStdioConfig),
-    /// Remote MCP server over streamable HTTP (`type: "http"` or `"streamableHttp"`).
-    #[serde(rename = "http", alias = "streamableHttp", alias = "streamable-http")]
+    /// Remote MCP server over streamable HTTP (`type: "http"`).
+    #[serde(rename = "http")]
     Http(McpHttpConfig),
-    /// Legacy HTTP+SSE transport (`type: "sse"`).
+    /// HTTP+SSE MCP transport (`type: "sse"`, 2024-11-05 protocol).
     #[serde(rename = "sse")]
     Sse(McpHttpConfig),
 }
@@ -460,10 +460,10 @@ mod tests {
     }
 
     #[test]
-    fn streamable_http_alias() {
+    fn streamable_http_rejected() {
         let json = r#"{"type":"streamableHttp","url":"http://localhost:8080/mcp"}"#;
-        let cfg: McpServerConfig = serde_json::from_str(json).expect("parse");
-        assert!(matches!(cfg, McpServerConfig::Http(_)));
+        let result: Result<McpServerConfig, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "streamableHttp should no longer be accepted");
     }
 
     #[test]

@@ -74,13 +74,13 @@ Key modules:
 - `compaction/` — Context window management via summarization, branch clipping, token estimation (`/crates/elph-agent/src/compaction/mod.rs`)
 - `goals/` — Session goal persistence, auto-steering, accounting (`/crates/elph-agent/src/goals/mod.rs`)
 - `skills/` — Skill discovery from `SKILL.md` files, argument hint parsing and validation (`args.rs`) (`/crates/elph-agent/src/skills/mod.rs`)
-- `tools/` — Built-in tools: `read_file`, `bash`, `edit_file`, `write_file`, `grep`, `find_path`, `list_dir`, `create_dir`, `copy_path`, `delete_path`, `move_path`, `web_search`, `web_fetch`, collaboration tools; MCP client lives under `tools/mcp/` (`/crates/elph-agent/src/tools/mod.rs`)
+- `tools/` — Built-in tools: `read_file`, `shell_exec`, `edit_file`, `write_file`, `grep`, `find_path`, `list_dir`, `create_dir`, `copy_path`, `delete_path`, `move_path`, `web_search`, `web_fetch`, collaboration tools; MCP client lives under `tools/mcp/` (`/crates/elph-agent/src/tools/mod.rs`)
 - `prompt/` — Builtin prompts, external prompt templates, session naming, and TOON encoding (`/crates/elph-agent/src/prompt/`)
 - `plugins/` — WASM extension host (optional, feature `extensions`) (`/crates/elph-agent/src/plugins/mod.rs`)
 - `messages/` — Message conversion helpers (`/crates/elph-agent/src/messages/mod.rs`)
 - `types/` — Core agent types: loop config, messages, tools, enums (`/crates/elph-agent/src/types/mod.rs`)
 
-Features: `mcp` (default), `extensions` (default), `obscura` (optional), `tracing` (optional — fastrace spans), plus individual tool feature flags (`tools-read-file`, `tools-bash`, `tools-edit-file`, `tools-write-file`, `tools-grep`, `tools-find-path`, `tools-list-dir`, `tools-create-dir`, `tools-copy-path`, `tools-delete-path`, `tools-move-path`, `tools-web`, `tools-collaboration`) and convenience groups (`tools-search`, `tools-edit-tools`, `builtin-tools`).
+Features: `mcp` (default), `extensions` (default), `obscura` (optional), `tracing` (optional — fastrace spans), plus individual tool feature flags (`tools-read-file`, `tools-shell-exec`, `tools-edit-file`, `tools-write-file`, `tools-grep`, `tools-find-path`, `tools-list-dir`, `tools-create-dir`, `tools-copy-path`, `tools-delete-path`, `tools-move-path`, `tools-web`, `tools-collaboration`) and convenience groups (`tools-search`, `tools-edit-tools`, `builtin-tools`).
 
 ### `elph-ai` (library crate)
 

@@ -3,8 +3,6 @@
 mod common;
 pub mod types;
 
-#[cfg(feature = "tools-bash")]
-mod bash;
 #[cfg(feature = "tools-collaboration")]
 mod collaboration;
 #[cfg(feature = "tools-edit-file")]
@@ -19,6 +17,8 @@ mod grep;
 mod list_dir;
 #[cfg(feature = "tools-read-file")]
 mod read_file;
+#[cfg(feature = "tools-shell-exec")]
+mod shell_exec;
 #[cfg(feature = "tools-web")]
 pub mod web;
 #[cfg(feature = "tools-write-file")]
@@ -49,8 +49,6 @@ use serde_json::Value;
 use crate::runtime::local_env::LocalExecutionEnv;
 use crate::types::{AgentTool, AgentToolResult, ToolExecuteFn};
 
-#[cfg(feature = "tools-bash")]
-pub use bash::create_bash_tool;
 #[cfg(feature = "tools-collaboration")]
 pub use collaboration::create_collaboration_tools;
 #[cfg(feature = "tools-copy-path")]
@@ -72,6 +70,8 @@ pub use list_dir::create_list_dir_tool;
 pub use move_path::create_move_path_tool;
 #[cfg(feature = "tools-read-file")]
 pub use read_file::create_read_file_tool;
+#[cfg(feature = "tools-shell-exec")]
+pub use shell_exec::create_shell_exec_tool;
 #[cfg(feature = "tools-web")]
 pub use web::{Engine as WebSearchEngine, SearchResult as WebSearchResult};
 #[cfg(feature = "tools-web")]
@@ -116,7 +116,7 @@ pub fn echo_tool() -> AgentTool {
     )
 }
 
-/// Edit and filesystem mutation tools: edit_file, write_file, bash, create_dir, copy_path, delete_path, move_path.
+/// Edit and filesystem mutation tools: edit_file, write_file, shell_exec, create_dir, copy_path, delete_path, move_path.
 #[cfg(feature = "tools-edit-tools")]
 pub fn create_edit_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
     let tools = vec![
@@ -124,8 +124,8 @@ pub fn create_edit_tools(env: Arc<LocalExecutionEnv>) -> Vec<AgentTool> {
         create_edit_file_tool(env.clone()),
         #[cfg(feature = "tools-write-file")]
         create_write_file_tool(env.clone()),
-        #[cfg(feature = "tools-bash")]
-        create_bash_tool(env.clone()),
+        #[cfg(feature = "tools-shell-exec")]
+        create_shell_exec_tool(env.clone()),
         #[cfg(feature = "tools-create-dir")]
         create_create_dir_tool(env.clone()),
         #[cfg(feature = "tools-copy-path")]

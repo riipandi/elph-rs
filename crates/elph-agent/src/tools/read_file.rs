@@ -79,7 +79,7 @@ async fn execute_read(
     let mut output = truncation.content;
     if truncation.first_line_exceeds_limit {
         output = format!(
-            "[Line {} exceeds {} limit. Use bash to read a portion of the file.]",
+            "[Line {} exceeds {} limit. Use shell_exec to read a portion of the file.]",
             start_line + 1,
             format_size(DEFAULT_MAX_BYTES)
         );

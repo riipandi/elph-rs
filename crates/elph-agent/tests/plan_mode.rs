@@ -76,7 +76,7 @@ async fn harness_enter_plan_mode_filters_active_tools() {
         .collect();
     assert!(active.contains(&"read_file".to_string()));
     assert!(!active.contains(&"write_file".to_string()));
-    assert!(!active.contains(&"bash".to_string()));
+    assert!(!active.contains(&"shell_exec".to_string()));
 }
 
 #[tokio::test(flavor = "multi_thread")]

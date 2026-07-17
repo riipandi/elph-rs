@@ -1,6 +1,6 @@
 //! Demo: AsciiText, QrCodeView, and FrameBufferView.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_special
 //! ```
 

@@ -1,6 +1,6 @@
 //! TUI demo - calculator
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example calculator
 //! ```
 

@@ -1,6 +1,6 @@
 //! Demo: progress indicators — CLI stepped bar and fullscreen init simulation.
 //!
-//! ```bash
+//! ```sh
 //! # Fullscreen stepped progress (auto-advance + manual)
 //! cargo run -p elph-tui --example demo_progress_indicator
 //!

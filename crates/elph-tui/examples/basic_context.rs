@@ -1,6 +1,6 @@
 //! TUI demo - basic context
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example basic_context
 //! ```
 

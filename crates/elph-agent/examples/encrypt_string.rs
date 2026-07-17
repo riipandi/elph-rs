@@ -2,7 +2,7 @@
 //!
 //! Used by MCP auth store and available as a general helper for at-rest secrets.
 //!
-//! ```bash
+//! ```sh
 //! # Generate a key file, encrypt a string, decrypt it back
 //! cargo run -p elph-agent --features mcp --example encrypt_string -- \
 //!   encrypt --key /tmp/elph-demo.key --text "hello secret"

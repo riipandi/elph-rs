@@ -292,7 +292,7 @@ pub fn render_markdown_document(document: &MarkdownDocument) -> Vec<AnyElement<'
     vec![render_markdown_block(document, 80)]
 }
 
-/// Legacy API used by [`super::MarkdownView`] and existing tests.
+/// Convenience API used by [`super::MarkdownView`] and existing tests.
 pub fn render_markdown_lines(source: &str) -> Vec<AnyElement<'static>> {
     let document = super::parse::parse_markdown_document(source);
     vec![render_markdown_block(&document, 80)]

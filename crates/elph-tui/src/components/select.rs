@@ -129,7 +129,7 @@ pub fn select_resolve_viewport_rows(
     (total.max(1).min(cap), total)
 }
 
-/// Label text for one [`SelectList`] row (legacy single-line helper).
+/// Label text for one [`SelectList`] row (single-line helper).
 pub fn select_option_line(prefix: &str, name: &str, description: &str, show_description: bool) -> String {
     let desc = if show_description && !description.is_empty() {
         format!("\n  {description}")

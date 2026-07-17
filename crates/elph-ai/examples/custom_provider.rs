@@ -3,7 +3,7 @@
 //! Defines models, auth, and API binding via `create_provider`, then
 //! registers with `MutableModels::set_provider`.
 //!
-//! ```bash
+//! ```sh
 //! export CUSTOM_API_KEY="sk-..."  # optional — works with opencode too
 //! cargo run -p elph-ai --example custom_provider
 //! ```

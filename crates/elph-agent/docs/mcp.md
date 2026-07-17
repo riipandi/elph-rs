@@ -38,7 +38,7 @@ JSON file (Elph product: `~/.elph/mcp.json`):
 
 | Field                                            | Transports | Description                          |
 | ------------------------------------------------ | ---------- | ------------------------------------ |
-| `type`                                           | both       | `stdio`, `http`, or `streamableHttp` |
+| `type`                                           | both       | `stdio` or `http`                    |
 | `command` / `args` / `env` / `cwd`               | stdio      | Child process                        |
 | `url` / `headers` / `authToken` / `authTokenEnv` | http       | Streamable HTTP endpoint             |
 | `timeoutMs`                                      | both       | Per list/call timeout (default 60s)  |
@@ -136,7 +136,7 @@ assert_eq!(plain, "my-secret-token");
 
 ### Example CLI
 
-```bash
+```sh
 # Interactive demo (round-trip + nonce + JSON)
 cargo run -p elph-agent --features mcp --example encrypt_string -- demo
 
@@ -154,7 +154,7 @@ cargo run -p elph-agent --features mcp --example encrypt_string -- \
 
 ### Tests
 
-```bash
+```sh
 # Unit tests (in crypto.rs)
 cargo test -p elph-agent --features mcp --lib mcp::crypto
 

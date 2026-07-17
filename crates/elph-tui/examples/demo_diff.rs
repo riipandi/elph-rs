@@ -1,6 +1,6 @@
 //! Demo: DiffView component.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_diff
 //! ```
 

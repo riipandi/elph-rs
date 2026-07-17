@@ -98,7 +98,7 @@ For each material bullet (skip pure docs/chore noise unless the user wants a ful
 
 After any model-catalog port work:
 
-```bash
+```sh
 cargo run -p elph-ai --bin generate-models -- chat \
   --catalog-dir /path/to/pi/packages/ai --skip-scripts
 # Re-add Hyper (Elph-only) if generate-models wiped it.
@@ -149,7 +149,7 @@ Always ship in this order (English headings; keep paths/commits literal):
 
 ## Commands (typical)
 
-```bash
+```sh
 cd /path/to/pi && git log -1 --oneline && git status -sb
 rg -n "^## |^- " packages/ai/CHANGELOG.md packages/agent/CHANGELOG.md | head -80
 rg -n "pub mod" crates/elph-agent/src/lib.rs crates/elph-ai/src/lib.rs

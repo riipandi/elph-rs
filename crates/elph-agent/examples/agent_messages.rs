@@ -1,21 +1,21 @@
 //! Custom messages, summaries, and LLM conversion — message bridge layer.
 //!
 //! Demonstrates: `CustomMessageContent`, `create_branch_summary_message`,
-//! `create_compaction_summary_message`, `create_custom_message`, `bash_execution_to_text`,
+//! `create_compaction_summary_message`, `create_custom_message`, `shell_exec_execution_to_text`,
 //! `default_convert_to_llm`, `default_convert_to_llm_fn`, `now_iso_timestamp`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_messages
 //! ```
 
 use elph_agent::llm_message_to_agent;
-use elph_agent::messages::bash_execution_to_text;
 use elph_agent::messages::create_branch_summary_message;
 use elph_agent::messages::create_compaction_summary_message;
 use elph_agent::messages::create_custom_message;
 use elph_agent::messages::default_convert_to_llm;
 use elph_agent::messages::default_convert_to_llm_fn;
 use elph_agent::messages::now_iso_timestamp;
+use elph_agent::messages::shell_exec_execution_to_text;
 use elph_agent::messages::{CustomMessageBlock, CustomMessageContent};
 use elph_agent::{AgentMessage, CustomAgentMessage};
 use elph_ai::{ImageContent, TextContent};
@@ -98,11 +98,11 @@ fn main() {
         println!("  details: {details:?}");
     }
 
-    // ── 5. bash_execution_to_text formatting ──
-    println!("\n=== Bash Execution Formatting ===");
+    // ── 5. shell_exec_execution_to_text formatting ──
+    println!("\n=== Shell Exec Execution Formatting ===");
 
     // Full output, success
-    let bash_success = AgentMessage::Custom(CustomAgentMessage::BashExecution {
+    let shell_exec_success = AgentMessage::Custom(CustomAgentMessage::ShellExecExecution {
         command: "cargo check".into(),
         output: Some("    Checking elph-core v0.0.15\n    Finished".into()),
         exit_code: Some(0),
@@ -112,10 +112,13 @@ fn main() {
         exclude_from_context: false,
         timestamp: 1_700_000_000_000,
     });
-    println!("  success: {}", bash_execution_to_text(&extract_custom(&bash_success)).unwrap());
+    println!(
+        "  success: {}",
+        shell_exec_execution_to_text(&extract_custom(&shell_exec_success)).unwrap()
+    );
 
     // Non-zero exit, truncated
-    let bash_fail = AgentMessage::Custom(CustomAgentMessage::BashExecution {
+    let shell_exec_fail = AgentMessage::Custom(CustomAgentMessage::ShellExecExecution {
         command: "make test".into(),
         output: Some("error[E0308]: mismatched types".into()),
         exit_code: Some(1),
@@ -125,10 +128,13 @@ fn main() {
         exclude_from_context: false,
         timestamp: 1_700_000_000_001,
     });
-    println!("  failure: {}", bash_execution_to_text(&extract_custom(&bash_fail)).unwrap());
+    println!(
+        "  failure: {}",
+        shell_exec_execution_to_text(&extract_custom(&shell_exec_fail)).unwrap()
+    );
 
     // Cancelled
-    let bash_cancelled = AgentMessage::Custom(CustomAgentMessage::BashExecution {
+    let shell_exec_cancelled = AgentMessage::Custom(CustomAgentMessage::ShellExecExecution {
         command: "cargo test -- --ignored".into(),
         output: None,
         exit_code: None,
@@ -140,11 +146,11 @@ fn main() {
     });
     println!(
         "  cancelled: {}",
-        bash_execution_to_text(&extract_custom(&bash_cancelled)).unwrap()
+        shell_exec_execution_to_text(&extract_custom(&shell_exec_cancelled)).unwrap()
     );
 
     // Excluded from context
-    let bash_excluded = AgentMessage::Custom(CustomAgentMessage::BashExecution {
+    let shell_exec_excluded = AgentMessage::Custom(CustomAgentMessage::ShellExecExecution {
         command: "echo secret".into(),
         output: Some("secret-value".into()),
         exit_code: Some(0),
@@ -154,7 +160,7 @@ fn main() {
         exclude_from_context: true,
         timestamp: 1_700_000_000_003,
     });
-    let text = bash_execution_to_text(&extract_custom(&bash_excluded));
+    let text = shell_exec_execution_to_text(&extract_custom(&shell_exec_excluded));
     println!("  excluded: {text:?} (returns None)");
 
     // ── 6. default_convert_to_llm: filter non-LLM messages ──
@@ -179,11 +185,11 @@ fn main() {
             error_message: None,
             timestamp: 1_700_000_000_001,
         })),
-        bash_success,
+        shell_exec_success,
         branch,
     ];
     let converted = default_convert_to_llm(mixed_messages);
-    println!("  input messages:  5 (user + assistant + compaction + bash + branch)");
+    println!("  input messages:  5 (user + assistant + compaction + shell_exec + branch)");
     println!("  output messages: {}", converted.len());
     for (i, msg) in converted.iter().enumerate() {
         match msg {

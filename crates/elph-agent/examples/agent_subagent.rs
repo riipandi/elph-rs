@@ -3,7 +3,7 @@
 //! Demonstrates: `SubagentInfo`, `SubagentStatus`, `SubagentLimits`,
 //! `SubagentBootstrap`, `generate_agent_name`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_subagent
 //! ```
 

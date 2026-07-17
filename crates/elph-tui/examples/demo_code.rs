@@ -1,6 +1,6 @@
 //! Demo: CodeBlock and LineNumbers.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_code
 //! ```
 

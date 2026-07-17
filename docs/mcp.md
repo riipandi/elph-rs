@@ -46,7 +46,7 @@ exist for the same server, connection fails unless you set `authConflict`:
 
 `elph mcp doctor` reports `auth=… CONFLICT(policy=…)` without printing secret values.
 
-```bash
+```sh
 # Project-only DeepWiki (does not touch home config)
 elph mcp add --project deepwiki '{"type":"http","url":"https://mcp.deepwiki.com/mcp"}'
 
@@ -87,15 +87,15 @@ elph mcp remove --all name    # both layers
 | `type`                                        | Meaning                                   |
 | --------------------------------------------- | ----------------------------------------- |
 | `stdio`                                       | Local child process                       |
-| `http` / `streamableHttp` / `streamable-http` | Streamable HTTP (current remote standard) |
-| `sse`                                         | Legacy HTTP+SSE                           |
+| `http`                                            | Streamable HTTP (current remote standard) |
+| `sse`                                             | HTTP+SSE (2024-11-05 protocol)            |
 
 ### Auth
 
 - **Bearer**: `authToken` or `authTokenEnv`
 - **OAuth 2.1 + PKCE**: set `"oauth": true`, then:
 
-```bash
+```sh
 elph mcp auth remote
 elph mcp logout remote
 ```
@@ -187,7 +187,7 @@ DeepWiki is a free remote MCP server for public GitHub documentation
 
 ### Run the example
 
-```bash
+```sh
 cargo run -p elph-agent --features mcp --example mcp_deepwiki
 
 # Structure for another repo
@@ -203,7 +203,7 @@ cargo run -p elph-agent --features mcp --example mcp_deepwiki -- \
 
 ### Live integration tests
 
-```bash
+```sh
 ELPH_MCP_LIVE=1 cargo test -p elph-agent --features mcp --test mcp_deepwiki -- --nocapture
 ```
 

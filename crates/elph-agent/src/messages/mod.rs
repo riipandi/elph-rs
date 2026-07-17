@@ -79,9 +79,9 @@ pub enum CustomMessageBlock {
     Image(ImageContent),
 }
 
-/// Format a bash execution custom message for LLM context (pi-agent `bashExecutionToText` parity).
-pub fn bash_execution_to_text(msg: &CustomAgentMessage) -> Option<String> {
-    let CustomAgentMessage::BashExecution {
+/// Format a shell_exec custom message for LLM context (pi-agent shellExecExecutionToText parity).
+pub fn shell_exec_execution_to_text(msg: &CustomAgentMessage) -> Option<String> {
+    let CustomAgentMessage::ShellExecExecution {
         command,
         output,
         exit_code,
@@ -117,12 +117,12 @@ pub fn default_convert_to_llm(messages: Vec<AgentMessage>) -> Vec<Message> {
         .into_iter()
         .filter_map(|message| match message {
             AgentMessage::Llm(m) if matches!(m.role(), "user" | "assistant" | "toolResult") => Some(*m),
-            AgentMessage::Custom(CustomAgentMessage::BashExecution {
+            AgentMessage::Custom(CustomAgentMessage::ShellExecExecution {
                 exclude_from_context: true,
                 ..
             }) => None,
-            AgentMessage::Custom(msg @ CustomAgentMessage::BashExecution { timestamp, .. }) => {
-                bash_execution_to_text(&msg).map(|text| Message::User {
+            AgentMessage::Custom(msg @ CustomAgentMessage::ShellExecExecution { timestamp, .. }) => {
+                shell_exec_execution_to_text(&msg).map(|text| Message::User {
                     content: elph_ai::UserContent::Text(text),
                     timestamp,
                 })

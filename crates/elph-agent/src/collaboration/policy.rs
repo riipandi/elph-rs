@@ -19,7 +19,7 @@ pub const EXPLORATION_BUILTIN_TOOLS: &[&str] = &[
 const MUTATING_TOOLS: &[&str] = &[
     "write_file",
     "edit_file",
-    "bash",
+    "shell_exec",
     "create_dir",
     "copy_path",
     "delete_path",
@@ -154,15 +154,20 @@ mod tests {
 
     #[test]
     fn plan_mode_filters_mutating_tools() {
-        let all = vec!["read_file".into(), "bash".into(), "write_file".into(), "grep".into()];
+        let all = vec![
+            "read_file".into(),
+            "shell_exec".into(),
+            "write_file".into(),
+            "grep".into(),
+        ];
         let filtered = filter_active_tools(CollaborationMode::Plan, &all);
         assert_eq!(filtered, vec!["read_file".to_string(), "grep".to_string()]);
     }
 
     #[test]
-    fn blocks_bash_in_plan_mode() {
-        assert!(plan_mode_blocks_tool(CollaborationMode::Plan, "bash"));
-        assert!(!plan_mode_blocks_tool(CollaborationMode::Default, "bash"));
+    fn blocks_shell_exec_in_plan_mode() {
+        assert!(plan_mode_blocks_tool(CollaborationMode::Plan, "shell_exec"));
+        assert!(!plan_mode_blocks_tool(CollaborationMode::Default, "shell_exec"));
     }
 
     #[test]

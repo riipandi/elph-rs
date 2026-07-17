@@ -2,7 +2,7 @@
 //!
 //! Pair with `default_tool_call` using the same flags to compare token usage.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example toon_tool_call
 //! cargo run -p elph-agent --example default_tool_call

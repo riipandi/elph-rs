@@ -171,7 +171,7 @@ Typical flags: `--model`, `--provider`, `--thinking`, `--continue`/`-c`, `--resu
 - AgentSession + events — pi rich facade vs `CodingAgentSession` + wiring — **[Partial]**
 - Session services / runtime factory — `create_coding_session_with_events` — **[Partial]**
 - Auth storage + guidance — `elph-ai` oauth + provider CLI — **[Partial]**
-- Bash executor — library tool in `elph-agent` — **[Parity]**
+- Shell executor — library tool in `elph-agent` — **[Parity]**
 - Compaction UX — harness compaction; UX commands stub — **[Partial]**
 - Model registry / scoped models, settings, project trust — **[Partial]**
 - Keybindings — **[Gap]** / incomplete
@@ -261,7 +261,7 @@ Re-audit this file after product milestones; re-audit [pi-ai.md](./pi-ai.md) / [
 
 ## How to re-audit
 
-```bash
+```sh
 cd /path/to/pi && git pull && git rev-parse --short HEAD
 head -80 packages/coding-agent/CHANGELOG.md
 

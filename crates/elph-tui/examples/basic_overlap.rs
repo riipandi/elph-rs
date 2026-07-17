@@ -1,6 +1,6 @@
 //! TUI demo - basic overlap
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example basic_overlap
 //! ```
 

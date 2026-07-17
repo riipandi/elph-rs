@@ -1,4 +1,4 @@
-//! Bash tool — elph coding-agent tools.
+//! Shell execution tool — elph coding-agent tools.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -18,41 +18,41 @@ use crate::tools::common::{check_aborted, resolve_path};
 use crate::types::{AgentTool, AgentToolResult, ToolExecuteFn, ToolResultContent, ToolUpdateCallback};
 use elph_ai::TextContent;
 
-pub fn create_bash_tool(env: Arc<LocalExecutionEnv>) -> AgentTool {
+pub fn create_shell_exec_tool(env: Arc<LocalExecutionEnv>) -> AgentTool {
     let env_for_tool = env.clone();
     AgentTool {
         tool: Tool {
-            name: "bash".into(),
+            name: "shell_exec".into(),
             description: format!(
-                "Execute a bash command in the current working directory. Output truncated to last {DEFAULT_MAX_LINES} lines or {}/KB.",
+                "Execute a shell command in the current working directory. Output truncated to last {DEFAULT_MAX_LINES} lines or {}/KB.",
                 DEFAULT_MAX_BYTES / 1024
             ),
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "command": { "type": "string", "description": "Bash command to execute" },
+                    "command": { "type": "string", "description": "Shell command to execute" },
                     "timeout": { "type": "number", "description": "Timeout in seconds" }
                 },
                 "required": ["command"]
             }),
         },
-        label: "bash".into(),
+        label: "shell_exec".into(),
         execution_mode: None,
         prepare_arguments: None,
-        execute: bash_execute_fn(env_for_tool),
+        execute: shell_exec_execute_fn(env_for_tool),
     }
 }
 
-fn bash_execute_fn(env: Arc<LocalExecutionEnv>) -> ToolExecuteFn {
+fn shell_exec_execute_fn(env: Arc<LocalExecutionEnv>) -> ToolExecuteFn {
     Arc::new(
         move |_id, args, signal, on_update| -> Pin<Box<dyn Future<Output = anyhow::Result<AgentToolResult>> + Send>> {
             let env = env.clone();
-            Box::pin(async move { execute_bash(env, args, signal, on_update).await })
+            Box::pin(async move { execute_shell_exec(env, args, signal, on_update).await })
         },
     )
 }
 
-async fn execute_bash(
+async fn execute_shell_exec(
     env: Arc<LocalExecutionEnv>,
     args: Value,
     signal: Option<CancellationToken>,
@@ -132,7 +132,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    async fn bash_tool_streams_output_before_completion() {
+    async fn shell_exec_tool_streams_output_before_completion() {
         let temp = TempDir::new().expect("temp dir");
         let env = Arc::new(LocalExecutionEnv::new(temp.path().to_path_buf()));
         let saw_early = Arc::new(AtomicBool::new(false));
@@ -151,14 +151,14 @@ mod tests {
             }
         });
 
-        let result = execute_bash(
+        let result = execute_shell_exec(
             env,
             json!({ "command": "printf early; sleep 0.2; printf late", "timeout": 5 }),
             None,
             Some(on_update),
         )
         .await
-        .expect("bash execution");
+        .expect("shell_exec execution");
 
         assert!(saw_early.load(Ordering::SeqCst));
         let text = match &result.content[0] {

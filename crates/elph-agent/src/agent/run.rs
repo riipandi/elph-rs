@@ -162,30 +162,7 @@ impl Agent {
             transform_context: self.transform_context.clone(),
             get_api_key: self.get_api_key.clone(),
             should_stop_after_turn: None,
-            prepare_next_turn: {
-                let with_context = self.prepare_next_turn.clone();
-                let legacy = self.prepare_next_turn_legacy.clone();
-                let token_holder = self.current_abort_token.clone();
-                if with_context.is_none() && legacy.is_none() {
-                    None
-                } else {
-                    Some(Arc::new(move |ctx| {
-                        let with_context = with_context.clone();
-                        let legacy = legacy.clone();
-                        let token_holder = token_holder.clone();
-                        Box::pin(async move {
-                            if let Some(callback) = with_context {
-                                callback(ctx).await
-                            } else if let Some(callback) = legacy {
-                                let signal = token_holder.lock().await.clone();
-                                callback(signal).await
-                            } else {
-                                None
-                            }
-                        })
-                    }))
-                }
-            },
+            prepare_next_turn: self.prepare_next_turn.clone(),
             get_steering_messages: Some(get_steering),
             get_follow_up_messages: Some(get_follow_up),
             tool_execution: self.tool_execution,

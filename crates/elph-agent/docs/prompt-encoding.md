@@ -67,7 +67,7 @@ let agent = Agent::new(AgentOptions {
 
 ### Environment
 
-```bash
+```sh
 export ELPH_PROMPT_ENCODING=toon                      # off | toon | auto
 export ELPH_PROMPT_ENCODING_MIN_BYTES=2048
 export ELPH_PROMPT_ENCODING_DELIMITER=tab             # comma | tab | pipe
@@ -138,7 +138,7 @@ All examples use **OpenCode Zen `big-pickle`** (`opencode/big-pickle`). Set `OPE
 | `toon_tool_call` | Custom `list_inventory` tool → TOON on tool result |
 | `toon_mcp_deepwiki` | DeepWiki MCP → TOON on `structured_content` |
 
-```bash
+```sh
 export OPENCODE_API_KEY="your-key"
 
 cargo run -p elph-agent --example toon_no_tools -- --rows 80 --tabular-delimiter tab
@@ -158,7 +158,7 @@ Same prompts and CLI flags as the TOON pair; encoding is `Off`. Run both and com
 | `default_tool_call` | `toon_tool_call` |
 | `default_mcp_deepwiki` | `toon_mcp_deepwiki` |
 
-```bash
+```sh
 cargo run -p elph-agent --example default_no_tools -- --rows 80
 cargo run -p elph-agent --example toon_no_tools -- --rows 80
 ```

@@ -5,7 +5,7 @@
 //! `is_disabled`, `operation_timeout`, `kind_label`, `remote_url`, merge configs,
 //! `mcp_tool_requires_approval`, `pattern_matches`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_mcp_config --features mcp
 //! ```
 
@@ -34,7 +34,7 @@ fn main() {
     // Streamable HTTP (remote)
     servers.insert("fetch".into(), McpServerConfig::http("https://mcp.example.com/fetch"));
 
-    // Legacy SSE
+    // SSE (2024-11-05 protocol)
     servers.insert("legacy-sse".into(), McpServerConfig::sse("https://old-mcp.example.com/sse"));
 
     println!("  added 3 servers via constructors");

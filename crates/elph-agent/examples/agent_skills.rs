@@ -40,7 +40,7 @@ metadata:
   author: elph-team
   version: "1.0"
   category: development
-allowed-tools: read grep git bash
+allowed-tools: read grep git shell_exec
 ---
 # Code Review Skill
 
@@ -137,7 +137,7 @@ let prompt = format_skills_for_system_prompt(&skills);
 name: debugger
 description: Debug issues systematically. Use when troubleshooting problems.
 license: Apache-2.0
-allowed-tools: bash read grep
+allowed-tools: shell_exec read grep
 ---
 # Debugger Skill
 
@@ -151,7 +151,7 @@ allowed-tools: bash read grep
 
 ## Tools
 
-- Use `bash` for running commands
+- Use `shell_exec` for running commands
 - Use `read` for examining files
 - Use `grep` for searching code
 "#,

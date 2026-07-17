@@ -445,7 +445,7 @@ fn estimate_tokens_across_supported_message_roles() {
         is_error: false,
         timestamp: 0,
     }));
-    let bash_execution = AgentMessage::Custom(CustomAgentMessage::BashExecution {
+    let shell_exec_execution = AgentMessage::Custom(CustomAgentMessage::ShellExecExecution {
         command: "npm run check".to_string(),
         output: Some("ok".to_string()),
         exit_code: None,
@@ -470,7 +470,7 @@ fn estimate_tokens_across_supported_message_roles() {
     assert!(estimate_tokens(&assistant_with_thinking_and_tool) > 0);
     assert!(estimate_tokens(&custom_string) > 0);
     assert!(estimate_tokens(&tool_result_with_image) > 1000);
-    assert!(estimate_tokens(&bash_execution) > 0);
+    assert!(estimate_tokens(&shell_exec_execution) > 0);
     assert!(estimate_tokens(&branch_summary) > 0);
     assert!(estimate_tokens(&compaction_summary) > 0);
 

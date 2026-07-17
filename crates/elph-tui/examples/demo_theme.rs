@@ -2,7 +2,7 @@
 //!
 //! Inactive inputs render in dimmed grey via [`UiTheme::input_text_color`].
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_theme
 //! ```
 //!

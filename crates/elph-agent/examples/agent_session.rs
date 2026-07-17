@@ -3,7 +3,7 @@
 //! Demonstrates: `InMemorySessionRepo`, `SessionDirRepo`, `Session`,
 //! `append_message`, `entries`, `build_context`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_session
 //! ```
 

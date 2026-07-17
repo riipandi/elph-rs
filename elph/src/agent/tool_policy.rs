@@ -139,7 +139,7 @@ pub fn to_agent_thinking(level: crate::types::ThinkingLevel) -> elph_agent::Agen
 pub fn mode_tool_guidance(mode: AgentMode) -> &'static str {
     match mode {
         AgentMode::Build => {
-            "Mode: Build — full tool access. Mutating tools (write, edit, bash, create_dir, etc.) may require user approval."
+            "Mode: Build — full tool access. Mutating tools (write, edit, shell_exec, create_dir, etc.) may require user approval."
         }
         AgentMode::Brave => "Mode: Brave — full tool access without approval prompts. Use mutating tools responsibly.",
         AgentMode::Plan => {
@@ -147,7 +147,7 @@ pub fn mode_tool_guidance(mode: AgentMode) -> &'static str {
              Wrap your implementation plan in <proposed_plan>...</proposed_plan> for user confirmation before editing."
         }
         AgentMode::Ask => {
-            "Mode: Ask — read-only exploration. Do not attempt write_file, edit_file, bash, create_dir, or other mutating tools; \
+            "Mode: Ask — read-only exploration. Do not attempt write_file, edit_file, shell_exec, create_dir, or other mutating tools; \
              they are not available in this mode."
         }
     }
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn build_mode_exposes_all_registered_tools() {
-        let all = vec!["read_file".into(), "write_file".into(), "bash".into()];
+        let all = vec!["read_file".into(), "write_file".into(), "shell_exec".into()];
         let active = AgentModePolicy::active_tool_names_for_mode(AgentMode::Build, &all, None);
         assert_eq!(active.len(), 4);
         assert!(active.contains(&"write_file".to_string()));

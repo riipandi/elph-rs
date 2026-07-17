@@ -1,4 +1,4 @@
-//! Legacy MCP HTTP+SSE client transport (pre–Streamable HTTP).
+//! MCP HTTP+SSE client transport (2024-11-05 protocol).
 //!
 //! Protocol (2024-11-05 style):
 //! 1. Client opens `GET` on the SSE URL with `Accept: text/event-stream`.

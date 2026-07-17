@@ -97,7 +97,7 @@ crates/elph-agent/src/
 │   ├── types.rs             # AgentTool, AgentToolResult, ToolResultContent
 │   ├── mcp/                 # Model Context Protocol clients
 │   ├── web/                 # Web fetch + search tools
-│   └── bash.rs, read.rs, write.rs, grep.rs, …
+│   └── shell_exec.rs, read.rs, write.rs, grep.rs, …
 ├── types/
 │   └── enums.rs             # Global enums (QueueMode, ToolExecutionMode, AgentThinkingLevel)
 ├── collaboration/           # Collaboration modes (Plan / Default) + tool policy

@@ -1,6 +1,6 @@
 //! Basic agent example — prompt OpenCode Zen `big-pickle` through `elph-agent::Agent`.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example basic_agent
 //!

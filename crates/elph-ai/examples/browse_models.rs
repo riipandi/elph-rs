@@ -2,7 +2,7 @@
 //!
 //! No API keys needed — reads from the embedded model catalog.
 //!
-//! ```bash
+//! ```sh
 //! # All providers:
 //! cargo run -p elph-ai --example browse_models
 //!

@@ -15,7 +15,7 @@ fn uses_no_tool_output_placeholder_for_empty_tool_results_without_images() {
         content: vec![AssistantContentBlock::ToolCall(ToolCall {
             kind: "toolCall".to_string(),
             id: "tool-1".to_string(),
-            name: "bash".to_string(),
+            name: "shell_exec".to_string(),
             arguments: json!({ "command": "true" }),
             thought_signature: None,
         })],
@@ -40,7 +40,7 @@ fn uses_no_tool_output_placeholder_for_empty_tool_results_without_images() {
             Message::Assistant(assistant),
             Message::ToolResult {
                 tool_call_id: "tool-1".to_string(),
-                tool_name: "bash".to_string(),
+                tool_name: "shell_exec".to_string(),
                 content: vec![ContentBlock::Text { text: String::new() }],
                 details: None,
                 added_tool_names: None,

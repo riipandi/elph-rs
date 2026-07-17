@@ -149,7 +149,7 @@ command named after the filename.
 Detail blocks (prompt templates, diagnostics, shell output, native tool results) and thinking blocks
 are shown as compact single-line dot indicators when collapsed:
 
-● Bash(echo hi) (click or ctrl+o to expand)
+● shell_exec(echo hi) (click or ctrl+o to expand)
 ○ Read(.../path/to/file) ← ○ outline = running, ● filled = done
 
 The dot changes dynamically based on status:
@@ -352,11 +352,11 @@ User and assistant blocks can show a compact local timestamp:
 When the agent is busy, an activity line shows between the content area and input:
 
 ⡿ Working · 4.2s
-⡿ Running Bash(git status) · Esc to cancel
+⡿ Running shell_exec(git status) · Esc to cancel
 ⡿ Connecting... · 1.5s
 
 - Spinner + label + elapsed time (no redundant `...` suffix — spinner is the indicator).
-- Activity label shows: `Working`, `Connecting`, `Running Bash(cmd)`, `Streaming`, etc.
+- Activity label shows: `Working`, `Connecting`, `Running shell_exec(cmd)`, `Streaming`, etc.
 - Esc cancels the current turn.
 - Stopwatch updates every 200ms.
 
@@ -389,7 +389,7 @@ The panel width matches the input chrome border.
 - Hidden when there are no active (non-done) tasks.
 - When the last item is marked `done`, the panel closes and a system notice in the chat area lists
   completed tasks (`All tasks completed.` plus `✓` lines).
-- TodoList tool calls do not open a collapsible detail box (unlike Bash/Read).
+- TodoList tool calls do not open a collapsible detail box (unlike shell_exec/Read).
 
 Persisted per session at `<workDir>/.agents/elph/metadata/<sess_id>/todos.jsonl` — see
 [agent-runtime.md § TodoList session state](./agent-runtime.md#todolist-session-state).
@@ -400,21 +400,21 @@ Persisted per session at `<workDir>/.agents/elph/metadata/<sess_id>/todos.jsonl`
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
 | `!cmd`                                                                                                 | Run shell; output can be queued as agent context |
 | `!!cmd`                                                                                                | Run shell without agent context                  |
-| Output appears in a collapsible detail box labeled `Bash(<command>)` with status colors (running /     |
-| success / error / cancelled). Activity view shows `⡿  Running Bash(cmd)`. Stream chunks honor terminal |
+| Output appears in a collapsible detail box labeled `shell_exec(<command>)` with status colors (running /     |
+| success / error / cancelled). Activity view shows `⡿  Running shell_exec(cmd)`. Stream chunks honor terminal |
 | carriage returns (e.g. ping statistics overwriting one line) while preserving newlines between         |
 | separate lines.                                                                                        |
 
 ## Tool approval and AskUser
 
-When the agent calls **Write**, **Edit**, **Bash**, or **AskUser**, a huh form appears in the input
+When the agent calls **Write**, **Edit**, **shell_exec**, or **AskUser**, a huh form appears in the input
 chrome (replacing the normal prompt until you answer).
 
-### Write, Edit, and Bash approval
+### Write, Edit, and shell_exec approval
 
-Write and Edit use the same huh select as Bash (`Allow once` / `Allow for session` / `Deny`). The
+Write and Edit use the same huh select as shell_exec (`Allow once` / `Allow for session` / `Deny`). The
 description shows tool arguments (`path`, `contents`, `old_string`, `new_string`, or `command`).
-Long Bash commands and argument text are word-wrapped and capped to a few lines so the dialog fits
+Long shell_exec commands and argument text are word-wrapped and capped to a few lines so the dialog fits
 the terminal.
 
 | Input     | Action                                  |

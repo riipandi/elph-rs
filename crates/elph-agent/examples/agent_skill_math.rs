@@ -3,7 +3,7 @@
 //! This example demonstrates loading a skill and using it with OpenCode big-pickle
 //! to answer math questions.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example agent_skill_math
 //!

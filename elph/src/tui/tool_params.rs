@@ -10,10 +10,10 @@ use crate::tui::theme::TOOL_ARGS_FG;
 /// Soft cap on rendered scalar values in transcript cards and full param views.
 const MAX_PARAM_VALUE_CHARS: usize = 240;
 
-/// Max parameter rows in the legacy multi-row approval preview.
+/// Max parameter rows in the multi-row approval preview.
 const APPROVAL_MAX_PARAM_ROWS: usize = 3;
 
-/// Max characters per value in the legacy multi-row approval preview.
+/// Max characters per value in the multi-row approval preview.
 const APPROVAL_VALUE_MAX_CHARS: usize = 72;
 
 /// Target length for a single approval summary line.
@@ -216,7 +216,9 @@ fn join_summary_parts(parts: impl IntoIterator<Item = String>) -> String {
 
 fn summarize_known_tool(tool_name: &str, params: &[ToolParam]) -> Option<String> {
     match tool_base_name(tool_name) {
-        "bash" => find_param(params, &["command", "cmd"]).map(|command| format!("$ {}", shorten_command(command))),
+        "shell_exec" => {
+            find_param(params, &["command", "cmd"]).map(|command| format!("$ {}", shorten_command(command)))
+        }
         "read_file" | "list_dir" | "delete_path" | "create_dir" => {
             find_param(params, &["path", "file"]).map(shorten_path)
         }
@@ -716,8 +718,8 @@ mod tests {
     }
 
     #[test]
-    fn approval_summary_bash_shows_command_only() {
-        let summary = format_tool_approval_summary("bash", r#"{"command":"cargo test -p elph"}"#);
+    fn approval_summary_shell_exec_shows_command_only() {
+        let summary = format_tool_approval_summary("shell_exec", r#"{"command":"cargo test -p elph"}"#);
         assert_eq!(summary, "$ cargo test -p elph");
     }
 
@@ -758,7 +760,7 @@ mod tests {
     #[test]
     fn approval_summary_row_count_caps_at_two() {
         let raw = format!(r#"{{"command":"{}"}}"#, "word ".repeat(40));
-        let rows = tool_approval_summary_row_count("bash", &raw, 30);
+        let rows = tool_approval_summary_row_count("shell_exec", &raw, 30);
         assert!(rows <= APPROVAL_SUMMARY_MAX_ROWS);
     }
 }

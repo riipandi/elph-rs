@@ -8,7 +8,7 @@ Register them with [`BuiltinToolsBuilder`](../src/builder.rs), group helpers, or
 | Group            | Feature               | Tools                                                                                    |
 | ---------------- | --------------------- | ---------------------------------------------------------------------------------------- |
 | Read & Search    | `tools-search`        | `read_file`, `grep`, `find_path`, `list_dir`                                             |
-| Edit             | `tools-edit-tools`    | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| Edit             | `tools-edit-tools`    | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
 | Web              | `tools-web`           | `web_search`, `web_fetch`                                                                |
 | Collaboration    | `tools-collaboration` | `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `list_agents`              |
 | Meta             | —                     | `list_available_tools` (auto-included by `BuiltinToolsBuilder`)                          |
@@ -29,7 +29,7 @@ Read & Search Tools
 Edit Tools
   - edit_file    : Edits files by replacing specific text with new content.
   - write_file   : Creates a new file or overwrites an existing file with completely new contents.
-  - bash         : Executes shell commands and returns the combined output, creating a new shell process for each invocation.
+  - shell_exec         : Executes shell commands and returns the combined output, creating a new shell process for each invocation.
   - create_dir   : Creates a new directory at the specified path within the project, creating all necessary parent directories (similar to `mkdir -p`).
   - copy_path    : Copies a file or directory recursively in the project, more efficient than manually reading and writing files when duplicating content.
   - delete_path  : Deletes a file or directory (including contents recursively) at the specified path and confirms the deletion.
@@ -54,12 +54,12 @@ Other Tools
 | Feature               | Default | Tools / behavior                                                                         |
 | --------------------- | ------- | ---------------------------------------------------------------------------------------- |
 | `builtin-tools`       | no      | Meta — enables all groups below                                                          |
-| `tools-edit-tools`    | no      | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `tools-edit-tools`    | no      | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
 | `tools-search`        | no      | `read_file`, `grep`, `find_path`, `list_dir`                                             |
 | `tools-web`           | no      | `web_search`, `web_fetch`                                                                |
 | `tools-collaboration` | no      | `spawn_agent`, `send_message`, … (harness injection)                                     |
 | `tools-read-file`     | no      | `read_file` only                                                                         |
-| `tools-bash`          | no      | `bash` only                                                                              |
+| `tools-shell-exec`          | no      | `shell_exec` only                                                                              |
 | `tools-edit-file`     | no      | `edit_file` only                                                                         |
 | `tools-write-file`    | no      | `write_file` only                                                                        |
 | `tools-create-dir`    | no      | `create_dir` only                                                                        |
@@ -83,13 +83,13 @@ elph-agent = { workspace = true, features = ["tracing", "builtin-tools"] }
 
 Minimal library consumer without built-in tools:
 
-```bash
+```sh
 cargo build -p elph-agent --no-default-features
 ```
 
 Filesystem + web only:
 
-```bash
+```sh
 cargo build -p elph-agent --no-default-features --features "tools-edit-tools,tools-search,tools-web"
 ```
 
@@ -120,7 +120,7 @@ let fs_tools = BuiltinToolsBuilder::new(env).without_web().build();
 
 | Helper                       | Feature gate          | Tools                                                                                    |
 | ---------------------------- | --------------------- | ---------------------------------------------------------------------------------------- |
-| `create_edit_tools`          | `tools-edit-tools`    | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| `create_edit_tools`          | `tools-edit-tools`    | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
 | `create_search_tools`        | `tools-search`        | `read_file`, `grep`, `find_path`, `list_dir`                                             |
 | `create_all_tools`           | edit-tools/search     | all filesystem tools                                                                     |
 | `create_web_tools`           | `tools-web`           | `web_search`, `web_fetch`                                                                |
@@ -223,7 +223,7 @@ Write file contents. Creates parent directories when needed.
 | `path`    | string | yes      | Destination path   |
 | `content` | string | yes      | Full file contents |
 
-#### `bash`
+#### `shell_exec`
 
 Run a shell command in the environment working directory. Output is truncated to the last 2000 lines or 50 KB.
 
@@ -424,7 +424,7 @@ See the [README](../README.md#tools) for a minimal custom-tool example.
 | `crates/elph-agent/tests/plan_mode.rs` | Plan mode policy and harness events |
 | `crates/elph-agent/tests/subagent.rs`  | Subagent spawn and list             |
 
-```bash
+```sh
 cargo test -p elph-agent --features builtin-tools --test tools_fff
 cargo test -p elph-agent --features tools-web --test web_tools
 cargo test -p elph-agent --features builtin-tools --test plan_mode

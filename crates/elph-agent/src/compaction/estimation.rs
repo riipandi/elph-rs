@@ -67,7 +67,7 @@ fn message_timestamp(message: &AgentMessage) -> i64 {
             | Message::Assistant(elph_ai::AssistantMessage { timestamp, .. }) => *timestamp,
         },
         AgentMessage::Custom(custom) => match custom {
-            CustomAgentMessage::BashExecution { timestamp, .. }
+            CustomAgentMessage::ShellExecExecution { timestamp, .. }
             | CustomAgentMessage::BranchSummary { timestamp, .. }
             | CustomAgentMessage::CompactionSummary { timestamp, .. }
             | CustomAgentMessage::Custom { timestamp, .. } => *timestamp,
@@ -167,7 +167,7 @@ pub fn estimate_tokens(message: &AgentMessage) -> u64 {
             }
             Message::ToolResult { content, .. } => estimate_blocks_chars(content),
         },
-        AgentMessage::Custom(CustomAgentMessage::BashExecution { command, output, .. }) => {
+        AgentMessage::Custom(CustomAgentMessage::ShellExecExecution { command, output, .. }) => {
             command.chars().count() + output.as_ref().map(|s| s.chars().count()).unwrap_or(0)
         }
         AgentMessage::Custom(CustomAgentMessage::BranchSummary { summary, .. })
@@ -185,7 +185,7 @@ fn find_valid_cut_points(entries: &[SessionTreeEntry], start_index: usize, end_i
     for (i, entry) in entries.iter().enumerate().take(end_index).skip(start_index) {
         match entry {
             SessionTreeEntry::Message { message, .. } => match message.role() {
-                "bashExecution" | "custom" | "branchSummary" | "compactionSummary" | "user" | "assistant" => {
+                "shellExecExecution" | "custom" | "branchSummary" | "compactionSummary" | "user" | "assistant" => {
                     cut_points.push(i);
                 }
                 _ => {}
@@ -205,7 +205,7 @@ pub fn find_turn_start_index(entries: &[SessionTreeEntry], entry_index: usize, s
         match &entries[i] {
             SessionTreeEntry::BranchSummary { .. } | SessionTreeEntry::CustomMessage { .. } => return Some(i),
             SessionTreeEntry::Message { message, .. } => match message.role() {
-                "user" | "bashExecution" => return Some(i),
+                "user" | "shellExecExecution" => return Some(i),
                 _ => {}
             },
             _ => {}

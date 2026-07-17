@@ -79,7 +79,7 @@ let harness = AgentHarness::builder()
     .await?;
 ```
 
-Built-in tool names: `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`, `websearch`, `webfetch`. See [tools.md](./tools.md).
+Built-in tool names: `read`, `shell_exec`, `edit`, `write`, `grep`, `find`, `ls`, `websearch`, `webfetch`. See [tools.md](./tools.md).
 
 For active tools:
 

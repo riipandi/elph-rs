@@ -3,7 +3,7 @@
 //! Demonstrates: `simple_tool`, `echo_tool`, custom `AgentTool`, `steer()`, `follow_up()`,
 //! `wait_for_idle()`, `abort()`, and `AgentEvent` subscription.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_tools
 //! ```
 

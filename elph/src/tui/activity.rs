@@ -143,7 +143,7 @@ pub fn format_shell_canceled_notice(elapsed_secs: f64) -> String {
 
 /// StatusRow label while a user shell command (`!` / `!!`) is running.
 pub fn user_shell_activity_label(command: &str) -> String {
-    format!("Running Bash({})", truncate_status(command.trim(), 28))
+    format!("Running shell_exec({})", truncate_status(command.trim(), 28))
 }
 
 /// Transcript notice when quit is requested while a turn is still running.
@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     fn user_shell_activity_label_describes_running_command() {
-        assert_eq!(user_shell_activity_label("cargo test"), "Running Bash(cargo test)");
+        assert_eq!(user_shell_activity_label("cargo test"), "Running shell_exec(cargo test)");
     }
 
     #[test]

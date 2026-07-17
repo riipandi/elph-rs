@@ -2,7 +2,7 @@
 //!
 //! Uses OpenCode big-pickle to show how the agent remembers previous turns.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example agent_multi_turn
 //! ```

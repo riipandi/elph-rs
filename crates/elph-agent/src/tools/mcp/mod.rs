@@ -2,7 +2,7 @@
 //!
 //! # Features
 //!
-//! - **stdio**, **streamable HTTP**, and legacy **SSE** transports
+//! - **stdio**, **streamable HTTP**, and **SSE** transports (SSE: 2024-11-05 protocol)
 //! - **OAuth 2.1** (PKCE) for remote servers via `mcp auth`
 //! - **AES-256-GCM** credential encryption (`enc:` prefix) in shared `auth.json`
 //! - **JSON Schema + semantic** config validation

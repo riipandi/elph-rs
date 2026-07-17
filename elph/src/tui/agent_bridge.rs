@@ -447,7 +447,7 @@ mod tests {
             &mut messages,
             AgentUiEvent::ToolStart {
                 id: "t2".into(),
-                name: "bash".into(),
+                name: "shell_exec".into(),
                 args_summary: "npm test".into(),
             },
         );
@@ -471,7 +471,7 @@ mod tests {
             &mut messages,
             AgentUiEvent::ToolStart {
                 id: "t3".into(),
-                name: "bash".into(),
+                name: "shell_exec".into(),
                 args_summary: r#"{"command":"cargo test"}"#.into(),
             },
         );

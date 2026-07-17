@@ -35,7 +35,7 @@ pub struct TranscriptMessage {
     pub markdown: Option<AssistantMarkdownBuffer>,
     /// Wall time spent in this process segment (thinking, tool, response, subagent status, …).
     pub duration_secs: Option<f64>,
-    /// When the user submitted this prompt from the editor (`None` for seeded or legacy rows).
+    /// When the user submitted this prompt from the editor (`None` for seeded or pre-populated rows).
     pub submitted_at: Option<DateTime<Utc>>,
     /// Slash output rendered as assistant markdown with meta-like exterior spacing.
     pub local_slash_response: bool,

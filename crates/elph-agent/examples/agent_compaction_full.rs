@@ -5,7 +5,7 @@
 //! `FileOperations`, `CompactionSettings`, `DEFAULT_COMPACTION_SETTINGS`,
 //! `CompactionResult`, `CompactionDetails`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_compaction_full
 //! ```
 

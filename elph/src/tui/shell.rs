@@ -54,7 +54,7 @@ use crate::tui::model_selector_shell::{
 use crate::tui::prompt::PromptChrome;
 use crate::tui::session_prefs::persist_session_prefs;
 use crate::tui::shell_submit::{
-    UserShellEvent, bash_args_summary, format_shell_agent_context, next_user_shell_tool_id, spawn_user_shell,
+    UserShellEvent, format_shell_agent_context, next_user_shell_tool_id, shell_exec_args_summary, spawn_user_shell,
 };
 use crate::tui::slash_handler::{SlashContext, SlashOutcome};
 use crate::tui::slash_handler::{handle_slash_submit, overlay_deferred_message, slash_echoes_prompt_in_transcript};
@@ -2430,8 +2430,8 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     &mut msgs,
                                     AgentUiEvent::ToolStart {
                                         id: tool_id.clone(),
-                                        name: "bash".into(),
-                                        args_summary: bash_args_summary(&body),
+                                        name: "shell_exec".into(),
+                                        args_summary: shell_exec_args_summary(&body),
                                     },
                                 ) {
                                     messages_revision.set(messages_revision.get().wrapping_add(1));

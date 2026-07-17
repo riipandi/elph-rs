@@ -4,7 +4,7 @@
 //! `execute_shell_with_capture`, `truncate_head`/`truncate_tail`, `format_size`,
 //! `format_skills_for_system_prompt`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_harness
 //! ```
 

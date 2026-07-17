@@ -118,7 +118,7 @@
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["http", "streamableHttp", "streamable-http"]
+                    "enum": ["http"]
                 },
                 "url": {
                     "type": "string",

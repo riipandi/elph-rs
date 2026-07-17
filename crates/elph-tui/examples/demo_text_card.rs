@@ -1,6 +1,6 @@
 //! Demo: StyledText and Card components.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_text_card
 //! ```
 

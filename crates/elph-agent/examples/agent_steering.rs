@@ -2,7 +2,7 @@
 //!
 //! Uses faux provider to demonstrate `steer()` and `follow_up()`.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_steering
 //! ```
 

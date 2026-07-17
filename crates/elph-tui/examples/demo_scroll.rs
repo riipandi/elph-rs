@@ -1,6 +1,6 @@
 //! Demo: ScrollBox, VerticalScrollbar, and ScrollIndicator (live-linked).
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_scroll
 //! ```
 

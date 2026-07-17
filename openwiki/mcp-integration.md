@@ -44,13 +44,13 @@ MCP servers are configured via JSON (the Elph product uses `~/.elph/mcp.json`):
 }
 ```
 
-| Config field                               | Transports | Description                          |
-| ------------------------------------------ | ---------- | ------------------------------------ |
-| `type`                                     | both       | `stdio`, `http`, or `streamableHttp` |
-| `command`/`args`/`env`/`cwd`               | stdio      | Child process configuration          |
-| `url`/`headers`/`authToken`/`authTokenEnv` | http       | Streamable HTTP endpoint             |
-| `timeoutMs`                                | both       | Per list/call timeout (default 60s)  |
-| `disabled`                                 | both       | Skip during discovery and calls      |
+| Config field                               | Transports | Description                         |
+| ------------------------------------------ | ---------- | ----------------------------------- |
+| `type`                                     | both       | `stdio` or `http`                   |
+| `command`/`args`/`env`/`cwd`               | stdio      | Child process configuration         |
+| `url`/`headers`/`authToken`/`authTokenEnv` | http       | Streamable HTTP endpoint            |
+| `timeoutMs`                                | both       | Per list/call timeout (default 60s) |
+| `disabled`                                 | both       | Skip during discovery and calls     |
 
 Key config types:
 
@@ -66,11 +66,11 @@ Key config types:
 
 Three transport types are supported:
 
-| Transport        | File        | Description                |
-| ---------------- | ----------- | -------------------------- |
-| `stdio`          | `client.rs` | Child process with stdio   |
-| `streamableHttp` | `client.rs` | Streamable HTTP (SSE-like) |
-| `sse`            | `sse.rs`    | Legacy SSE transport       |
+| Transport | File        | Description                    |
+| --------- | ----------- | ------------------------------ |
+| `stdio`   | `client.rs` | Child process with stdio       |
+| `http`    | `client.rs` | Streamable HTTP                |
+| `sse`     | `sse.rs`    | HTTP+SSE (2024-11-05 protocol) |
 
 Connection functions:
 

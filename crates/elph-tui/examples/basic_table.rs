@@ -1,6 +1,6 @@
 //! TUI demo — flex table layout (see production GFM tables in `components/markdown/table.rs`).
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example basic_table
 //! ```
 

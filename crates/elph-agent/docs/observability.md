@@ -176,7 +176,7 @@ Opt-in content capture and redaction hooks remain future work.
 
 Run with the `tracing` feature enabled:
 
-```bash
+```sh
 cargo test -p elph-core --features tracing
 cargo test -p elph-ai --features tracing
 cargo test -p elph-agent --features tracing

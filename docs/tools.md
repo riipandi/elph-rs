@@ -9,7 +9,7 @@ Built-in tools live in `elph-agent` and are **optional Cargo features**. The `el
 | Group            | Feature               | Tools                                                                                    |
 | ---------------- | --------------------- | ---------------------------------------------------------------------------------------- |
 | Read & Search    | `tools-search`        | `read_file`, `grep`, `find_path`, `list_dir`                                             |
-| Edit             | `tools-edit-tools`    | `edit_file`, `write_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
+| Edit             | `tools-edit-tools`    | `edit_file`, `write_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path` |
 | Web              | `tools-web`           | `web_search`, `web_fetch`                                                                |
 | Collaboration    | `tools-collaboration` | `spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `list_agents`              |
 | Meta             | —                     | `list_available_tools` (auto-included)                                                   |
@@ -58,7 +58,7 @@ These tools are defined in `elph/src/agent/` and are not available in the `elph-
 | ------------- | ----------------- | ---------------------------------------------------------- |
 | `edit_file`   | Requires approval | Exact string replace; `old_string` must match exactly once |
 | `write_file`  | Requires approval | Create/overwrite; creates parent dirs                      |
-| `bash`        | Requires approval | Shell command in workspace; default timeout 120s, max 300s |
+| `shell_exec`        | Requires approval | Shell command in workspace; default timeout 120s, max 300s |
 | `create_dir`  | Requires approval | Create directory with parents (`mkdir -p`)                 |
 | `copy_path`   | Requires approval | Copy file or directory recursively                         |
 | `delete_path` | Requires approval | Delete file or directory recursively                       |
@@ -94,7 +94,7 @@ These tools are defined in `elph/src/agent/` and are not available in the `elph-
 Plan mode is a **collaboration mode**, not a pair of tools. The host application switches the harness to `CollaborationMode::Plan` (for example via `/plan` in the Elph TUI). While active:
 
 - Only read-only exploration tools are exposed (`read_file`, `grep`, `find_path`, `list_dir`, web tools, `ask_user_question`, `diagnostics`).
-- Mutating tools (`write_file`, `edit_file`, `bash`, `create_dir`, `copy_path`, `delete_path`, `move_path`) and collaboration tools (`spawn_agent`, etc.) are blocked.
+- Mutating tools (`write_file`, `edit_file`, `shell_exec`, `create_dir`, `copy_path`, `delete_path`, `move_path`) and collaboration tools (`spawn_agent`, etc.) are blocked.
 - The model appends a planning system prompt and wraps the final plan in `<proposed_plan>...</proposed_plan>`.
 - The harness emits `PlanProposed` and `PlanConfirmationRequired` events; the host calls `resolve_plan_confirmation()` before implementation begins.
 
@@ -128,14 +128,14 @@ Only a catalog subset is sent to the model. Exposure requires:
 | --------------------------------------------- | -------- | --- | ------------------ |
 | read_file, grep, find_path, list_dir          | Auto     | Yes | Yes                |
 | web_search, web_fetch, ask_user_question      | Auto     | Yes | Yes                |
-| edit_file, write_file, bash                   | Requires | Yes | Yes (+ approval)   |
+| edit_file, write_file, shell_exec                   | Requires | Yes | Yes (+ approval)   |
 | create_dir, copy_path, delete_path, move_path | Requires | Yes | Yes (+ approval)   |
 | Goal tools                                    | Auto     | Yes | Yes                |
 | Collaboration tools                           | Auto     | Yes | Yes (Default mode) |
 
 ## User approval
 
-**edit_file**, **write_file**, **bash**, **create_dir**, **copy_path**, **delete_path**, and **move_path** block the loop until the user chooses:
+**edit_file**, **write_file**, **shell_exec**, **create_dir**, **copy_path**, **delete_path**, and **move_path** block the loop until the user chooses:
 
 | Choice            | Shortcut | Effect                      |
 | ----------------- | -------- | --------------------------- |

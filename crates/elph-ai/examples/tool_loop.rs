@@ -3,7 +3,7 @@
 //! Demonstrates: tool definition, tool-call event handling, tool-result injection,
 //! session-based prompt caching, and multi-turn streaming.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-ai --example tool_loop
 //! ```
 

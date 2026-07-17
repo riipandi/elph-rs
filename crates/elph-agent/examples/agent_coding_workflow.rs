@@ -2,7 +2,7 @@
 //!
 //! Uses OpenCode big-pickle to perform a multi-step coding task.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example agent_coding_workflow
 //!
@@ -150,9 +150,9 @@ async fn main() -> anyhow::Result<()> {
                                     let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("?");
                                     format!("[{count}] READ {path}")
                                 }
-                                "bash" => {
+                                "shell_exec" => {
                                     let cmd = args.get("command").and_then(|c| c.as_str()).unwrap_or("?");
-                                    format!("[{count}] BASH {cmd}")
+                                    format!("[{count}] SHELL_EXEC {cmd}")
                                 }
                                 "edit_file" => {
                                     let path = args.get("path").and_then(|p| p.as_str()).unwrap_or("?");

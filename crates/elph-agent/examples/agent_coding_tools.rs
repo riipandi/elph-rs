@@ -1,9 +1,9 @@
-//! Live coding tools demo — read_file, bash, edit_file, write_file, grep, find_path, list_dir with real API.
+//! Live coding tools demo — read_file, shell_exec, edit_file, write_file, grep, find_path, list_dir with real API.
 //!
 //! Uses OpenCode big-pickle to perform actual file operations.
 //! The agent reads files, runs commands, edits code, and writes new files.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example agent_coding_tools
 //!
@@ -86,18 +86,20 @@ async fn main() -> anyhow::Result<()> {
             create_search_tools(env.clone())
         }
         "coding" => {
-            println!("Using edit tools: edit_file, write_file, bash, create_dir, copy_path, delete_path, move_path");
+            println!(
+                "Using edit tools: edit_file, write_file, shell_exec, create_dir, copy_path, delete_path, move_path"
+            );
             create_edit_tools(env.clone())
         }
         "all" => {
             println!(
-                "Using all tools: read_file, bash, edit_file, write_file, grep, find_path, list_dir, web_search, web_fetch"
+                "Using all tools: read_file, shell_exec, edit_file, write_file, grep, find_path, list_dir, web_search, web_fetch"
             );
             create_all_tools(env.clone())
         }
         _ => {
             println!(
-                "Using edit tools (default): edit_file, write_file, bash, create_dir, copy_path, delete_path, move_path"
+                "Using edit tools (default): edit_file, write_file, shell_exec, create_dir, copy_path, delete_path, move_path"
             );
             create_edit_tools(env.clone())
         }

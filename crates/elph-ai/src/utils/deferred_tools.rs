@@ -106,7 +106,7 @@ mod tests {
         });
         assistant.content = vec![crate::types::AssistantContentBlock::ToolCall(ToolCall::new(
             "1",
-            "bash",
+            "shell_exec",
             json!({}),
         ))];
 
@@ -116,7 +116,7 @@ mod tests {
                 Message::Assistant(assistant),
                 Message::ToolResult {
                     tool_call_id: "1".into(),
-                    tool_name: "bash".into(),
+                    tool_name: "shell_exec".into(),
                     content: vec![ContentBlock::Text { text: "ok".into() }],
                     details: None,
                     added_tool_names: Some(vec!["websearch".into()]),
@@ -124,12 +124,12 @@ mod tests {
                     timestamp: 1,
                 },
             ],
-            tools: Some(vec![tool("bash"), tool("websearch")]),
+            tools: Some(vec![tool("shell_exec"), tool("websearch")]),
         };
 
         let (immediate, deferred) = split_deferred_tools(&context, true, None);
         assert_eq!(immediate.len(), 1);
-        assert_eq!(immediate[0].name, "bash");
+        assert_eq!(immediate[0].name, "shell_exec");
         assert!(deferred.contains_key("websearch"));
     }
 }

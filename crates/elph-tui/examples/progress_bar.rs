@@ -1,6 +1,6 @@
 //! TUI demo - progress bar
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example progress_bar
 //! ```
 

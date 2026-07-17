@@ -3,7 +3,7 @@
 //! Mirrors `elph/src/tui.rs` shell layout.
 //! Color reference: https://www.ditig.com/256-colors-cheat-sheet
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example chat_layout
 //! ```
 
@@ -291,7 +291,7 @@ fn seed_transcript_messages() -> Vec<TranscriptMessage> {
             content: String::new(),
             style: TranscriptStyle::ToolFailed,
             tool: Some(ToolCardDetail {
-                name: "bash".to_string(),
+                name: "shell_exec".to_string(),
                 args: "npm test".to_string(),
                 output: "Error: command exited with code 1".to_string(),
             }),

@@ -4,7 +4,7 @@
 //! with text/thinking content, buffered completion via `Models::complete()`,
 //! usage statistics, and token-cost estimation.
 //!
-//! ```bash
+//! ```sh
 //! # Streaming (token-by-token):
 //! cargo run -p elph-ai --example streaming -- --stream
 //!

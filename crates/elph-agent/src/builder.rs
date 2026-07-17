@@ -108,8 +108,8 @@ impl BuiltinToolsBuilder {
         let mut tools = vec![
             #[cfg(feature = "tools-read-file")]
             crate::tools::create_read_file_tool(self.env.clone()),
-            #[cfg(feature = "tools-bash")]
-            crate::tools::create_bash_tool(self.env.clone()),
+            #[cfg(feature = "tools-shell-exec")]
+            crate::tools::create_shell_exec_tool(self.env.clone()),
             #[cfg(feature = "tools-edit-file")]
             crate::tools::create_edit_file_tool(self.env.clone()),
             #[cfg(feature = "tools-write-file")]
@@ -168,7 +168,7 @@ mod tests {
         let tools = BuiltinToolsBuilder::all(env).build();
         let names: Vec<_> = tools.iter().map(|tool| tool.name().to_string()).collect();
         assert!(names.contains(&"read_file".to_string()));
-        assert!(names.contains(&"bash".to_string()));
+        assert!(names.contains(&"shell_exec".to_string()));
         assert!(names.contains(&"grep".to_string()));
         assert!(names.contains(&"web_search".to_string()));
     }

@@ -4,7 +4,7 @@
 //! status · prompt), slash command palette, and dialog overlays (mode, model, confirm, goals,
 //! progress). Uses placeholder transcript data and simulated turns.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example coding_agent
 //! ```
 //!

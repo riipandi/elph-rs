@@ -1,6 +1,6 @@
 //! Default encoding (off) with MCP DeepWiki — same prompt as `toon_mcp_deepwiki`.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --features mcp --example default_mcp_deepwiki
 //! cargo run -p elph-agent --features mcp --example toon_mcp_deepwiki

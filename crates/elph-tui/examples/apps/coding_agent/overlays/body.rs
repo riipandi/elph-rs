@@ -76,7 +76,7 @@ pub fn overlay_demo_body(props: &mut OverlayDemoBodyProps) -> AnyElement<'static
         OverlayKind::Confirm => element! {
             DialogConfirmContent(
                 width: props.width,
-                message: "Allow tool: Bash\n\nCommand: cargo test -p elph-tui".to_string(),
+                message: "Allow tool: shell_exec\n\nCommand: cargo test -p elph-tui".to_string(),
                 action_hint: "y allow · n deny · Esc cancel".to_string(),
             )
         }

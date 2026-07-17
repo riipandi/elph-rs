@@ -141,10 +141,10 @@ Sequential, early exit on block.
 
 ```rust
 harness.on_tool_call(|event| async move {
-    if event.tool_name == "bash" {
+    if event.tool_name == "shell_exec" {
         Ok(Some(ToolCallHookResult {
             block: true,
-            reason: Some("bash is disabled".into()),
+            reason: Some("shell_exec is disabled".into()),
         }))
     } else {
         Ok(None)

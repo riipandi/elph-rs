@@ -31,7 +31,7 @@ fn gemini_model(api: &str, provider: &str, id: &str) -> Model {
 }
 
 fn context_with_tool_calls(model: &Model, thought_signature: Option<&str>) -> Context {
-    let mut first = ToolCall::new("call_1", "bash", json!({ "command": "echo hi" }));
+    let mut first = ToolCall::new("call_1", "shell_exec", json!({ "command": "echo hi" }));
     if let Some(sig) = thought_signature {
         first.thought_signature = Some(sig.to_string());
     }
@@ -46,7 +46,11 @@ fn context_with_tool_calls(model: &Model, thought_signature: Option<&str>) -> Co
                 role: "assistant".to_string(),
                 content: vec![
                     AssistantContentBlock::ToolCall(first),
-                    AssistantContentBlock::ToolCall(ToolCall::new("call_2", "bash", json!({ "command": "ls -la" }))),
+                    AssistantContentBlock::ToolCall(ToolCall::new(
+                        "call_2",
+                        "shell_exec",
+                        json!({ "command": "ls -la" }),
+                    )),
                 ],
                 api: model.api.clone(),
                 provider: model.provider.clone(),

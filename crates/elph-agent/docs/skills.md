@@ -28,7 +28,7 @@ compatibility: Requires git and rust-analyzer
 metadata:
     author: your-org
     version: "1.0"
-allowed-tools: read grep bash
+allowed-tools: read grep shell_exec
 ---
 
 # Skill Instructions
@@ -183,7 +183,7 @@ let invocation = format_skill_invocation(&skill, Some("Focus on security."));
 
 See [`examples/agent_skills.rs`](../examples/agent_skills.rs) for a comprehensive demonstration:
 
-```bash
+```sh
 cargo run -p elph-agent --example agent_skills
 ```
 

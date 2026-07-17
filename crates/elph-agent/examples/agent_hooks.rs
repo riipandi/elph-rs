@@ -2,7 +2,7 @@
 //!
 //! Uses faux provider to demonstrate `before_tool_call` and `after_tool_call` hooks.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-agent --example agent_hooks
 //! ```
 

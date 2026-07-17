@@ -1,6 +1,6 @@
 //! Generate an image using the built-in OpenRouter image provider.
 //!
-//! ```bash
+//! ```sh
 //! export OPENROUTER_API_KEY="your-key"
 //! cargo run -p elph-ai --example images
 //! ```

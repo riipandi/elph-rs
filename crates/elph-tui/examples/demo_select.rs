@@ -1,6 +1,6 @@
 //! Demo: SelectList, TabSelect, and Slider.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_select
 //! ```
 

@@ -2,7 +2,7 @@
 //!
 //! Pair with `default_mcp_deepwiki` using the same flags to compare token usage.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --features mcp --example toon_mcp_deepwiki
 //! cargo run -p elph-agent --features mcp --example default_mcp_deepwiki

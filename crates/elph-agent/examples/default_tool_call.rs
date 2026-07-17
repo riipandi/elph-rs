@@ -1,6 +1,6 @@
 //! Default encoding (off) with tool calling — same prompt as `toon_tool_call`.
 //!
-//! ```bash
+//! ```sh
 //! export OPENCODE_API_KEY="your-key"
 //! cargo run -p elph-agent --example default_tool_call
 //! cargo run -p elph-agent --example toon_tool_call

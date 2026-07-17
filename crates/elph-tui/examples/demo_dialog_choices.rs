@@ -2,7 +2,7 @@
 //!
 //! All copy is generated with the [`lipsum`] crate (placeholder Latin).
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_dialog_choices
 //! ```
 //!

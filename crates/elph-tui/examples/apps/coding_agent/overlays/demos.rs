@@ -20,7 +20,7 @@ pub fn demo_tool_failed() -> Vec<TranscriptMessage> {
         content: String::new(),
         style: TranscriptStyle::ToolFailed,
         tool: Some(ToolCardDetail {
-            name: "bash".to_string(),
+            name: "shell_exec".to_string(),
             args: "cargo test -p elph-tui".to_string(),
             output: "error: test failed (demo placeholder)".to_string(),
         }),

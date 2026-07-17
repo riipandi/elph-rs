@@ -1,6 +1,6 @@
 //! Demo: MarkdownView component.
 //!
-//! ```bash
+//! ```sh
 //! cargo run -p elph-tui --example demo_markdown
 //! ```
 

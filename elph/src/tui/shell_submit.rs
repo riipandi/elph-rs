@@ -127,6 +127,6 @@ pub fn format_shell_agent_context(command: &str, output: &str) -> String {
     }
 }
 
-pub fn bash_args_summary(command: &str) -> String {
+pub fn shell_exec_args_summary(command: &str) -> String {
     serde_json::json!({ "command": command }).to_string()
 }

@@ -56,7 +56,7 @@ pub fn handle_overlay_key(
                     content: String::new(),
                     style: TranscriptStyle::ToolSuccess,
                     tool: Some(ToolCardDetail {
-                        name: "bash".to_string(),
+                        name: "shell_exec".to_string(),
                         args: "cargo test -p elph-tui".to_string(),
                         output: "345 passed".to_string(),
                     }),
@@ -75,7 +75,7 @@ pub fn handle_overlay_key(
                     content: String::new(),
                     style: TranscriptStyle::ToolFailed,
                     tool: Some(ToolCardDetail {
-                        name: "bash".to_string(),
+                        name: "shell_exec".to_string(),
                         args: "cargo test -p elph-tui".to_string(),
                         output: "Denied by user".to_string(),
                     }),

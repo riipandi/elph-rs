@@ -98,13 +98,6 @@ pub type PrepareNextTurnFn = Arc<
     dyn Fn(PrepareNextTurnContext) -> Pin<Box<dyn Future<Output = Option<AgentLoopTurnUpdate>> + Send>> + Send + Sync,
 >;
 
-/// Legacy callback: `prepareNextTurn(signal)` without context.
-pub type PrepareNextTurnLegacyFn = Arc<
-    dyn Fn(Option<CancellationToken>) -> Pin<Box<dyn Future<Output = Option<AgentLoopTurnUpdate>> + Send>>
-        + Send
-        + Sync,
->;
-
 pub type GetQueuedMessagesFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Vec<AgentMessage>> + Send>> + Send + Sync>;
 
 pub type BeforeToolCallFn = Arc<
