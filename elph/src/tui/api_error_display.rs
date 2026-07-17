@@ -97,10 +97,7 @@ fn parse_api_error(raw: &str) -> ParsedApiError {
     }
 
     let status = extract_status_code(raw);
-    let title = status
-        .map(status_title)
-        .unwrap_or("Something went wrong")
-        .to_string();
+    let title = status.map(status_title).unwrap_or("Something went wrong").to_string();
 
     // 1) Prefer structured message fields from any JSON blob in the string.
     if let Some(msg) = extract_message_from_any_json(raw) {
@@ -159,10 +156,7 @@ fn strip_error_prefixes(raw: &str) -> &str {
 
 fn is_abort_message(raw: &str) -> bool {
     let lower = raw.to_ascii_lowercase();
-    lower.contains("aborted")
-        || lower.contains("cancelled")
-        || lower.contains("canceled")
-        || lower == "request aborted"
+    lower.contains("aborted") || lower.contains("cancelled") || lower.contains("canceled") || lower == "request aborted"
 }
 
 fn extract_status_code(raw: &str) -> Option<u16> {

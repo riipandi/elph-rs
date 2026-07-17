@@ -53,7 +53,13 @@ use crate::tui::model_selector_shell::{
     sync_pending_filter,
 };
 use crate::tui::prompt::PromptChrome;
-use crate::tui::session_prefs::persist_session_prefs;
+use crate::tui::scoped_models::PendingScopedModels;
+use crate::tui::scoped_models_bar::{ScopedModelsBar, ScopedModelsView};
+use crate::tui::scoped_models_shell::{
+    OpenScopedModelsArgs, apply_scoped_session, cancel_scoped_models, cycle_scoped_model_selection, open_scoped_models,
+    save_scoped_models, scoped_models_list_nav_delta, scoped_models_reorder_delta, sync_scoped_filter,
+};
+use crate::tui::session_prefs::{cycle_and_persist_theme_mode, persist_session_prefs};
 use crate::tui::shell_submit::{
     UserShellEvent, format_shell_agent_context, next_user_shell_tool_id, shell_exec_args_summary, spawn_user_shell,
 };
@@ -81,7 +87,7 @@ use crate::tui::transcript::{
     EphemeralBanner, EphemeralBannerGeneration, QUIT_BUSY_NOTICE_KEY, TranscriptMessage, TranscriptPanel,
     TranscriptStyle, agent_mode_banner, agent_mode_busy_banner, api_error_banner, clear_ephemeral_banner,
     clear_ephemeral_banner_if_generation, expire_ephemeral_banner, publish_ephemeral_banner, quit_busy_banner,
-    toggle_latest_collapsible_detail,
+    theme_mode_banner, toggle_latest_collapsible_detail,
 };
 use crate::tui::user_question::PendingUserQuestion;
 use crate::tui::user_question::{
@@ -630,6 +636,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let mut model_selected_index = hooks.use_state(|| 0usize);
     let mut model_filter = hooks.use_state(String::new);
     let mut model_input_focus = hooks.use_state(ModelSelectorFocus::default);
+    let mut pending_scoped_models = hooks.use_ref(|| None::<PendingScopedModels>);
+    let mut scoped_selected_index = hooks.use_state(|| 0usize);
+    let mut scoped_filter = hooks.use_state(String::new);
+    let mut session_scoped_items = hooks.use_ref(|| {
+        Settings::load(&props.paths)
+            .map(|s| s.models.scoped)
+            .unwrap_or_default()
+    });
     let mut pending_system_prompt = hooks.use_ref(|| None::<PendingSystemPromptDialog>);
     let system_prompt_scroll = hooks.use_ref_default::<ScrollViewHandle>();
     let mut system_prompt_scroll_tick = hooks.use_ref(|| 0u32);
@@ -940,8 +954,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                         }
                         // Sticky red toast — friendly text only (no raw JSON); transcript keeps fuller line.
                         if crate::tui::api_error_display::is_user_facing_api_error_line(message) {
-                            let toast =
-                                crate::tui::api_error_display::format_ephemeral_api_error(message);
+                            let toast = crate::tui::api_error_display::format_ephemeral_api_error(message);
                             show_ephemeral_banner(
                                 &mut ephemeral_banner,
                                 &mut ephemeral_banner_generation,
@@ -1220,9 +1233,11 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
             let system_prompt_open = pending_system_prompt.read().is_some();
             let confetti_open = pending_confetti.read().is_some();
             let model_selector_open = pending_model_selector.read().is_some();
+            let scoped_models_open = pending_scoped_models.read().is_some();
             let status_dialog_open = pending_tool_approval.read().is_some()
                 || pending_user_question.read().is_some()
                 || model_selector_open
+                || scoped_models_open
                 || system_prompt_open
                 || confetti_open;
 
@@ -1280,10 +1295,125 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     }
                 }
 
+                if scoped_models_open
+                    && pending_user_question.read().is_none()
+                    && !system_prompt_open
+                    && !confetti_open
+                    && !model_selector_open
+                {
+                    let mut pending_scoped_models = pending_scoped_models;
+                    let mut scoped_selected_index = scoped_selected_index;
+                    let scoped_filter = scoped_filter;
+                    let mut draft = draft;
+                    let mut live_draft = live_draft;
+                    let mut shell_focus = shell_focus;
+                    let mut session_scoped_items = session_scoped_items;
+                    let paths_snapshot = paths.clone();
+
+                    if modifiers.is_empty() && code == KeyCode::Esc {
+                        cancel_scoped_models(
+                            &mut pending_scoped_models,
+                            &mut session_scoped_items.write(),
+                            &mut draft,
+                            &mut live_draft,
+                            &mut shell_focus,
+                        );
+                        return;
+                    }
+
+                    if modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(code, KeyCode::Char('s') | KeyCode::Char('S'))
+                    {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            save_scoped_models(pending, &paths_snapshot, &mut session_scoped_items.write());
+                            push_transcript_message(
+                                &mut messages,
+                                &mut messages_revision,
+                                TranscriptMessage::text(
+                                    format!("Scoped models saved ({} enabled).", pending.enabled_count()),
+                                    TranscriptStyle::Meta,
+                                ),
+                            );
+                        }
+                        return;
+                    }
+
+                    if modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(code, KeyCode::Char('a') | KeyCode::Char('A'))
+                    {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            sync_scoped_filter(pending, &scoped_filter.read());
+                            pending.enable_all_visible_or_all();
+                            apply_scoped_session(pending, &mut session_scoped_items.write());
+                            scoped_selected_index.set(pending.selected_index);
+                        }
+                        return;
+                    }
+
+                    if modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(code, KeyCode::Char('x') | KeyCode::Char('X'))
+                    {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            sync_scoped_filter(pending, &scoped_filter.read());
+                            pending.clear_all_visible_or_all();
+                            apply_scoped_session(pending, &mut session_scoped_items.write());
+                            scoped_selected_index.set(pending.selected_index);
+                        }
+                        return;
+                    }
+
+                    if modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(code, KeyCode::Char('p') | KeyCode::Char('P'))
+                    {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            sync_scoped_filter(pending, &scoped_filter.read());
+                            pending.toggle_selected_provider();
+                            apply_scoped_session(pending, &mut session_scoped_items.write());
+                            scoped_selected_index.set(pending.selected_index);
+                        }
+                        return;
+                    }
+
+                    if let Some(delta) = scoped_models_reorder_delta(modifiers, code) {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            sync_scoped_filter(pending, &scoped_filter.read());
+                            if pending.reorder_selected(delta) {
+                                apply_scoped_session(pending, &mut session_scoped_items.write());
+                                scoped_selected_index.set(pending.selected_index);
+                            }
+                        }
+                        return;
+                    }
+
+                    if let Some(delta) = scoped_models_list_nav_delta(modifiers, code) {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            sync_scoped_filter(pending, &scoped_filter.read());
+                            pending.move_selection(delta);
+                            scoped_selected_index.set(pending.selected_index);
+                        }
+                        return;
+                    }
+
+                    if modifiers.is_empty() && code == KeyCode::Enter {
+                        if let Some(pending) = pending_scoped_models.write().as_mut() {
+                            sync_scoped_filter(pending, &scoped_filter.read());
+                            pending.toggle_selected();
+                            apply_scoped_session(pending, &mut session_scoped_items.write());
+                            scoped_selected_index.set(pending.selected_index);
+                        }
+                        return;
+                    }
+
+                    if !shell_global_shortcut(modifiers, code) {
+                        return;
+                    }
+                }
+
                 if model_selector_open
                     && pending_user_question.read().is_none()
                     && !system_prompt_open
                     && !confetti_open
+                    && !scoped_models_open
                 {
                     let mut pending_model_selector = pending_model_selector;
                     let mut model_provider_index = model_provider_index;
@@ -1438,7 +1568,7 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                     }
                 }
 
-                if (model_selector_open || system_prompt_open || confetti_open)
+                if (model_selector_open || scoped_models_open || system_prompt_open || confetti_open)
                     && pending_user_question.read().is_none()
                 {
                     return;
@@ -1948,6 +2078,19 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     paths: &paths,
                                     provider_id: settings.as_ref().and_then(|s| s.session.provider_id.as_deref()),
                                     model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
+                                    session_scoped: Some(session_scoped_items.read().as_slice()),
+                                });
+                            }
+                            SlashOutcome::OpenScopedModels => {
+                                open_scoped_models(OpenScopedModelsArgs {
+                                    pending: &mut pending_scoped_models,
+                                    selected_index: &mut scoped_selected_index,
+                                    filter: &mut scoped_filter,
+                                    draft: &mut draft,
+                                    live_draft: &mut live_draft,
+                                    shell_focus: &mut shell_focus,
+                                    paths: &paths,
+                                    session_scoped: &session_scoped_items.read(),
                                 });
                             }
                             SlashOutcome::OpenSystemPromptDialog { text } => {
@@ -2033,9 +2176,9 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 let next = !file_picker_show_hidden.get();
                 file_picker_show_hidden.set(next);
                 if let Ok(paths) = Paths::resolve()
-                    && let Ok(mut settings) = Settings::load(&paths)
+                    && let Ok(mut settings) = Settings::load_home(&paths)
                 {
-                    settings.file_picker.show_hidden_files = next;
+                    settings.ui.file_picker.show_hidden_files = next;
                     let _ = Settings::save(&paths, &settings);
                 }
                 let message = if next {
@@ -2091,6 +2234,14 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 &mut shell_focus,
                                 &mut force_editor_clear,
                             );
+                        } else if pending_scoped_models.read().is_some() {
+                            cancel_scoped_models(
+                                &mut pending_scoped_models,
+                                &mut session_scoped_items.write(),
+                                &mut draft,
+                                &mut live_draft,
+                                &mut shell_focus,
+                            );
                         } else if pending_model_selector.read().is_some() {
                             close_model_selector(
                                 &mut pending_model_selector,
@@ -2113,7 +2264,67 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                 paths: &paths,
                                 provider_id: settings.as_ref().and_then(|s| s.session.provider_id.as_deref()),
                                 model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
+                                session_scoped: Some(session_scoped_items.read().as_slice()),
                             });
+                        }
+                    }
+                }
+                // Ctrl+Shift+T — roll theme Auto → Light → Dark (persist + reinstall palette).
+                (m, KeyCode::Char('t')) | (m, KeyCode::Char('T'))
+                    if m.contains(KeyModifiers::CONTROL)
+                        && m.contains(KeyModifiers::SHIFT)
+                        && !status_dialog_open
+                        && pending_user_question.read().is_none() =>
+                {
+                    if let Some(next) = cycle_and_persist_theme_mode(&paths) {
+                        let expire_tx = ephemeral_expire.read().tx.clone();
+                        show_ephemeral_banner(
+                            &mut ephemeral_banner,
+                            &mut ephemeral_banner_generation,
+                            &expire_tx,
+                            theme_mode_banner(next.label()),
+                        );
+                    }
+                }
+                // Ctrl+P / Shift+Ctrl+P — cycle scoped models (pi parity).
+                (m, KeyCode::Char('p')) | (m, KeyCode::Char('P'))
+                    if m.contains(KeyModifiers::CONTROL)
+                        && !status_dialog_open
+                        && pending_user_question.read().is_none() =>
+                {
+                    let reverse = m.contains(KeyModifiers::SHIFT);
+                    let agent = agent_session.clone();
+                    let (provider, model) = agent
+                        .as_ref()
+                        .map(|s| (Some(s.model_provider().to_string()), Some(s.model_id().to_string())))
+                        .unwrap_or((None, None));
+                    let mut stats = chrome_stats.read().clone();
+                    match cycle_scoped_model_selection(
+                        &paths,
+                        &session_scoped_items.read(),
+                        provider.as_deref(),
+                        model.as_deref(),
+                        reverse,
+                        &mut stats,
+                    ) {
+                        Ok((label, value)) => {
+                            publish_chrome_stats(&mut chrome_stats, &mut chrome_ui_revision, stats);
+                            chrome_refresh_pending.set(true);
+                            push_transcript_message(
+                                &mut messages,
+                                &mut messages_revision,
+                                TranscriptMessage::text(format!("Model set to {label}"), TranscriptStyle::Meta),
+                            );
+                            if let Some(session) = agent {
+                                spawn_runtime_model_switch(session, value);
+                            }
+                        }
+                        Err(err) => {
+                            push_transcript_message(
+                                &mut messages,
+                                &mut messages_revision,
+                                TranscriptMessage::text(format!("{err}"), TranscriptStyle::Meta),
+                            );
                         }
                     }
                 }
@@ -2312,22 +2523,28 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
     let supports_images = chrome.supports_images;
     let user_question_open = pending_user_question.read().is_some();
     let model_selector_open = pending_model_selector.read().is_some();
+    let scoped_models_open = pending_scoped_models.read().is_some();
     let system_prompt_open = pending_system_prompt.read().is_some();
     let confetti_open = pending_confetti.read().is_some();
     let status_dialog_open = pending_tool_approval.read().is_some()
         || user_question_open
         || model_selector_open
+        || scoped_models_open
         || system_prompt_open
         || confetti_open;
     let prompt_focused =
         !status_dialog_open && matches!(shell_focus.get(), ShellFocus::Prompt | ShellFocus::StatusDialog);
     let transcript_focused = !status_dialog_open && shell_focus.get() == ShellFocus::Transcript;
     let question_has_focus = user_question_open;
-    let model_selector_has_focus = model_selector_open && !user_question_open && !system_prompt_open && !confetti_open;
+    let model_selector_has_focus =
+        model_selector_open && !user_question_open && !system_prompt_open && !confetti_open && !scoped_models_open;
+    let scoped_models_has_focus =
+        scoped_models_open && !user_question_open && !system_prompt_open && !confetti_open && !model_selector_open;
     let system_prompt_has_focus = system_prompt_open && !confetti_open;
     let approval_has_focus = pending_tool_approval.read().is_some()
         && !user_question_open
         && !model_selector_open
+        && !scoped_models_open
         && !system_prompt_open
         && !confetti_open;
     if let Some(pending) = pending_model_selector.write().as_mut() {
@@ -2349,6 +2566,17 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         }
         if pending.model_index != model_selected_index.get() {
             model_selected_index.set(pending.model_index);
+        }
+    }
+    if let Some(pending) = pending_scoped_models.write().as_mut() {
+        let next_filter = scoped_filter.read().clone();
+        if pending.filter != next_filter {
+            pending.set_filter(next_filter);
+        }
+        pending.selected_index = scoped_selected_index.get();
+        pending.clamp_selection();
+        if pending.selected_index != scoped_selected_index.get() {
+            scoped_selected_index.set(pending.selected_index);
         }
     }
     let model_selector_view = pending_model_selector
@@ -2385,6 +2613,41 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
         }
         .into()
     });
+    let scoped_models_view = pending_scoped_models
+        .read()
+        .as_ref()
+        .map(ScopedModelsView::from_pending);
+    let scoped_models_overlay = scoped_models_view.map(|view| -> AnyElement<'static> {
+        element! {
+            ScopedModelsBar(
+                screen_width: screen_width,
+                screen_height: screen_height,
+                view: view,
+                selected_index: Some(scoped_selected_index),
+                filter: Some(scoped_filter),
+                has_focus: scoped_models_has_focus,
+                on_filter_submit: move |_| {
+                    if let Some(pending) = pending_scoped_models.write().as_mut() {
+                        sync_scoped_filter(pending, &scoped_filter.read());
+                        pending.toggle_selected();
+                        apply_scoped_session(pending, &mut session_scoped_items.write());
+                        scoped_selected_index.set(pending.selected_index);
+                    }
+                },
+                on_cancel: move |_| {
+                    cancel_scoped_models(
+                        &mut pending_scoped_models,
+                        &mut session_scoped_items.write(),
+                        &mut draft,
+                        &mut live_draft,
+                        &mut shell_focus,
+                    );
+                },
+            )
+        }
+        .into()
+    });
+    let editor_overlay = model_selector_overlay.or(scoped_models_overlay);
     let _confetti_frame = confetti_frame.get();
     let confetti_overlay = pending_confetti.read().as_ref().map(|_| -> AnyElement<'static> {
         let plane = if let Some(runtime) = confetti_runtime.write().as_mut() {
@@ -2732,13 +2995,15 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                 file_picker_snapshot: file_picker_snapshot,
                 file_picker_selected: Some(file_picker_index),
                 file_picker_show_hidden: file_picker_show_hidden.get(),
-                editor_overlay: model_selector_overlay,
+                editor_overlay: editor_overlay,
                 blocked_hint: if system_prompt_open {
                     Some("Viewing system prompt — Esc to close".to_string())
                 } else if user_question_open {
                     Some("Answer the question above".to_string())
                 } else if model_selector_open {
                     Some("Select a model above".to_string())
+                } else if scoped_models_open {
+                    Some("Edit scoped models above — Ctrl+S save · Esc cancel".to_string())
                 } else {
                     None
                 },
@@ -2967,6 +3232,23 @@ pub fn MainShell(props: &mut MainShellProps, mut hooks: Hooks) -> impl Into<AnyE
                                     paths: &paths_snapshot,
                                     provider_id: settings.as_ref().and_then(|s| s.session.provider_id.as_deref()),
                                     model_id: settings.as_ref().and_then(|s| s.session.model_id.as_deref()),
+                                    session_scoped: Some(session_scoped_items.read().as_slice()),
+                                });
+                                draft.set(String::new());
+                                live_draft.set(String::new());
+                                suppress_enter_newline.set(true);
+                                return;
+                            }
+                            SlashOutcome::OpenScopedModels => {
+                                open_scoped_models(OpenScopedModelsArgs {
+                                    pending: &mut pending_scoped_models,
+                                    selected_index: &mut scoped_selected_index,
+                                    filter: &mut scoped_filter,
+                                    draft: &mut draft,
+                                    live_draft: &mut live_draft,
+                                    shell_focus: &mut shell_focus,
+                                    paths: &paths_snapshot,
+                                    session_scoped: &session_scoped_items.read(),
                                 });
                                 draft.set(String::new());
                                 live_draft.set(String::new());

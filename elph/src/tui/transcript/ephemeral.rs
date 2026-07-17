@@ -20,6 +20,9 @@ pub const AGENT_MODE_NOTICE_KEY: &str = "transient:agent_mode";
 /// Stable key when mode toggle is blocked because a turn is busy.
 pub const AGENT_MODE_BUSY_NOTICE_KEY: &str = "transient:agent_mode_busy";
 
+/// Stable key for theme mode change banners (Ctrl+Shift+T).
+pub const THEME_MODE_NOTICE_KEY: &str = "transient:theme_mode";
+
 /// How long an agent-mode (or blocked-toggle) banner stays visible.
 pub const AGENT_MODE_NOTICE_TTL: Duration = Duration::from_secs(3);
 
@@ -104,6 +107,16 @@ pub fn agent_mode_busy_banner() -> EphemeralBanner {
     EphemeralBanner {
         key: AGENT_MODE_BUSY_NOTICE_KEY,
         text: agent_mode_busy_notice(),
+        kind: EphemeralBannerKind::Notice,
+        expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
+    }
+}
+
+/// Banner after Ctrl+Shift+T rolls Auto → Light → Dark.
+pub fn theme_mode_banner(label: &str) -> EphemeralBanner {
+    EphemeralBanner {
+        key: THEME_MODE_NOTICE_KEY,
+        text: format!("Theme: {label}"),
         kind: EphemeralBannerKind::Notice,
         expires_at: Some(Instant::now() + AGENT_MODE_NOTICE_TTL),
     }

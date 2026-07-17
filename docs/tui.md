@@ -231,8 +231,7 @@ sent to the agent.
 | After paste  | Cursor moves to the end of the paste token                               |
 | After editor | Main input cursor restores to the pre-edit line/column                   |
 
-Set `"useRawPaste": true` in `~/.elph/settings.json` to insert pasted text verbatim (no collapse).
-Default is `false`. See [configuration.md](./configuration.md#settingsjson).
+Paste collapse is always applied for long text payloads (no settings toggle).
 
 ---
 
@@ -348,11 +347,12 @@ Until a full refresh runs, `[+N -N]` may show stale values while the branch name
 | `Ctrl+J`            | Insert newline in input                                                                          |
 | `Shift+Enter`       | Insert newline in input                                                                          |
 | `Ctrl+L`            | Open model selector                                                                              |
+| `Ctrl+Shift+T`      | Cycle theme: Auto → Light → Dark (saved to `ui.theme`)                                           |
+| `Ctrl+P` / `Shift+Ctrl+P` | Cycle scoped models forward / backward                                                     |
 | `Ctrl+Y`            | Copy last AI response (raw markdown source)                                                      |
 | Click copy hint     | Copy that assistant message (raw source) — see [AI response formatting](#ai-response-formatting) |
 | `Ctrl+V`            | Paste image from clipboard (**Cmd+V** on macOS); falls back to text paste                        |
 | `Ctrl+O`            | Preview/edit pasted block (input); else expand/collapse newest collapsible block                 |
-| `Ctrl+Shift+T`      | Cycle theme (auto/dark/light)                                                                    |
 | Click header/footer | Expand/collapse that specific block                                                              |
 | `:q` / `:q!`        | Quit (vim-style)                                                                                 |
 
@@ -380,7 +380,24 @@ When the agent is busy, an activity line shows between the content area and inpu
 
 ## Model selector
 
-`Ctrl+L` or `/model` opens a fuzzy overlay. Filter providers with arrow keys; select with Enter. Left/Right (with an empty filter) cycle provider groups.
+`Ctrl+L` or `/model` opens a fuzzy overlay. Filter providers with arrow keys; select with Enter. Left/Right (with an empty filter) cycle provider groups. The **Scoped** tab lists models enabled via `/scoped-models`.
+
+## Scoped models
+
+`/scoped-models` opens the scoped-models editor (pi-compatible UX). Enabled models appear in the model picker's **Scoped** tab and can be cycled with **Ctrl+P** / **Shift+Ctrl+P**.
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓` (or `k` / `j`) | Move selection |
+| `Enter` | Toggle model for Ctrl+P cycling |
+| `Ctrl+A` | Enable all models (or all matching the filter) |
+| `Ctrl+X` | Clear all (or clear matching the filter) |
+| `Ctrl+P` | Toggle every model for the selected item's provider |
+| `Alt+↑` / `Alt+↓` | Reorder enabled models (cycle order) |
+| `Ctrl+S` | Save to home `settings.models.scoped` |
+| `Esc` | Cancel without saving |
+
+Edits are **session-only** until **Ctrl+S** (footer shows `(unsaved)`). Cancel restores the list from when the editor opened.
 
 ### No model selected
 

@@ -4,9 +4,9 @@ use chrono::{DateTime, Utc};
 use iocraft::prelude::Color;
 
 use crate::tui::theme::{
-    EPHEMERAL_NOTICE_FG, META_FG, QUIT_BUSY_NOTICE_FG, SKILL_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG,
-    STATUS_FAILED_FG, STATUS_RUNNING_FG, STATUS_SUCCESS_FG, TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG,
-    TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
+    EPHEMERAL_NOTICE_FG, META_FG, QUIT_BUSY_NOTICE_FG, SKILL_FG, STATUS_FAILED_FG, STATUS_RUNNING_FG,
+    STATUS_SUCCESS_FG, TEXT_FG, THINKING_BG, THINKING_FG, TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG,
+    TOOL_RUNNING_FG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
 };
 
 use super::card::{
@@ -666,8 +666,8 @@ mod tests {
 
     use super::*;
     use crate::tui::theme::{
-        EPHEMERAL_NOTICE_FG, META_FG, THINKING_BG, TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_RUNNING_FG,
-        TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
+        EPHEMERAL_NOTICE_FG, META_FG, STATUS_FAILED_FG, STATUS_RUNNING_FG, STATUS_SUCCESS_FG, THINKING_BG,
+        TOOL_FAILED_BG, TOOL_FAILED_FG, TOOL_RUNNING_BG, TOOL_SUCCESS_BG, TOOL_SUCCESS_FG, USER_INPUT_BG,
     };
 
     #[test]
@@ -832,9 +832,9 @@ mod tests {
             assert!(style.is_status_line());
             assert!(!style.has_tinted_background());
         }
-        assert_eq!(TranscriptStyle::StatusRunning.text_color(), TOOL_RUNNING_FG);
-        assert_eq!(TranscriptStyle::StatusSuccess.text_color(), TOOL_SUCCESS_FG);
-        assert_eq!(TranscriptStyle::StatusFailed.text_color(), TOOL_FAILED_FG);
+        assert_eq!(TranscriptStyle::StatusRunning.text_color(), STATUS_RUNNING_FG);
+        assert_eq!(TranscriptStyle::StatusSuccess.text_color(), STATUS_SUCCESS_FG);
+        assert_eq!(TranscriptStyle::StatusFailed.text_color(), STATUS_FAILED_FG);
     }
 
     #[test]

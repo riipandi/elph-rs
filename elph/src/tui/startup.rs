@@ -537,10 +537,7 @@ mod tests {
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].content, "Preparing agent…");
         mark_agent_startup_ready(&mut messages, Some("anthropic"), Some("claude-sonnet-4"));
-        assert_eq!(
-            messages[0].content,
-            "Agent ready (active model: anthropic/claude-sonnet-4)"
-        );
+        assert_eq!(messages[0].content, "Agent ready (active model: anthropic/claude-sonnet-4)");
         assert_eq!(messages[0].style, TranscriptStyle::StatusSuccess);
 
         mark_agent_startup_ready(&mut messages, None, None);

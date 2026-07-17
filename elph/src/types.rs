@@ -29,15 +29,15 @@ impl AgentMode {
         }
     }
 
-    /// Label / border accent color in the TUI.
+    /// Label / border accent color in the TUI (Ghostty dark palette).
     ///
-    /// - **Build** white · **Plan** darker soft yellow · **Ask** blue · **Brave** orange
+    /// - **Build** palette 7 white · **Plan** palette 3 yellow · **Ask** palette 4 blue · **Brave** warm orange
     pub const fn label_rgb(self) -> (u8, u8, u8) {
         match self {
-            Self::Build => (236, 234, 228), // soft warm white (not pure white, not grey)
-            Self::Plan => (204, 168, 52),   // darker soft yellow
-            Self::Ask => (59, 130, 246),    // blue-500
-            Self::Brave => (249, 115, 22),  // orange-500
+            Self::Build => (0xe0, 0xe2, 0xe8), // palette 7 #e0e2e8
+            Self::Plan => (0xff, 0xb3, 0x47),  // palette 3 #ffb347
+            Self::Ask => (0x66, 0x99, 0xff),   // palette 4 #6699ff
+            Self::Brave => (0xff, 0x8a, 0x4d), // warm orange (between yellow & bright red)
         }
     }
 
@@ -79,17 +79,17 @@ impl ThinkingLevel {
 
     /// Thinking-level color for footer model group and related chrome.
     ///
-    /// Readable soft strata, kept clear of agent-mode green / yellow / blue / orange:
-    /// grey → cyan → periwinkle → peach → rose → lavender → soft magenta.
+    /// Ghostty ANSI strata (distinct from agent-mode accents where possible):
+    /// grey → cyan → bright blue → yellow → red → magenta → bright magenta.
     pub const fn border_rgb(self) -> (u8, u8, u8) {
         match self {
-            Self::Off => (156, 163, 175),    // soft grey
-            Self::Minimal => (94, 200, 212), // soft cyan
-            Self::Low => (123, 159, 212),    // periwinkle (not Ask blue)
-            Self::Medium => (212, 165, 116), // soft peach (not Brave orange)
-            Self::High => (220, 110, 118),   // soft but clearer red/rose
-            Self::Xhigh => (180, 154, 217),  // soft lavender
-            Self::Max => (196, 138, 212),    // soft magenta-violet
+            Self::Off => (0x7a, 0x7e, 0x85),     // palette 8 #7a7e85
+            Self::Minimal => (0x4d, 0xd0, 0xe1), // palette 6 #4dd0e1
+            Self::Low => (0x9b, 0xc4, 0xff),     // palette 12 #9bc4ff
+            Self::Medium => (0xff, 0xb3, 0x47),  // palette 3 #ffb347
+            Self::High => (0xff, 0x6b, 0x66),    // palette 1 #ff6b66
+            Self::Xhigh => (0xd4, 0xaa, 0xff),   // palette 5 #d4aaff
+            Self::Max => (0xe8, 0xb4, 0xff),     // palette 13 #e8b4ff
         }
     }
 

@@ -17,6 +17,9 @@ mod model_selector;
 mod model_selector_bar;
 mod model_selector_shell;
 mod prompt;
+mod scoped_models;
+mod scoped_models_bar;
+mod scoped_models_shell;
 mod session_prefs;
 mod shell;
 mod shell_submit;
@@ -42,6 +45,7 @@ use iocraft::prelude::*;
 use elph_agent::LocalExecutionEnv;
 
 use elph_ai::get_builtin_model;
+use elph_tui::install_theme_config;
 
 use crate::agent::agent_mode_from_setting;
 use crate::agent::{load_resources, resolve_provider_and_model, slash_commands_for_palette};
@@ -110,6 +114,10 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     let model_label = model_footer_label(Some(&boot_provider), Some(&boot_model_id));
     let git_footer = read_git_footer_info(paths.project_dir());
 
+    // Resolve ui.theme (auto|dark|light) + ui.themes overrides into the process theme.
+    // Do not wrap MainShell in ContextProvider — root layout must stay fullscreen.
+    let _ui_theme = install_theme_config(&settings.ui.theme_config());
+
     element!(MainShell(
         session_id: session_id,
         startup_messages: startup_messages,
@@ -119,11 +127,11 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         model_label: model_label,
         context_limit: context_limit,
         supports_images: supports_images,
-        footer_token_display: settings.footer_token_display.clone(),
-        colored_status_footer: settings.colored_status_footer,
-        sticky_scroll: settings.sticky_scroll,
-        show_thinking: settings.show_thinking,
-        auto_expand_thinking: settings.auto_expand_thinking,
+        footer_token_display: settings.ui.footer_token_display.clone(),
+        colored_status_footer: settings.ui.colored_status_footer,
+        sticky_scroll: settings.ui.sticky_scroll,
+        show_thinking: settings.ui.show_thinking,
+        auto_expand_thinking: settings.ui.auto_expand_thinking,
         agent_session: None,
         ui_events: None,
         extension_host: extension_host,
@@ -133,7 +141,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         cwd: cwd,
         execution_env: execution_env,
         paths: paths,
-        file_picker_show_hidden: settings.file_picker.show_hidden_files,
+        file_picker_show_hidden: settings.ui.file_picker.show_hidden_files,
         initial_git_footer: git_footer,
     ))
     .render_loop()
