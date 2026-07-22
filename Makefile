@@ -88,18 +88,23 @@ build-elph: ## Build elph binary (debug default; RELEASE=1 or -- --release)
 	    else \
 	      hash=$$(shasum -a 256 "$(BUILD_DIR)/$$bin" | cut -d' ' -f1); \
 	    fi; \
-	    echo "Binary $$bin:$$(du -sh $(BUILD_DIR)/$$bin | cut -f1) ($$hash)"; \
+	    echo "Binary $$bin: $$(du -sh $(BUILD_DIR)/$$bin | cut -f1) ($$hash)"; \
 	  else \
 	    echo "Binary $$bin:(not built)"; \
 	  fi; \
 	done; \
-	printf "Build time: %d.%03ds\n" $$(( _elapsed / 1000 )) $$(( _elapsed % 1000 ))
+	printf "Build time:  %d.%03ds\n" $$(( _elapsed / 1000 )) $$(( _elapsed % 1000 ))
 
-install: build ## Install elph-next (debug default; RELEASE=1 or -- --release)
+install: build ## Install elph (debug -> elph-dev; release -> elph-next)
 	@mkdir -p $(INSTALL_DIR) && echo
 	@for bin in $(APP_BINS); do \
-	  cp "$(BUILD_DIR)/$$bin" "$(INSTALL_DIR)/$$bin-next"; \
-	  echo "$$bin-next installed at: $(INSTALL_DIR)/$$bin-next [$(BUILD_PROFILE)]"; \
+	  if [ "$(BUILD_PROFILE)" = "release" ]; then \
+	    _suffix="-next"; \
+	  else \
+	    _suffix="-dev"; \
+	  fi; \
+	  cp "$(BUILD_DIR)/$$bin" "$(INSTALL_DIR)/$$bin$${_suffix}"; \
+	  echo "$$bin$${_suffix} installed at: $(INSTALL_DIR)/$$bin$${_suffix} [$(BUILD_PROFILE)]"; \
 	done
 
 run: ## Run elph coding agent
@@ -314,8 +319,8 @@ help: ## Show this help
 	@printf '\033[33mUsage:\033[0m make \033[36m<target>\033[0m\n'
 	@awk -F ':.*## ' '/^[a-zA-Z_-]+:.*## / {printf " \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@printf ' \n\033[33mBuild profile (build / install):\033[0m\n'
-	@printf ' \033[36mmake install\033[0m                  debug (default, faster)\n'
-	@printf ' \033[36mmake install RELEASE=1\033[0m        release optimized\n'
+	@printf ' \033[36mmake install\033[0m                  debug -> elph-dev\n'
+	@printf ' \033[36mmake install RELEASE=1\033[0m        release -> elph-next\n'
 	@printf ' \033[36mmake install -- --release\033[0m     release (GNU make end-of-options)\n'
 	@printf ' \033[36mmake build PROFILE=release\033[0m    same as RELEASE=1\n'
 	@printf ' note: \033[36mmake install --release\033[0m  is invalid (make option parse)\n'
